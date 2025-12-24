@@ -1,0 +1,31 @@
+[package]
+name = "greeners"
+version = "0.1.0"
+edition = "2021"
+authors = ["Flávio de Vasconcellos Corrêa <flavio.vcorrea@ufpel.edu.br>"]
+description = "A high-performance native Rust library for econometrics (OLS, GMM, Logit/Probit, DiD, Time Series)."
+license = "MIT"  # Ou "MIT OR Apache-2.0"
+repository = "https://github.com/sheep-farm/Greeners" # Link OBRIGATÓRIO para o GitHub
+readme = "README.md"
+keywords = ["econometrics", "statistics", "finance", "gmm", "data-analysis"]
+categories = ["science", "mathematics", "simulation"]
+
+# Otimização para release (deixa a lib mais rápida para quem baixar)
+[profile.release]
+opt-level = 3
+lto = true
+
+[dependencies]
+# Core N-dimensional array library
+ndarray = "0.17.1"
+# Linear algebra backend (Lapack/Blas bindings are required for inversion)
+# You might need to install OpenBLAS on your OS (e.g., `sudo apt install libopenblas-dev`)
+ndarray-linalg = { version = "0.18.0", features = ["openblas-system"] }
+# Error handling
+thiserror = "2.0.17"
+statrs = "0.18.0" # Essential for p-values and distributions
+
+csv = "1.3"
+serde = { version = "1.0", features = ["derive"] }
+
+rand = "0.8"
