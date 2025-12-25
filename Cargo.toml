@@ -1,6 +1,6 @@
 [package]
 name = "greeners"
-version = "0.1.1"
+version = "0.1.0"
 edition = "2021"
 authors = ["Flávio de Vasconcellos Corrêa <flavio.vcorrea@ufpel.edu.br>"]
 description = "A high-performance native Rust library for econometrics (OLS, GMM, Logit/Probit, DiD, Time Series)."
