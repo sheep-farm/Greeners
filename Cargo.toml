@@ -1,10 +1,10 @@
 [package]
 name = "greeners"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Flávio de Vasconcellos Corrêa <flavio.vcorrea@ufpel.edu.br>"]
 description = "A high-performance native Rust library for econometrics (OLS, GMM, Logit/Probit, DiD, Time Series)."
-license = "MIT"  # Ou "MIT OR Apache-2.0"
+license = "GPLv3"
 repository = "https://github.com/sheep-farm/Greeners" # Link OBRIGATÓRIO para o GitHub
 readme = "README.md"
 keywords = ["econometrics", "statistics", "finance", "gmm", "data-analysis"]
