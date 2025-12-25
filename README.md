@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/greeners.svg)](https://crates.io/crates/greeners)
 [![Docs.rs](https://docs.rs/greeners/badge.svg)](https://docs.rs/greeners)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 
 **Greeners** is a high-performance, native Rust library for rigorous econometric analysis. 
 
