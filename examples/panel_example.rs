@@ -2,11 +2,11 @@ use greeners::{CovarianceType, FixedEffects, OLS};
 use ndarray::{Array1, Array2, Axis};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Simulando 2 Empresas (Entities), 5 Anos cada.
-    // Modelo: y = alpha_i + 2.0 * x + erro
+    // Simulating 2 Firms (Entities), 5 Years each.
+    // Model: y = alpha_i + 2.0 * x + error
 
-    // Empresa 1: Alpha = 10 (Alta performance fixa)
-    // Empresa 2: Alpha = -10 (Baixa performance fixa)
+    // Firm 1: Alpha = 10 (High fixed performance)
+    // Firm 2: Alpha = -10 (Low fixed performance)
 
     // X aumenta com o tempo
     let x_vals = vec![
@@ -24,34 +24,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let y = Array1::from(y_vals);
     let x_col = Array1::from(x_vals);
-    // Transforma X em Matriz Nx1
+    // Transform X into Nx1 Matrix
     let x = x_col.view().insert_axis(Axis(1)).to_owned();
 
-    println!("Verdadeiro Beta (Inclinação): 2.0");
-    println!("Diferença de Nível (Efeito Fixo): Empresa 1 é 20 unidades maior que Empresa 2");
+    println!("True Beta (Slope): 2.0");
+    println!("Level Difference (Fixed Effect): Firm 1 is 20 units higher than Firm 2");
 
-    // 1. Rodar Pooled OLS (Ignora a empresa)
-    // O Pooled OLS vai tentar traçar uma reta que passa no meio das duas nuvens de pontos.
-    // Provavelmente vai achar que X não explica muito, ou achar um Beta estranho se X fosse correlacionado com Alpha.
+    // 1. Run Pooled OLS (Ignores the firm)
+    // Pooled OLS will try to draw a line that passes through the middle of the two point clouds.
+    // It will probably find that X doesn't explain much, or find a strange Beta if X were correlated with Alpha.
 
-    // Precisamos adicionar constante manualmente para o Pooled
+    // We need to add constant manually for Pooled
     let ones = Array2::ones((10, 1));
     let x_pooled = ndarray::concatenate(Axis(1), &[ones.view(), x.view()])?;
 
     let pooled_res = OLS::fit(&y, &x_pooled, CovarianceType::NonRobust)?;
     println!("\n--- Pooled OLS (Naive) ---");
     println!("R2: {:.4}", pooled_res.r_squared);
-    // O R2 será baixo porque a variância "Entre Empresas" (Between) é enorme e não explicada por X.
+    // R2 will be low because the "Between Firms" variance is huge and not explained by X.
 
-    // 2. Rodar Fixed Effects
-    // Não passamos constante! O FE remove a constante global e os alphas.
+    // 2. Run Fixed Effects
+    // We don't pass constant! FE removes the global constant and the alphas.
     let fe_res = FixedEffects::fit(&y, &x, &ids)?;
 
     println!("\n--- Fixed Effects (Within) ---");
-    println!("Beta Estimado: {:.4}", fe_res.params[0]);
+    println!("Estimated Beta: {:.4}", fe_res.params[0]);
     println!("{}", fe_res);
     println!(
-        "Note como o R2 ('Within') deve ser 1.0 ou muito próximo, pois limpamos o efeito fixo."
+        "Note how the R2 ('Within') should be 1.0 or very close, since we cleaned the fixed effect."
     );
 
     Ok(())

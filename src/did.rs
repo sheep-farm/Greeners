@@ -2,19 +2,19 @@ use crate::{CovarianceType, GreenersError, OLS};
 use ndarray::{Array1, Array2};
 use std::fmt;
 
-/// Resultado do estimador Difference-in-Differences (Canônico 2x2)
+/// Result of the Difference-in-Differences estimator (Canonical 2x2)
 #[derive(Debug)]
 pub struct DidResult {
-    pub att: f64,       // O efeito do tratamento (Coeficiente da interação)
-    pub std_error: f64, // Erro padrão do ATT
+    pub att: f64,       // The treatment effect (Interaction coefficient)
+    pub std_error: f64, // ATT standard error
     pub t_stat: f64,
     pub p_value: f64,
     pub n_obs: usize,
     pub r_squared: f64,
-    pub control_pre_mean: f64,  // Média Controle (Pré)
-    pub control_post_mean: f64, // Média Controle (Pós)
-    pub treated_pre_mean: f64,  // Média Tratado (Pré)
-    pub treated_post_mean: f64, // Média Tratado (Pós - Counterfactual vs Real)
+    pub control_pre_mean: f64,  // Control Mean (Pre)
+    pub control_post_mean: f64, // Control Mean (Post)
+    pub treated_pre_mean: f64,  // Treated Mean (Pre)
+    pub treated_post_mean: f64, // Treated Mean (Post - Counterfactual vs Real)
     pub cov_type: CovarianceType,
 }
 
@@ -65,13 +65,13 @@ impl fmt::Display for DidResult {
 pub struct DiffInDiff;
 
 impl DiffInDiff {
-    /// Estima o modelo Canônico 2x2 DiD.
+    /// Estimates the Canonical 2x2 DiD model.
     ///
     /// # Arguments
-    /// * `y` - Variável de resultado (Outcome).
-    /// * `treated` - Dummy: 1 se pertence ao grupo de tratamento, 0 caso contrário.
-    /// * `post` - Dummy: 1 se está no período pós-intervenção, 0 caso contrário.
-    /// * `cov_type` - Tipo de covariância (Recomendado: HC1 ou Cluster se tivéssemos cluster ID).
+    /// * `y` - Outcome variable.
+    /// * `treated` - Dummy: 1 if belongs to treatment group, 0 otherwise.
+    /// * `post` - Dummy: 1 if in post-intervention period, 0 otherwise.
+    /// * `cov_type` - Covariance type (Recommended: HC1 or Cluster if we had cluster ID).
     pub fn fit(
         y: &Array1<f64>,
         treated: &Array1<f64>,
@@ -85,11 +85,11 @@ impl DiffInDiff {
             ));
         }
 
-        // 1. Construir Matriz X [Intercept, Treated, Post, Interaction]
+        // 1. Build Matrix X [Intercept, Treated, Post, Interaction]
         let mut x_mat = Array2::<f64>::zeros((n, 4));
         let mut interaction = Array1::<f64>::zeros(n);
 
-        // Médias para display (Manual calculation for performance)
+        // Means for display (Manual calculation for performance)
         let mut sum_c_pre = 0.0;
         let mut n_c_pre = 0.0;
         let mut sum_c_post = 0.0;
@@ -111,7 +111,7 @@ impl DiffInDiff {
 
             interaction[i] = inter;
 
-            // Acumular médias
+            // Accumulate means
             let val = y[i];
             if t == 0.0 && p == 0.0 {
                 sum_c_pre += val;
@@ -128,10 +128,10 @@ impl DiffInDiff {
             }
         }
 
-        // 2. Rodar OLS
+        // 2. Run OLS
         let ols = OLS::fit(y, &x_mat, cov_type)?;
 
-        // O ATT é o coeficiente da interação (índice 3)
+        // The ATT is the interaction coefficient (index 3)
         let att = ols.params[3];
         let std_error = ols.std_errors[3];
         let t_stat = ols.t_values[3];

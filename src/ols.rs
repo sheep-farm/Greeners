@@ -135,7 +135,7 @@ impl OLS {
         let sigma2 = ssr / (df_resid as f64);
         let sigma = sigma2.sqrt();
 
-        // src/ols.rs (dentro de OLS::fit, substitua o bloco 'match cov_type')
+        // src/ols.rs (inside OLS::fit, replace the 'match cov_type' block)
 
         // 3. Covariance Matrix Selection
         let cov_matrix = match cov_type {

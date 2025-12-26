@@ -42,12 +42,12 @@ pub use vecm::VECM;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CovarianceType {
-    /// OLS Padrão (Homocedástico)
+    /// Standard OLS (Homoscedastic)
     NonRobust,
-    /// White's Robust Errors (HC1) - Apenas Heterocedasticidade
+    /// White's Robust Errors (HC1) - Only Heteroscedasticity
     HC1,
-    /// Newey-West (HAC) - Heterocedasticidade + Autocorrelação
-    /// O parâmetro 'usize' é o número de lags (L).
-    /// Regra de bolso comum: L = n^0.25
+    /// Newey-West (HAC) - Heteroscedasticity + Autocorrelation
+    /// The 'usize' parameter is the number of lags (L).
+    /// Common rule of thumb: L = n^0.25
     NeweyWest(usize),
 }

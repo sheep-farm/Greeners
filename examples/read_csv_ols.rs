@@ -52,14 +52,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     let ones = Array2::ones((n_rows, 1));
     let x_with_intercept = ndarray::concatenate(Axis(1), &[ones.view(), x_raw.view()])?;
 
-    // ... (código de leitura do CSV igual ao anterior) ...
+    // ... (CSV reading code same as before) ...
 
-    // 6. Rodar o OLS Robusto (HC1)
-    use greeners::CovarianceType; // Importe o Enum
+    // 6. Run Robust OLS (HC1)
+    use greeners::CovarianceType; // Import the Enum
 
-    println!("Rodando OLS com Erros Robustos de White (HC1)...");
+    println!("Running OLS with White's Robust Errors (HC1)...");
 
-    // Agora passamos o terceiro argumento
+    // Now we pass the third argument
     let result = OLS::fit(&y, &x_with_intercept, CovarianceType::HC1)?;
 
     println!("{}", result);

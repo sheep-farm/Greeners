@@ -4,7 +4,7 @@ use ndarray::{Array1, Array2};
 use ndarray_linalg::Inverse;
 use statrs::distribution::{ContinuousCDF, StudentsT};
 use std::fmt;
-// Alias para facilitar o uso de Axis no loop do Newey-West
+// Alias to facilitate Axis usage in Newey-West loop
 use ndarray as nd;
 
 #[derive(Debug)]
@@ -22,7 +22,7 @@ pub struct IvResult {
 
 impl fmt::Display for IvResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // CORREÇÃO 1: Adicionada a opção NeweyWest no Display
+        // FIX 1: Added NeweyWest option in Display
         let cov_str = match self.cov_type {
             CovarianceType::NonRobust => "Non-Robust".to_string(),
             CovarianceType::HC1 => "Robust (HC1)".to_string(),
@@ -116,7 +116,7 @@ impl IV {
         let sigma = sigma2.sqrt();
 
         // --- Covariance Matrix ---
-        // CORREÇÃO 2: Implementação do NeweyWest no match
+        // FIX 2: NeweyWest implementation in match
         let cov_matrix = match cov_type {
             CovarianceType::NonRobust => &xht_xh_inv * sigma2,
             CovarianceType::HC1 => {
