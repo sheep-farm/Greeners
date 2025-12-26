@@ -1,177 +1,138 @@
-\documentclass[a4paper,11pt]{article}
-
-% --- Pacotes e Configurações ---
+\documentclass[11pt, a4paper]{article}
 \usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
-\usepackage{amsmath, amssymb, amsfonts, mathtools}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{bm}
 \usepackage{geometry}
 \usepackage{listings}
 \usepackage{xcolor}
-\usepackage{titlesec}
-\usepackage{enumitem}
-\usepackage{bm} % Para negrito matemático
+\usepackage{hyperref}
 
-% Layout
-\geometry{top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm}
-\setlength{\parindent}{0pt}
-\setlength{\parskip}{0.8em}
-
-% Estilização dos Títulos
-\titleformat{\section}{\Large\bfseries\uppercase}{}{0em}{}[\hrule]
-\titleformat{\subsection}{\large\bfseries}{}{0em}{}
+\geometry{left=2.5cm, right=2.5cm, top=2.5cm, bottom=2.5cm}
 
 % Definições Matemáticas
-\newcommand{\betahat}{\hat{\bm{\beta}}}
-\newcommand{\X}{\bm{X}}
-\newcommand{\y}{\bm{y}}
-\newcommand{\Z}{\bm{Z}}
-\newcommand{\epshat}{\hat{\bm{\epsilon}}}
-\newcommand{\Var}{\text{Var}}
+\newcommand{\y}{\mathbf{y}}
+\newcommand{\x}{\mathbf{x}}
+\newcommand{\X}{\mathbf{X}}
+\newcommand{\betavec}{\boldsymbol{\beta}}
+\newcommand{\epsilonvec}{\boldsymbol{\epsilon}}
+\newcommand{\uvec}{\mathbf{u}}
+\newcommand{\A}{\mathbf{A}}
+\newcommand{\M}{\mathbf{M}}
+\newcommand{\I}{\mathbf{I}}
+\newcommand{\Sigmavec}{\boldsymbol{\Sigma}}
+\newcommand{\Omegavec}{\boldsymbol{\Omega}}
 
-% Configuração de Cores para Código Rust
-\definecolor{rustkeyword}{rgb}{0.4, 0.1, 0.4}
-\definecolor{rusttype}{rgb}{0.0, 0.3, 0.6}
-\definecolor{rustcomment}{rgb}{0.5, 0.5, 0.5}
-\definecolor{bg}{rgb}{0.97, 0.97, 0.97}
+% Configuração de Código
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
 
-\lstdefinelanguage{Rust}{
-    keywords={fn, let, mut, if, else, match, use, pub, struct, impl, enum, type},
-    keywordstyle=\color{rustkeyword}\bfseries,
-    ndkeywords={f64, usize, Array1, Array2, Result, Option, CovarianceType, OLS, IV, GMM, Logit, Probit, DiffInDiff, TimeSeries},
-    ndkeywordstyle=\color{rusttype}\bfseries,
-    comment=[l]{//},
-    commentstyle=\color{rustcomment}\itshape,
-    backgroundcolor=\color{bg},
-    basicstyle=\ttfamily\small,
-    breaklines=true,
-    frame=leftline,
-    framesep=5pt,
-    tabsize=4,
-    showstringspaces=false
+\lstdefinestyle{ruststyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2,
+    language=C++ % Rust syntax highlighting approximation
 }
 
-% --- Cabeçalho ---
-\title{\textbf{GREENERS: ECONOMETRIC REFERENCE MANUAL}}
-\author{Flávio de Vasconcellos Corrêa}
-\date{v0.1.0}
+\lstset{style=ruststyle}
+
+\title{\textbf{Greeners: Mathematical Reference Manual} \\ \large Version 0.1.0}
+\author{Documentation \& Technical Reference}
+\date{\today}
 
 \begin{document}
 
 \maketitle
+\tableofcontents
+\newpage
 
-\section{1. Linear Models \& Robust Inference}
+\section{Introduction}
+Greeners is an econometrics library implemented in Rust, designed for high-performance numerical computation using LAPACK/BLAS backends. This document outlines the mathematical formulations used in the estimators.
 
-\subsection{Ordinary Least Squares (OLS)}
-The point estimator is the standard projection of $y$ onto the column space of $X$:
-$$ \betahat_{OLS} = (\X'\X)^{-1}\X'\y $$
-
-\subsubsection{Variance-Covariance Estimation}
-Greeners implements three types of variance estimators $\widehat{\Var}(\betahat) = (\X'\X)^{-1} \hat{\Omega} (\X'\X)^{-1}$.
-
+\section{Linear Models (OLS \& GLS)}
+The fundamental estimator is Ordinary Least Squares (OLS). Given the model $\y = \X\betavec + \epsilonvec$, the estimator is:
+$$ \hat{\betavec}_{OLS} = (\X'\X)^{-1}\X'\y $$
+Variance-Covariance matrix estimation supports robust specifications:
 \begin{itemize}
-    \item \textbf{Homoskedastic (Standard):} Assumes $E[\epsilon \epsilon'] = \sigma^2 I$.
-    $$ \hat{\Omega} = \hat{\sigma}^2 (\X'\X) $$
-    
-    \item \textbf{White's Robust (HC1):} Consistent under arbitrary heteroskedasticity.
-    $$ \hat{\Omega}_{HC1} = \sum_{i=1}^n \hat{\epsilon}_i^2 \bm{x}_i \bm{x}_i' $$
-    
-    \item \textbf{Newey-West (HAC):} Consistent under heteroskedasticity and autocorrelation up to lag $L$. Uses the Bartlett Kernel to ensure positive semi-definiteness.
-    $$ \hat{\Omega}_{HAC} = \hat{\Omega}_0 + \sum_{l=1}^L w_l (\hat{\Omega}_l + \hat{\Omega}_l') \quad \text{where} \quad w_l = 1 - \frac{l}{L+1} $$
+    \item \textbf{Homoskedastic:} $\hat{V} = s^2 (\X'\X)^{-1}$
+    \item \textbf{White (HC0):} $\hat{V} = (\X'\X)^{-1} (\X' \text{diag}(\hat{u}_i^2) \X) (\X'\X)^{-1}$
+    \item \textbf{Newey-West (HAC):} Adjusts for autocorrelation via a kernel-weighted sum of autocovariances.
 \end{itemize}
 
-\textbf{Rust Implementation:}
-\begin{lstlisting}[language=Rust]
-use greeners::{OLS, CovarianceType};
+\section{Quantile Regression}
+Unlike OLS which estimates the conditional mean, Quantile Regression estimates the conditional quantile $Q_\tau(\y|\X)$. It minimizes the check loss function:
+$$ \min_{\betavec} \sum_{i=1}^n \rho_\tau (y_i - \x_i'\betavec) $$
+where $\rho_\tau(u) = u(\tau - \mathbb{I}(u < 0))$.
 
-// Estimates OLS with Newey-West HAC errors (Lags = 4)
-let model = OLS::fit(&y, &x, CovarianceType::NeweyWest(4))?;
-println!("Beta: {:.4}, StdErr: {:.4}", model.params[1], model.std_errors[1]);
-\end{lstlisting}
+\textbf{Implementation:} Greeners solves this optimization problem using \textbf{Iteratively Reweighted Least Squares (IRLS)}. At each step $k$, weights $w_i = |e_i|^{-1}$ are updated until convergence.
 
-\subsection{Instrumental Variables (2SLS)}
-Used when regressors are endogenous ($E[\X\epsilon] \neq 0$). Instruments $\Z$ satisfy $E[\Z\epsilon] = 0$.
-$$ \betahat_{IV} = (\hat{\X}'\hat{\X})^{-1}\hat{\X}'\y \quad \text{where} \quad \hat{\X} = \Z(\Z'\Z)^{-1}\Z'\X $$
+\section{Discrete Choice (Logit \& Probit)}
+For binary dependent variables $y_i \in \{0, 1\}$, we model $P(y_i=1|\x_i) = G(\x_i'\betavec)$.
+\begin{itemize}
+    \item \textbf{Logit:} $G(z) = \frac{e^z}{1+e^z}$ (Logistic CDF)
+    \item \textbf{Probit:} $G(z) = \Phi(z)$ (Standard Normal CDF)
+\end{itemize}
+Estimation is performed via \textbf{Maximum Likelihood Estimation (MLE)} using the Newton-Raphson algorithm with analytic gradients and Hessians.
 
-\begin{lstlisting}[language=Rust]
-use greeners::IV;
-let model = IV::fit(&y, &x, &z, CovarianceType::HC1)?;
-\end{lstlisting}
+\section{Panel Data Models}
+\subsection{Fixed Effects (Within Estimator)}
+Designed to eliminate time-invariant unobserved heterogeneity $\alpha_i$. Greeners applies the within transformation:
+$$ (y_{it} - \bar{y}_i) = (\x_{it} - \bar{\x}_i)'\betavec + (u_{it} - \bar{u}_i) $$
+This is estimated via OLS on the demeaned data. Degrees of freedom are corrected as $N - K - (N_{entities}-1)$.
 
-\section{2. Generalized Method of Moments (GMM)}
+\subsection{Random Effects (Swamy-Arora)}
+Assumes $\alpha_i$ is uncorrelated with $\x_{it}$. It is a GLS estimator where data is quasi-demeaned by $\theta$:
+$$ \theta = 1 - \sqrt{\frac{\sigma_u^2}{\sigma_u^2 + T\sigma_\alpha^2}} $$
+The transformed model is $(y_{it} - \theta \bar{y}_i) = (\x_{it} - \theta \bar{\x}_i)'\betavec + \dots$
 
-The estimator minimizes the quadratic distance of sample moments from zero.
-Let $g_n(\bm{\beta}) = \frac{1}{n} \Z'(\y - \X\bm{\beta})$. The objective function is:
-$$ J(\bm{\beta}) = n \cdot g_n(\bm{\beta})' \bm{W} g_n(\bm{\beta}) $$
-
-\subsection{Two-Step Efficient GMM}
-Greeners implements the optimal feasible GMM estimator:
+\subsection{Dynamic Panel (Arellano-Bond)}
+For models with lagged dependent variables ($y_{i,t-1}$), the Fixed Effects estimator is inconsistent (Nickell Bias). Greeners implements the \textbf{Difference GMM} estimator:
 \begin{enumerate}
-    \item \textbf{Step 1:} Estimate consistent $\betahat_1$ using $\bm{W} = (\Z'\Z)^{-1}$ (2SLS).
-    \item \textbf{Step 2:} Estimate the optimal weighting matrix $\hat{\bm{S}}$ (Hansen's Matrix) using Step 1 residuals:
-    $$ \hat{\bm{S}} = \frac{1}{n} \sum_{i=1}^n \hat{\epsilon}_i^2 \bm{z}_i \bm{z}_i' $$
-    \item \textbf{Step 3:} Minimize $J(\bm{\beta})$ using $\bm{W}_{opt} = \hat{\bm{S}}^{-1}$.
+    \item Take first differences to remove $\alpha_i$: $\Delta y_{it} = \rho \Delta y_{i,t-1} + \Delta \betavec \x_{it} + \Delta u_{it}$
+    \item Use lagged levels $y_{i, t-2}$ as instruments for $\Delta y_{i,t-1}$.
 \end{enumerate}
 
-\textbf{Rust Implementation:}
-\begin{lstlisting}[language=Rust]
-use greeners::GMM;
-// Automatically performs the two-step procedure and computes Hansen's J
-let res = GMM::fit(&y, &x, &z)?;
-println!("J-Stat P-val: {:.4}", res.j_p_value);
-\end{lstlisting}
+\subsection{Panel Threshold (Hansen, 1999)}
+Captures non-linear regime switching based on a threshold variable $q_{it}$:
+$$ y_{it} = \mu_i + \betavec_1' \x_{it} I(q_{it} \le \gamma) + \betavec_2' \x_{it} I(q_{it} > \gamma) + e_{it} $$
+Greeners estimates $\gamma$ via a grid search that minimizes the sum of squared residuals (SSR).
 
-\section{3. Discrete Choice Models (MLE)}
-
-Estimates binary outcome models $P(y_i=1|\bm{x}_i) = F(\bm{x}_i'\bm{\beta})$ via Newton-Raphson optimization.
-$$ \betahat_{new} = \betahat_{old} - \bm{H}^{-1} \nabla \mathcal{L} $$
-
-\subsection{Logit vs. Probit}
+\section{Vector Autoregression (VAR) \& VECM}
+\subsection{VAR}
+A multivariate system $\y_t = \A_1 \y_{t-1} + \dots + \A_p \y_{t-p} + \uvec_t$.
+Greeners provides:
 \begin{itemize}
-    \item \textbf{Logit:} $F(z) = \Lambda(z) = (1+e^{-z})^{-1}$. Hessian weighting matrix $\bm{W} = \text{diag}(p(1-p))$.
-    \item \textbf{Probit:} $F(z) = \Phi(z)$ (Standard Normal). Hessian weighting relies on the ratio of PDF squared to CDF variance: $\frac{\phi^2}{\Phi(1-\Phi)}$.
+    \item OLS/SUR estimation.
+    \item AIC/BIC selection.
+    \item \textbf{Impulse Response Functions (IRF):} Computed via Cholesky decomposition of $\Sigma_u$ to identify structural shocks.
 \end{itemize}
 
-\textbf{Rust Implementation:}
-\begin{lstlisting}[language=Rust]
-use greeners::{Logit, Probit};
+\subsection{VECM (Johansen Procedure)}
+For cointegrated I(1) variables. The model is:
+$$ \Delta \y_t = \bm{\alpha}\bm{\beta}' \y_{t-1} + \sum_{i=1}^{p-1} \bm{\Gamma}_i \Delta \y_{t-i} + \uvec_t $$
+Estimation involves solving the generalized eigenvalue problem:
+$$ |\lambda \mathbf{S}_{11} - \mathbf{S}_{10} \mathbf{S}_{00}^{-1} \mathbf{S}_{01}| = 0 $$
+where $\mathbf{S}_{ij}$ are moment matrices of residuals from auxiliary regressions. The eigenvectors associated with the largest eigenvalues form the cointegration matrix $\bm{\beta}$.
 
-let logit = Logit::fit(&y, &x)?;
-let probit = Probit::fit(&y, &x)?; // Uses Normal CDF
+\section{Systems of Equations}
+\subsection{SUR (Zellner)}
+Efficiently estimates a system of equations with correlated error terms using Feasible Generalized Least Squares (FGLS).
 
-println!("Logit Pseudo-R2: {:.4}", logit.pseudo_r2);
-println!("Probit LogLikelihood: {:.4}", probit.log_likelihood);
-\end{lstlisting}
-
-\section{4. Causal Inference (DiD)}
-
-Estimates the \textit{Average Treatment Effect on the Treated} (ATT) using the canonical $2 \times 2$ difference-in-differences design.
-
-$$ y_{it} = \beta_0 + \beta_1 \text{Treat}_i + \beta_2 \text{Post}_t + \delta_{ATT} (\text{Treat}_i \times \text{Post}_t) + \epsilon_{it} $$
-
-The estimator identifies the causal effect under the \textit{Parallel Trends Assumption}:
-$$ \hat{\delta}_{ATT} = (\bar{y}_{T,Post} - \bar{y}_{T,Pre}) - (\bar{y}_{C,Post} - \bar{y}_{C,Pre}) $$
-
-\textbf{Rust Implementation:}
-\begin{lstlisting}[language=Rust]
-use greeners::DiffInDiff;
-// Automatically handles interaction terms and group means
-let did = DiffInDiff::fit(&y, &treated_dummy, &post_dummy, CovarianceType::HC1)?;
-println!("ATT Effect: {:.4}", did.att);
-\end{lstlisting}
-
-\section{5. Time Series Diagnostics}
-
-\subsection{Augmented Dickey-Fuller (ADF)}
-Tests the null hypothesis of a Unit Root ($H_0: \gamma = 0$) in the regression:
-$$ \Delta y_t = \alpha + \gamma y_{t-1} + \sum_{j=1}^p \delta_j \Delta y_{t-j} + \epsilon_t $$
-The t-statistic is compared against MacKinnon's critical values.
-
-\textbf{Rust Implementation:}
-\begin{lstlisting}[language=Rust]
-use greeners::TimeSeries;
-// Tests stationarity. Returns test-stat and critical values.
-let adf = TimeSeries::adf(&series, None)?; 
-if adf.is_stationary { println!("Series is I(0)"); }
-\end{lstlisting}
+\subsection{3SLS (Three-Stage Least Squares)}
+Combines 2SLS (IV) and SUR to handle both endogeneity and cross-equation error correlation.
 
 \end{document}
