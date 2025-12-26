@@ -74,3 +74,4 @@ greeners = "0.1.1"
 ndarray = "0.15"
 # Note: You must have a BLAS/LAPACK provider installed on your system
 ndarray-linalg = { version = "0.14", features = ["openblas"] }
+```
