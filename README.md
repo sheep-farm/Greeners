@@ -94,6 +94,26 @@ ndarray-linalg = { version = "0.14", features = ["openblas"] }
 
 ## 🎯 Quick Start
 
+### Loading Data from CSV (NEW!)
+
+```rust
+use greeners::{DataFrame, Formula, OLS, CovarianceType};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Load data from CSV file with headers (just like pandas!)
+    let df = DataFrame::from_csv("data.csv")?;
+
+    // Specify model using formula
+    let formula = Formula::parse("y ~ x1 + x2")?;
+
+    // Estimate with robust standard errors
+    let result = OLS::from_formula(&formula, &df, CovarianceType::HC1)?;
+
+    println!("{}", result);
+    Ok(())
+}
+```
+
 ### Using Formula API (R/Python Style)
 
 ```rust
@@ -102,7 +122,7 @@ use ndarray::Array1;
 use std::collections::HashMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create data (like a pandas DataFrame)
+    // Create data manually (like a pandas DataFrame)
     let mut data = HashMap::new();
     data.insert("y".to_string(), Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]));
     data.insert("x1".to_string(), Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]));
@@ -209,11 +229,14 @@ All formulas follow R/Python syntax for familiarity and ease of use.
 
 - **[FORMULA_API.md](FORMULA_API.md)** - Complete formula API guide with Python/R equivalents
 - **[examples/](examples/)** - Working examples for all estimators
+  - `csv_formula_example.rs` - **Load CSV files and run regressions**
   - `formula_example.rs` - General formula API demonstration
   - `did_formula_example.rs` - Difference-in-Differences with formulas
+  - `quickstart_formula.rs` - Quick start example
 
 Run examples:
 ```bash
+cargo run --example csv_formula_example
 cargo run --example formula_example
 cargo run --example did_formula_example
 ```
