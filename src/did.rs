@@ -1,4 +1,4 @@
-use crate::{CovarianceType, GreenersError, OLS};
+use crate::{CovarianceType, GreenersError, OLS, DataFrame, Formula};
 use ndarray::{Array1, Array2};
 use std::fmt;
 
@@ -65,6 +65,44 @@ impl fmt::Display for DidResult {
 pub struct DiffInDiff;
 
 impl DiffInDiff {
+    /// Estimates DiD model using a formula and DataFrame.
+    ///
+    /// The formula should specify the outcome variable and include 'treated' and 'post' variables.
+    /// The interaction term is created automatically.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use greeners::{DiffInDiff, DataFrame, Formula, CovarianceType};
+    /// use ndarray::Array1;
+    /// use std::collections::HashMap;
+    ///
+    /// let mut data = HashMap::new();
+    /// data.insert("y".to_string(), Array1::from(vec![1.0, 2.0, 3.0, 4.0]));
+    /// data.insert("treated".to_string(), Array1::from(vec![0.0, 0.0, 1.0, 1.0]));
+    /// data.insert("post".to_string(), Array1::from(vec![0.0, 1.0, 0.0, 1.0]));
+    ///
+    /// let df = DataFrame::new(data).unwrap();
+    /// let formula = Formula::parse("y ~ treated + post").unwrap();
+    ///
+    /// let result = DiffInDiff::from_formula(&formula, &df, "treated", "post", CovarianceType::HC1).unwrap();
+    /// ```
+    pub fn from_formula(
+        formula: &Formula,
+        data: &DataFrame,
+        treated_var: &str,
+        post_var: &str,
+        cov_type: CovarianceType,
+    ) -> Result<DidResult, GreenersError> {
+        // Extract y from formula
+        let y = data.get(&formula.dependent)?;
+
+        // Extract treated and post variables
+        let treated = data.get(treated_var)?;
+        let post = data.get(post_var)?;
+
+        Self::fit(y, treated, post, cov_type)
+    }
+
     /// Estimates the Canonical 2x2 DiD model.
     ///
     /// # Arguments

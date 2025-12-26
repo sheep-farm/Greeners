@@ -1,5 +1,6 @@
 use crate::error::GreenersError;
 use crate::CovarianceType;
+use crate::{DataFrame, Formula};
 use ndarray::{Array1, Array2};
 use ndarray_linalg::Inverse;
 use statrs::distribution::{ContinuousCDF, StudentsT};
@@ -68,6 +69,78 @@ impl fmt::Display for IvResult {
 pub struct IV;
 
 impl IV {
+    /// Estimates IV/2SLS model using formulas and DataFrame.
+    ///
+    /// # Arguments
+    /// * `endog_formula` - Formula for endogenous equation (e.g., "y ~ x1 + x_endog")
+    /// * `instrument_formula` - Formula for instruments (e.g., "~ z1 + z2")
+    /// * `data` - DataFrame containing all variables
+    /// * `cov_type` - Covariance type
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use greeners::{IV, DataFrame, Formula, CovarianceType};
+    /// use ndarray::Array1;
+    /// use std::collections::HashMap;
+    ///
+    /// let mut data = HashMap::new();
+    /// data.insert("y".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
+    /// data.insert("x1".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
+    /// data.insert("z1".to_string(), Array1::from(vec![2.0, 3.0, 4.0]));
+    ///
+    /// let df = DataFrame::new(data).unwrap();
+    /// let endog_formula = Formula::parse("y ~ x1").unwrap();
+    /// let instrument_formula = Formula::parse("~ z1").unwrap();
+    ///
+    /// let result = IV::from_formula(&endog_formula, &instrument_formula, &df, CovarianceType::HC1).unwrap();
+    /// ```
+    pub fn from_formula(
+        endog_formula: &Formula,
+        instrument_formula: &Formula,
+        data: &DataFrame,
+        cov_type: CovarianceType,
+    ) -> Result<IvResult, GreenersError> {
+        // Get y and X from endogenous formula
+        let (y, x) = data.to_design_matrix(endog_formula)?;
+
+        // Get Z from instrument formula (just the instruments, with intercept if specified)
+        let z = if instrument_formula.intercept {
+            let n_rows = data.n_rows();
+            let n_cols = instrument_formula.independents.len() + 1;
+            let mut z_mat = Array2::<f64>::zeros((n_rows, n_cols));
+
+            // Add intercept
+            for i in 0..n_rows {
+                z_mat[[i, 0]] = 1.0;
+            }
+
+            // Add instruments
+            for (j, var_name) in instrument_formula.independents.iter().enumerate() {
+                let col_data = data.get(var_name)?;
+                for i in 0..n_rows {
+                    z_mat[[i, j + 1]] = col_data[i];
+                }
+            }
+
+            z_mat
+        } else {
+            let n_rows = data.n_rows();
+            let n_cols = instrument_formula.independents.len();
+            let mut z_mat = Array2::<f64>::zeros((n_rows, n_cols));
+
+            for (j, var_name) in instrument_formula.independents.iter().enumerate() {
+                let col_data = data.get(var_name)?;
+                for i in 0..n_rows {
+                    z_mat[[i, j]] = col_data[i];
+                }
+            }
+
+            z_mat
+        };
+
+        Self::fit(&y, &x, &z, cov_type)
+    }
+
     pub fn fit(
         y: &Array1<f64>,
         x: &Array2<f64>,

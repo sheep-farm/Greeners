@@ -19,4 +19,12 @@ pub enum GreenersError {
     /// Wrapper for errors coming from the ndarray-linalg backend.
     #[error("Linear Algebra backend error: {0}")]
     LinalgError(#[from] ndarray_linalg::error::LinalgError),
+
+    /// Error thrown when parsing a formula string
+    #[error("Formula parsing error: {0}")]
+    FormulaError(String),
+
+    /// Error thrown when a variable is not found in the data
+    #[error("Variable not found in data: {0}")]
+    VariableNotFound(String),
 }

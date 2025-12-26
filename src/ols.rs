@@ -1,5 +1,6 @@
 use crate::error::GreenersError;
 use crate::CovarianceType; // Import the new Enum
+use crate::{DataFrame, Formula};
 use ndarray::{Array1, Array2};
 use ndarray_linalg::Inverse;
 use statrs::distribution::{ContinuousCDF, FisherSnedecor, StudentsT};
@@ -95,6 +96,34 @@ impl fmt::Display for OlsResult {
 pub struct OLS;
 
 impl OLS {
+    /// Fits an OLS model using a formula and DataFrame.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use greeners::{OLS, DataFrame, Formula, CovarianceType};
+    /// use ndarray::Array1;
+    /// use std::collections::HashMap;
+    ///
+    /// let mut data = HashMap::new();
+    /// data.insert("y".to_string(), Array1::from(vec![1.0, 2.1, 3.2, 3.9, 5.1]));
+    /// data.insert("x1".to_string(), Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]));
+    /// data.insert("x2".to_string(), Array1::from(vec![2.0, 2.5, 3.0, 3.5, 4.0]));
+    ///
+    /// let df = DataFrame::new(data).unwrap();
+    /// let formula = Formula::parse("y ~ x1 + x2").unwrap();
+    ///
+    /// let result = OLS::from_formula(&formula, &df, CovarianceType::HC1).unwrap();
+    /// println!("R-squared: {}", result.r_squared);
+    /// ```
+    pub fn from_formula(
+        formula: &Formula,
+        data: &DataFrame,
+        cov_type: CovarianceType,
+    ) -> Result<OlsResult, GreenersError> {
+        let (y, x) = data.to_design_matrix(formula)?;
+        Self::fit(&y, &x, cov_type)
+    }
+
     /// Fits the model. Now accepts `cov_type`.
     pub fn fit(
         y: &Array1<f64>,
