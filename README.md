@@ -36,22 +36,23 @@ Designed for academic research, heavy simulations, and production-grade economic
 - **SUR:** Seemingly Unrelated Regressions (Zellner).
 - **3SLS:** Three-Stage Least Squares (System IV).
 
-### System Requirements (Pre-requisites)
+## System Requirements (Pre-requisites)
 
-## Debian / Ubuntu / Pop!_OS:
+### Debian / Ubuntu / Pop!_OS:
 
 sudo apt-get update
+
 sudo apt-get install gfortran libopenblas-dev liblapack-dev pkg-config build-essential
 
-## Fedora / RHEL / CentOS:
+### Fedora / RHEL / CentOS:
 
 sudo dnf install gcc-gfortran openblas-devel lapack-devel pkg-config
 
-## Arch Linux / Manjaro:
+### Arch Linux / Manjaro:
 
 sudo pacman -S gcc-fortran openblas lapack base-devel
 
-## macOS:
+### macOS:
 
 brew install openblas lapack
 
