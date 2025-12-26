@@ -17,6 +17,8 @@ pub mod threshold;
 pub mod var;
 pub mod varma;
 pub mod vecm;
+pub mod formula;
+pub mod dataframe;
 
 pub use diagnostics::Diagnostics;
 pub use did::DiffInDiff;
@@ -39,6 +41,8 @@ pub use threshold::PanelThreshold;
 pub use var::VAR;
 pub use varma::VARMA;
 pub use vecm::VECM;
+pub use formula::Formula;
+pub use dataframe::DataFrame;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CovarianceType {

@@ -1,4 +1,5 @@
 use crate::error::GreenersError;
+use crate::{DataFrame, Formula};
 use ndarray::{Array1, Array2, Axis};
 use ndarray_linalg::Inverse;
 use statrs::distribution::{Continuous, ContinuousCDF, Normal};
@@ -63,6 +64,15 @@ impl fmt::Display for BinaryModelResult {
 pub struct Logit;
 
 impl Logit {
+    /// Estimates Logit model using a formula and DataFrame.
+    pub fn from_formula(
+        formula: &Formula,
+        data: &DataFrame,
+    ) -> Result<BinaryModelResult, GreenersError> {
+        let (y, x) = data.to_design_matrix(formula)?;
+        Self::fit(&y, &x)
+    }
+
     pub fn fit(y: &Array1<f64>, x: &Array2<f64>) -> Result<BinaryModelResult, GreenersError> {
         let n = x.nrows();
         let k = x.ncols();
@@ -163,6 +173,15 @@ impl Logit {
 pub struct Probit;
 
 impl Probit {
+    /// Estimates Probit model using a formula and DataFrame.
+    pub fn from_formula(
+        formula: &Formula,
+        data: &DataFrame,
+    ) -> Result<BinaryModelResult, GreenersError> {
+        let (y, x) = data.to_design_matrix(formula)?;
+        Self::fit(&y, &x)
+    }
+
     pub fn fit(y: &Array1<f64>, x: &Array2<f64>) -> Result<BinaryModelResult, GreenersError> {
         let n = x.nrows();
         let k = x.ncols();

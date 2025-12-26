@@ -1,4 +1,4 @@
-use crate::{CovarianceType, GreenersError, OLS};
+use crate::{CovarianceType, GreenersError, OLS, DataFrame, Formula};
 use ndarray::{Array1, Array2, Axis};
 use std::collections::HashMap;
 use std::fmt;
@@ -63,6 +63,20 @@ impl fmt::Display for PanelResult {
 pub struct FixedEffects;
 
 impl FixedEffects {
+    /// Estimates Fixed Effects model using a formula and DataFrame.
+    /// Requires entity_ids to be passed separately.
+    pub fn from_formula<T>(
+        formula: &Formula,
+        data: &DataFrame,
+        entity_ids: &[T],
+    ) -> Result<PanelResult, GreenersError>
+    where
+        T: Eq + Hash + Clone,
+    {
+        let (y, x) = data.to_design_matrix(formula)?;
+        Self::fit(&y, &x, entity_ids)
+    }
+
     /// Performs the "Within Transformation" (Demeaning) on a matrix/vector.
     /// x_dem = x_it - mean(x_i)
     fn within_transform<T>(data: &Array2<f64>, groups: &[T]) -> Result<Array2<f64>, GreenersError>
@@ -243,6 +257,16 @@ impl fmt::Display for RandomEffectsResult {
 pub struct RandomEffects;
 
 impl RandomEffects {
+    /// Estimates Random Effects model using a formula and DataFrame.
+    pub fn from_formula(
+        formula: &Formula,
+        data: &DataFrame,
+        entity_ids: &Array1<i64>,
+    ) -> Result<RandomEffectsResult, GreenersError> {
+        let (y, x) = data.to_design_matrix(formula)?;
+        Self::fit(&y, &x, entity_ids)
+    }
+
     pub fn fit(
         y: &Array1<f64>,
         x: &Array2<f64>,
@@ -444,6 +468,16 @@ impl fmt::Display for BetweenResult {
 pub struct BetweenEstimator;
 
 impl BetweenEstimator {
+    /// Estimates Between model using a formula and DataFrame.
+    pub fn from_formula(
+        formula: &Formula,
+        data: &DataFrame,
+        entity_ids: &Array1<i64>,
+    ) -> Result<BetweenResult, GreenersError> {
+        let (y, x) = data.to_design_matrix(formula)?;
+        Self::fit(&y, &x, entity_ids)
+    }
+
     /// Estima a regressão nas médias temporais de cada indivíduo.
     /// y_bar_i = alpha + beta * x_bar_i + (alpha_i + u_bar_i)
     pub fn fit(

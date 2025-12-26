@@ -1,5 +1,5 @@
 use ndarray::{Array1, Array2, Axis, s};
-use crate::{OLS, CovarianceType, GreenersError};
+use crate::{OLS, CovarianceType, GreenersError, DataFrame, Formula};
 use std::fmt;
 
 /// FGLS Result
@@ -40,6 +40,34 @@ impl fmt::Display for FglsResult {
 pub struct FGLS;
 
 impl FGLS {
+    /// Weighted Least Squares (WLS) from a formula and DataFrame.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::{FGLS, DataFrame, Formula};
+    /// use ndarray::Array1;
+    /// use std::collections::HashMap;
+    ///
+    /// let mut data = HashMap::new();
+    /// data.insert("y".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
+    /// data.insert("x1".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
+    /// data.insert("weight".to_string(), Array1::from(vec![1.0, 1.0, 1.0]));
+    ///
+    /// let df = DataFrame::new(data).unwrap();
+    /// let formula = Formula::parse("y ~ x1").unwrap();
+    /// let weights = df.get("weight").unwrap();
+    ///
+    /// let result = FGLS::wls_from_formula(&formula, &df, weights).unwrap();
+    /// ```
+    pub fn wls_from_formula(
+        formula: &Formula,
+        data: &DataFrame,
+        weights: &Array1<f64>
+    ) -> Result<FglsResult, GreenersError> {
+        let (y, x) = data.to_design_matrix(formula)?;
+        Self::wls(&y, &x, weights)
+    }
+
     /// Weighted Least Squares (WLS)
     /// Used when there is known or estimated heteroscedasticity.
     /// Weights (w) should be inversely proportional to variance: w_i = 1 / sigma_i^2
@@ -79,6 +107,15 @@ impl FGLS {
             rho: None,
             iter: None,
         })
+    }
+
+    /// Cochrane-Orcutt Iterative Procedure (AR(1)) from a formula and DataFrame.
+    pub fn cochrane_orcutt_from_formula(
+        formula: &Formula,
+        data: &DataFrame
+    ) -> Result<FglsResult, GreenersError> {
+        let (y, x) = data.to_design_matrix(formula)?;
+        Self::cochrane_orcutt(&y, &x)
     }
 
     /// Cochrane-Orcutt Iterative Procedure (AR(1))

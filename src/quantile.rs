@@ -1,7 +1,7 @@
 use ndarray::{Array1, Array2, Axis};
 use ndarray_rand::rand_distr::Uniform;
 use rand::distributions::Distribution;
-use crate::{GreenersError, OLS, CovarianceType};
+use crate::{GreenersError, OLS, CovarianceType, DataFrame, Formula};
 use std::fmt;
 
 #[derive(Debug)]
@@ -38,8 +38,19 @@ impl fmt::Display for QuantileResult {
 pub struct QuantileReg;
 
 impl QuantileReg {
+    /// Estimates Quantile Regression using a formula and DataFrame.
+    pub fn from_formula(
+        formula: &Formula,
+        data: &DataFrame,
+        tau: f64,
+        n_boot: usize,
+    ) -> Result<QuantileResult, GreenersError> {
+        let (y, x) = data.to_design_matrix(formula)?;
+        Self::fit(&y, &x, tau, n_boot)
+    }
+
     /// Estima a Regressão Quantílica via IRLS.
-    /// 
+    ///
     /// # Arguments
     /// * `tau` - O quantil desejado (ex: 0.5 para mediana, 0.9 para decil superior).
     /// * `n_boot` - Número de repetições de Bootstrap para erro padrão (rec: 200+).
