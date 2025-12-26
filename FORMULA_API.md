@@ -103,7 +103,26 @@ dependent ~ independent1 + independent2 + ... + independentN
 
 ## DataFrame Structure
 
-The `DataFrame` is a simple structure for storing tabular data:
+### Loading from CSV (Recommended!)
+
+The easiest way to work with data is to load it from a CSV file with headers:
+
+```rust
+use greeners::DataFrame;
+
+// Load data from CSV file (just like pandas.read_csv!)
+let df = DataFrame::from_csv("data.csv")?;
+
+println!("Loaded {} rows and {} columns", df.n_rows(), df.n_cols());
+println!("Column names: {:?}", df.column_names());
+
+// Access individual columns
+let y_column = df.get("y")?;
+```
+
+### Creating Manually
+
+You can also create DataFrames manually:
 
 ```rust
 use greeners::DataFrame;
@@ -155,15 +174,37 @@ println!("Names: {:?}", df.column_names());
 ## Complete Examples
 
 See examples in the `examples/` folder:
+- **`csv_formula_example.rs`** - Load CSV files and run regressions (RECOMMENDED!)
 - `formula_example.rs` - General formula API demonstration
 - `did_formula_example.rs` - Difference-in-Differences using formulas
 - `quickstart_formula.rs` - Quick start example from README
 
 Run with:
 ```bash
+cargo run --example csv_formula_example
 cargo run --example formula_example
 cargo run --example did_formula_example
 cargo run --example quickstart_formula
+```
+
+### CSV File Format
+
+Your CSV file should have headers in the first row:
+
+```csv
+y,x1,x2,x3
+10.5,1.2,2.3,0.5
+12.3,2.1,3.1,0.7
+15.2,3.5,4.2,0.9
+...
+```
+
+Then load and use with formulas:
+
+```rust
+let df = DataFrame::from_csv("data.csv")?;
+let formula = Formula::parse("y ~ x1 + x2")?;
+let result = OLS::from_formula(&formula, &df, CovarianceType::HC1)?;
 ```
 
 ## Supported Covariance Types
