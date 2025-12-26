@@ -260,8 +260,10 @@ name = "greeners"
 version = "0.1.0"
 dependencies = [
  "csv",
- "ndarray",
+ "ndarray 0.17.1",
  "ndarray-linalg",
+ "ndarray-rand",
+ "num-complex",
  "rand",
  "serde",
  "statrs",
@@ -421,6 +423,19 @@ dependencies = [
 
 [[package]]
 name = "ndarray"
+version = "0.15.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "adb12d4e967ec485a5f71c6311fe28158e9d6f4bc4a447b474184d0f91a8fa32"
+dependencies = [
+ "matrixmultiply",
+ "num-complex",
+ "num-integer",
+ "num-traits",
+ "rawpointer",
+]
+
+[[package]]
+name = "ndarray"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c7c9125e8f6f10c9da3aad044cc918cf8784fa34de857b1aa68038eb05a50a9"
@@ -446,11 +461,22 @@ dependencies = [
  "cauchy",
  "katexit",
  "lax",
- "ndarray",
+ "ndarray 0.17.1",
  "num-complex",
  "num-traits",
  "rand",
  "thiserror",
+]
+
+[[package]]
+name = "ndarray-rand"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65608f937acc725f5b164dcf40f4f0bc5d67dc268ab8a649d3002606718c4588"
+dependencies = [
+ "ndarray 0.15.6",
+ "rand",
+ "rand_distr",
 ]
 
 [[package]]
