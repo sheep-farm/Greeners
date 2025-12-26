@@ -2,17 +2,17 @@ use ndarray::{Array1, Array2, Axis, s};
 use crate::{OLS, CovarianceType, GreenersError};
 use std::fmt;
 
-/// Resultado do FGLS
+/// FGLS Result
 #[derive(Debug)]
 pub struct FglsResult {
-    pub method: String,     // "WLS" ou "Cochrane-Orcutt"
+    pub method: String,     // "WLS" or "Cochrane-Orcutt"
     pub params: Array1<f64>,
     pub std_errors: Array1<f64>,
     pub t_values: Array1<f64>,
     pub p_values: Array1<f64>,
     pub r_squared: f64,
-    pub rho: Option<f64>,   // Apenas para Cochrane-Orcutt
-    pub iter: Option<usize>,// Iterações até convergência
+    pub rho: Option<f64>,   // Only for Cochrane-Orcutt
+    pub iter: Option<usize>,// Iterations until convergence
 }
 
 impl fmt::Display for FglsResult {
@@ -41,8 +41,8 @@ pub struct FGLS;
 
 impl FGLS {
     /// Weighted Least Squares (WLS)
-    /// Usado quando existe heterocedasticidade conhecida ou estimada.
-    /// Weights (w) devem ser inversamente proporcionais à variância: w_i = 1 / sigma_i^2
+    /// Used when there is known or estimated heteroscedasticity.
+    /// Weights (w) should be inversely proportional to variance: w_i = 1 / sigma_i^2
     pub fn wls(
         y: &Array1<f64>,
         x: &Array2<f64>,
@@ -53,20 +53,20 @@ impl FGLS {
             return Err(GreenersError::ShapeMismatch("Weights length mismatch".into()));
         }
 
-        // Transformação GLS: Multiplicar X e y pela raiz quadrada dos pesos
+        // GLS Transformation: Multiply X and y by the square root of weights
         // y* = sqrt(w) * y
         // X* = sqrt(w) * X
         let sqrt_w = weights.mapv(f64::sqrt);
         
         let y_transformed = y * &sqrt_w;
         
-        // Multiplicação broadcast da coluna de pesos pelas linhas de X
+        // Broadcast multiplication of weight column by X rows
         let mut x_transformed = x.clone();
         for (i, mut row) in x_transformed.axis_iter_mut(Axis(0)).enumerate() {
             row *= sqrt_w[i];
         }
 
-        // Rodar OLS nos dados transformados
+        // Run OLS on transformed data
         let ols = OLS::fit(&y_transformed, &x_transformed, CovarianceType::NonRobust)?;
 
         Ok(FglsResult {
@@ -82,8 +82,8 @@ impl FGLS {
     }
 
     /// Cochrane-Orcutt Iterative Procedure (AR(1))
-    /// Resolve correlação serial: u_t = rho * u_{t-1} + e_t
-    /// Recupera a eficiência (BLUE) que o OLS perde.
+    /// Solves serial correlation: u_t = rho * u_{t-1} + e_t
+    /// Recovers the efficiency (BLUE) that OLS loses.
     pub fn cochrane_orcutt(
         y: &Array1<f64>,
         x: &Array2<f64>
@@ -93,7 +93,7 @@ impl FGLS {
         let tol = 1e-6;
         let max_iter = 100;
 
-        // 1. OLS Inicial para pegar resíduos
+        // 1. Initial OLS to get residuals
         let initial_ols = OLS::fit(y, x, CovarianceType::NonRobust)?;
         let mut residuals = y - &x.dot(&initial_ols.params);
         

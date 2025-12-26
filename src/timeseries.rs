@@ -1,7 +1,7 @@
 use crate::{CovarianceType, GreenersError, OLS};
-use ndarray::{s, Array1, Array2}; // Axis removido pois não era usado
+use ndarray::{s, Array1, Array2}; // Axis removed as it was not used
 
-/// Resultados do Teste Augmented Dickey-Fuller
+/// Results of the Augmented Dickey-Fuller Test
 #[derive(Debug)]
 pub struct AdfResult {
     pub test_statistic: f64,
@@ -19,18 +19,18 @@ impl TimeSeries {
         let n = series.len();
         if n < 10 {
             return Err(GreenersError::ShapeMismatch(
-                "Série muito curta para ADF".into(),
+                "Series too short for ADF".into(),
             ));
         }
 
-        // 1. Definir Lags (Regra de bolso: (n-1)^(1/3))
-        // CORREÇÃO: Usando .powf() nativo do Rust em vez de libm
+        // 1. Define Lags (Rule of thumb: (n-1)^(1/3))
+        // FIX: Using native Rust .powf() instead of libm
         let lags = match max_lags {
             Some(l) => l,
             None => ((n - 1) as f64).powf(1.0 / 3.0) as usize,
         };
 
-        // 2. Preparar Variáveis
+        // 2. Prepare Variables
         let y_diff = diff(series, 1);
         let effective_n = n - 1 - lags;
 
@@ -41,25 +41,25 @@ impl TimeSeries {
         // Coluna 0: Constante
         x_mat.column_mut(0).fill(1.0);
 
-        // Coluna 1: y_{t-1} (Nível defasado)
+        // Column 1: y_{t-1} (Lagged level)
         for i in 0..effective_n {
             x_mat[[i, 1]] = series[lags + i];
         }
 
-        // Coluna 2..L: Lags das Diferenças
+        // Column 2..L: Lags of Differences
         for l in 0..lags {
             for i in 0..effective_n {
                 x_mat[[i, 2 + l]] = y_diff[lags + i - 1 - l];
             }
         }
 
-        // 3. Rodar OLS
+        // 3. Run OLS
         let ols_res = OLS::fit(&target_y, &x_mat, CovarianceType::NonRobust)?;
 
-        // 4. Estatística ADF = t-stat do coeficiente do nível (índice 1)
+        // 4. ADF Statistic = t-stat of level coefficient (index 1)
         let adf_stat = ols_res.t_values[1];
 
-        // 5. Valores Críticos (Aprox. MacKinnon para constante)
+        // 5. Critical Values (MacKinnon approx. for constant)
         let crit_1pct = -3.43;
         let crit_5pct = -2.86;
         let crit_10pct = -2.57;
@@ -68,7 +68,7 @@ impl TimeSeries {
             test_statistic: adf_stat,
             p_value: None,
             critical_values: (crit_1pct, crit_5pct, crit_10pct),
-            // Se Estatística < Crítico (ex: -4.0 < -2.86), rejeita H0 (Estacionária)
+            // If Statistic < Critical (ex: -4.0 < -2.86), reject H0 (Stationary)
             is_stationary: adf_stat < crit_5pct,
             lags_used: lags,
             n_obs: effective_n,

@@ -1,6 +1,6 @@
 use crate::error::GreenersError;
-use crate::CovarianceType; // Necessário para chamar o fit do OLS
-use crate::OLS; // Reusamos o OLS para a regressão auxiliar do Breusch-Pagan
+use crate::CovarianceType; // Needed to call OLS fit
+use crate::OLS; // We reuse OLS for the Breusch-Pagan auxiliary regression
 use ndarray::{Array1, Array2};
 use statrs::distribution::{ChiSquared, ContinuousCDF};
 
@@ -15,19 +15,19 @@ impl Diagnostics {
         let n = residuals.len() as f64;
         let mean = residuals.mean().unwrap_or(0.0);
 
-        // Calcular Momentos Centrais
+        // Calculate Central Moments
         let m2 = residuals.mapv(|r| (r - mean).powi(2)).sum() / n;
         let m3 = residuals.mapv(|r| (r - mean).powi(3)).sum() / n;
         let m4 = residuals.mapv(|r| (r - mean).powi(4)).sum() / n;
 
-        // Skewness (S) e Kurtosis (K)
+        // Skewness (S) and Kurtosis (K)
         let skewness = m3 / m2.powf(1.5);
         let kurtosis = m4 / m2.powi(2);
 
         // JB = (n/6) * (S^2 + (K - 3)^2 / 4)
         let jb_stat = (n / 6.0) * (skewness.powi(2) + (kurtosis - 3.0).powi(2) / 4.0);
 
-        // Distribuição Chi-Quadrado com 2 graus de liberdade
+        // Chi-Square Distribution with 2 degrees of freedom
         let chi2 = ChiSquared::new(2.0).map_err(|_| GreenersError::OptimizationFailed)?;
         let p_value = 1.0 - chi2.cdf(jb_stat);
 
@@ -49,22 +49,22 @@ impl Diagnostics {
     ) -> Result<(f64, f64), GreenersError> {
         let n = residuals.len() as f64;
 
-        // 1. Variável dependente auxiliar: resíduos ao quadrado
+        // 1. Auxiliary dependent variable: squared residuals
         let u_sq = residuals.mapv(|x| x.powi(2));
 
-        // 2. Regressão Auxiliar: u^2 contra X
-        // Usamos CovarianceType::NonRobust porque só queremos o R2
+        // 2. Auxiliary Regression: u^2 against X
+        // We use CovarianceType::NonRobust because we only want the R2
         let aux_model = OLS::fit(&u_sq, x, CovarianceType::NonRobust)?;
 
         // 3. Lagrange Multiplier Statistic = n * R2
         let lm_stat = n * aux_model.r_squared;
 
-        // Graus de liberdade = k (número de regressores na auxiliar, excluindo constante se houver, mas aqui simplificamos para k-1 se tiver intercepto)
-        // O correto do BP é df = numero de variaveis exogenas que causam a variancia.
-        // Assumindo que X tem intercepto e queremos testar as variáveis:
+        // Degrees of freedom = k (number of regressors in auxiliary, excluding constant if any, but here we simplify to k-1 if intercept)
+        // The correct BP is df = number of exogenous variables causing variance.
+        // Assuming X has intercept and we want to test the variables:
         let df = (x.ncols() - 1) as f64;
 
-        // Proteção para caso X tenha só intercepto ou df <= 0
+        // Protection for case X has only intercept or df <= 0
         let df_safe = if df <= 0.0 { 1.0 } else { df };
 
         let chi2 = ChiSquared::new(df_safe).map_err(|_| GreenersError::OptimizationFailed)?;

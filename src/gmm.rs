@@ -11,11 +11,11 @@ pub struct GmmResult {
     pub std_errors: Array1<f64>,
     pub t_values: Array1<f64>,
     pub p_values: Array1<f64>,
-    pub j_stat: f64,    // Estatística de Hansen (J-test)
-    pub j_p_value: f64, // P-valor do teste J
+    pub j_stat: f64,    // Hansen's statistic (J-test)
+    pub j_p_value: f64, // J-test p-value
     pub n_obs: usize,
     pub df_model: usize,
-    pub df_overid: usize, // Graus de liberdade de sobre-identificação
+    pub df_overid: usize, // Over-identification degrees of freedom
 }
 
 impl fmt::Display for GmmResult {
@@ -67,8 +67,8 @@ impl GMM {
         z: &Array2<f64>,
     ) -> Result<GmmResult, GreenersError> {
         let n = x.nrows();
-        let k = x.ncols(); // Regressores
-        let l = z.ncols(); // Instrumentos (Momentos)
+        let k = x.ncols(); // Regressors
+        let l = z.ncols(); // Instruments (Moments)
 
         if l < k {
             return Err(GreenersError::ShapeMismatch(format!(
@@ -77,9 +77,9 @@ impl GMM {
             )));
         }
 
-        // --- PREPARAÇÃO DAS MATRIZES ---
-        // Momentos Amostrais: g = (1/n) * Z'u
-        // Precisamos das matrizes cruzadas
+        // --- MATRIX PREPARATION ---
+        // Sample Moments: g = (1/n) * Z'u
+        // We need the cross product matrices
         // let x_t = x.t();
         let z_t = z.t();
 
@@ -88,26 +88,26 @@ impl GMM {
         // S_zy = (1/n) * Z'y
         let s_zy = z_t.dot(y) / (n as f64);
 
-        // --- STEP 1: Matriz de Pesos Inicial (2SLS) ---
+        // --- STEP 1: Initial Weight Matrix (2SLS) ---
         // W1 = (Z'Z / n)^-1
         let s_zz = z_t.dot(z) / (n as f64);
         let w1 = s_zz.inv()?;
 
-        // Estimador Beta 1 = ( (S_zx' W1 S_zx)^-1 ) * (S_zx' W1 S_zy)
+        // Beta Estimator 1 = ( (S_zx' W1 S_zx)^-1 ) * (S_zx' W1 S_zy)
         let s_zx_t = s_zx.t();
         let lhs_1 = s_zx_t.dot(&w1).dot(&s_zx);
         let rhs_1 = s_zx_t.dot(&w1).dot(&s_zy);
         let beta1 = lhs_1.inv()?.dot(&rhs_1);
 
-        // Resíduos do Passo 1
+        // Step 1 Residuals
         let pred1 = x.dot(&beta1);
         let resid1 = y - &pred1;
 
-        // --- STEP 2: Matriz de Pesos Ótima (Hansen's S Matrix) ---
+        // --- STEP 2: Optimal Weight Matrix (Hansen's S Matrix) ---
         // S = Lim Var (sqrt(n) * g_bar)
-        // Estimador Robusto (White): S = (1/n) * sum( u_i^2 * z_i * z_i' )
+        // Robust Estimator (White): S = (1/n) * sum( u_i^2 * z_i * z_i' )
 
-        // Calcular S eficientemente: Z' * Diag(u^2) * Z
+        // Calculate S efficiently: Z' * Diag(u^2) * Z
         let u_sq = resid1.mapv(|r| r.powi(2));
         let mut z_weighted = z.clone();
         for (i, mut row) in z_weighted.axis_iter_mut(nd::Axis(0)).enumerate() {
@@ -121,22 +121,22 @@ impl GMM {
             Err(_) => return Err(GreenersError::OptimizationFailed), // S singular
         };
 
-        // --- STEP 3: Estimador Final GMM ---
+        // --- STEP 3: Final GMM Estimator ---
         // Beta_GMM = (S_zx' W_opt S_zx)^-1 * S_zx' W_opt S_zy
         let lhs_final = s_zx_t.dot(&w_opt).dot(&s_zx);
         let rhs_final = s_zx_t.dot(&w_opt).dot(&s_zy);
 
-        // Matriz de Variância Assintótica = (1/n) * (S_zx' W_opt S_zx)^-1
-        // Note: Em GMM eficiente, a variância é o inverso da matriz LHS.
+        // Asymptotic Variance Matrix = (1/n) * (S_zx' W_opt S_zx)^-1
+        // Note: In efficient GMM, variance is the inverse of the LHS matrix.
         let var_beta_matrix = lhs_final.inv()? / (n as f64);
 
-        let beta_final = var_beta_matrix.dot(&rhs_final) * (n as f64); // Ajuste algébrico
+        let beta_final = var_beta_matrix.dot(&rhs_final) * (n as f64); // Algebraic adjustment
 
-        // --- ESTATÍSTICAS ---
+        // --- STATISTICS ---
         let std_errors = var_beta_matrix.diag().mapv(f64::sqrt);
         let t_values = &beta_final / &std_errors;
 
-        // P-values (Normal padrão para assintótico)
+        // P-values (Standard Normal for asymptotic)
         let dist = statrs::distribution::Normal::new(0.0, 1.0).unwrap();
         let p_values = t_values.mapv(|z| 2.0 * (1.0 - dist.cdf(z.abs())));
 
@@ -149,7 +149,7 @@ impl GMM {
 
         let j_stat = (n as f64) * g_bar.t().dot(&w_opt).dot(&g_bar);
 
-        // Graus de liberdade do J-test = L - K
+        // J-test degrees of freedom = L - K
         let df_overid = l - k;
         let j_p_value = if df_overid > 0 {
             let chi2 =

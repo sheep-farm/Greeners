@@ -4,10 +4,10 @@ use ndarray_linalg::Inverse;
 use statrs::distribution::{Continuous, ContinuousCDF, Normal};
 use std::fmt;
 
-/// Estrutura para armazenar resultados de modelos de escolha binária (Logit/Probit).
+/// Structure to store results from binary choice models (Logit/Probit).
 #[derive(Debug)]
 pub struct BinaryModelResult {
-    pub model_name: String, // "Logit" ou "Probit"
+    pub model_name: String, // "Logit" or "Probit"
     pub params: Array1<f64>,
     pub std_errors: Array1<f64>,
     pub z_values: Array1<f64>,
@@ -59,7 +59,7 @@ impl fmt::Display for BinaryModelResult {
     }
 }
 
-/// Implementação do Logit (Regressão Logística).
+/// Logit implementation (Logistic Regression).
 pub struct Logit;
 
 impl Logit {
@@ -159,7 +159,7 @@ impl Logit {
     }
 }
 
-/// Implementação do Probit (Regressão com Normal CDF).
+/// Probit implementation (Regression with Normal CDF).
 pub struct Probit;
 
 impl Probit {
