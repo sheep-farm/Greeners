@@ -1,6 +1,7 @@
 use crate::{GreenersError, formula::Formula};
 use ndarray::{Array1, Array2};
 use std::collections::HashMap;
+use std::path::Path;
 
 /// A simple DataFrame-like structure for storing column-oriented data.
 ///
@@ -154,6 +155,63 @@ impl DataFrame {
 
         self.columns.insert(name, data);
         Ok(())
+    }
+
+    /// Read a DataFrame from a CSV file with headers.
+    ///
+    /// # Arguments
+    /// * `path` - Path to the CSV file
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::from_csv("data.csv").unwrap();
+    /// println!("Loaded {} rows and {} columns", df.n_rows(), df.n_cols());
+    /// println!("Columns: {:?}", df.column_names());
+    /// ```
+    pub fn from_csv<P: AsRef<Path>>(path: P) -> Result<Self, GreenersError> {
+        use csv::ReaderBuilder;
+
+        let mut reader = ReaderBuilder::new()
+            .has_headers(true)
+            .from_path(path)
+            .map_err(|e| GreenersError::FormulaError(format!("Failed to read CSV: {}", e)))?;
+
+        // Get headers
+        let headers = reader.headers()
+            .map_err(|e| GreenersError::FormulaError(format!("Failed to read headers: {}", e)))?
+            .clone();
+
+        // Initialize column vectors
+        let mut columns: HashMap<String, Vec<f64>> = HashMap::new();
+        for header in headers.iter() {
+            columns.insert(header.to_string(), Vec::new());
+        }
+
+        // Read all records
+        for result in reader.records() {
+            let record = result
+                .map_err(|e| GreenersError::FormulaError(format!("Failed to read record: {}", e)))?;
+
+            for (i, field) in record.iter().enumerate() {
+                let header = &headers[i];
+                let value: f64 = field.trim().parse()
+                    .map_err(|_| GreenersError::FormulaError(
+                        format!("Failed to parse '{}' as f64 in column '{}'", field, header)
+                    ))?;
+
+                columns.get_mut(header).unwrap().push(value);
+            }
+        }
+
+        // Convert Vec<f64> to Array1<f64>
+        let mut data = HashMap::new();
+        for (name, values) in columns {
+            data.insert(name, Array1::from(values));
+        }
+
+        DataFrame::new(data)
     }
 }
 
