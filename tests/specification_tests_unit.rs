@@ -295,7 +295,7 @@ fn test_reset_test_misspecified_model() {
     let fitted: Vec<f64> = x_vals.iter().map(|&x| 1.0 + 2.0 * x).collect();
     let fitted = Array1::from(fitted);
 
-    let (f_stat, p_value, _, _) = SpecificationTests::reset_test(&y, &x, &fitted, 2).unwrap();
+    let (f_stat, _p_value, _, _) = SpecificationTests::reset_test(&y, &x, &fitted, 2).unwrap();
 
     // Should detect misspecification (low p-value, high F)
     // Note: This is a strong effect, so should be detected
