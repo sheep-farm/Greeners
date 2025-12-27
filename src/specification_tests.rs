@@ -143,7 +143,7 @@ impl SpecificationTests {
         }
 
         let n = y.len();
-        let k = x.ncols();
+        let _k = x.ncols();
 
         // Original model SSR
         let residuals_orig: Array1<f64> = y - fitted_values;
@@ -225,7 +225,7 @@ impl SpecificationTests {
         lags: usize,
     ) -> Result<(f64, f64, usize), String> {
         let n = residuals.len();
-        let k = x.ncols();
+        let _k = x.ncols();
 
         if lags >= n {
             return Err("Number of lags must be less than sample size".to_string());

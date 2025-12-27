@@ -107,7 +107,7 @@ impl OlsResult {
     /// # Note
     /// Partial R² = (SSR_restricted - SSR_full) / SSR_restricted
     pub fn partial_r_squared(&self, indices: &[usize], y: &Array1<f64>, x: &Array2<f64>) -> f64 {
-        use ndarray::Array1;
+        
 
         // Full model SSR (already fitted)
         let fitted_full = self.fitted_values(x);

@@ -300,7 +300,7 @@ impl BinaryModelResult {
     /// # Note
     /// Uses conservative numerical approximation of standard errors
     /// For publication-quality inference, consider bootstrap methods
-    pub fn ame_confidence_intervals(&self, x: &Array2<f64>, alpha: f64) -> Result<(Array1<f64>, Array1<f64>), GreenersError> {
+    pub fn ame_confidence_intervals(&self, x: &Array2<f64>, _alpha: f64) -> Result<(Array1<f64>, Array1<f64>), GreenersError> {
         let ame = self.average_marginal_effects(x)?;
         let k = ame.len();
 
