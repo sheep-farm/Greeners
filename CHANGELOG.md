@@ -5,6 +5,29 @@ All notable changes to the Greeners project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2025-01-XX
+
+### Added
+- **Confidence Intervals for Marginal Effects**
+  - `BinaryModelResult::ame_confidence_intervals(x, alpha)` - 95% CI for AME
+  - Uses delta method with numerical approximation
+  - Returns (lower_bounds, upper_bounds) for each marginal effect
+  - Essential for hypothesis testing on marginal effects
+
+- **Model Comparison Methods**
+  - `BinaryModelResult::model_stats()` - Returns (AIC, BIC, LogLik, Pseudo R²)
+  - `OlsResult::model_stats()` - Returns (AIC, BIC, LogLik, Adj R²)
+  - Easy model comparison across specifications
+
+- **Partial R² for OLS**
+  - `OlsResult::partial_r_squared(indices, y, x)` - Contribution of variable subset
+  - Measures incremental explanatory power
+  - Useful for nested model comparisons
+
+### Documentation
+- Enhanced marginal effects documentation with CI examples
+- Added model comparison examples
+
 ## [0.6.0] - 2025-01-XX
 
 ### Added
