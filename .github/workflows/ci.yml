@@ -1,0 +1,48 @@
+name: CI Greeners
+
+# Quando isso deve rodar?
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test_and_coverage:
+    name: Testar e Verificar
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Baixa seu código
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      # 2. Instala o Rust (versão estável mais recente)
+      - name: Instalar Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # 3. Cache inteligente (para não baixar todas as crates do zero toda vez)
+      - name: Cache do Cargo
+        uses: swatinem/rust-cache@v2
+
+      # 4. Verifica formatação (se o código está "bonito" padrão Rust)
+      - name: Checar Formatação (cargo fmt)
+        run: cargo fmt --all -- --check
+
+      # 5. Procura erros de boas práticas (Clippy)
+      - name: Linter (cargo clippy)
+        run: cargo clippy -- -D warnings
+
+      # 6. Roda os seus 76 testes unitários
+      - name: Rodar Testes (cargo test)
+        run: cargo test --verbose
+
+      # 7. (BÔNUS) Roda o Tarpaulin e mostra a cobertura no log do GitHub
+      - name: Checar Cobertura (Tarpaulin)
+        uses: xd009642/tarpaulin@v0.1
+        with:
+          version: 'latest'
+          args: '--ignore-tests'
