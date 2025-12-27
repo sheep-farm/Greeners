@@ -5,6 +5,70 @@ All notable changes to the Greeners project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2025-01-XX
+
+### Added
+- **Marginal Effects for Binary Choice Models**: Post-estimation analysis for Logit/Probit
+  - `average_marginal_effects(x)` - Average Marginal Effects (AME) - RECOMMENDED
+    - Formula (Logit): AME_j = (1/n) Σ_i [β_j × exp(x'β)/(1+exp(x'β))²]
+    - Formula (Probit): AME_j = (1/n) Σ_i [β_j × φ(x'β)] where φ is normal PDF
+    - Averages marginal effects across all observations
+    - Accounts for sample heterogeneity
+    - Most robust estimator for policy/substantive interpretation
+  - `marginal_effects_at_means(x)` - Marginal Effects at Means (MEM)
+    - Evaluates marginal effect at sample means x̄
+    - Faster but less robust than AME
+    - Can give misleading results with dummy variables
+  - `predict_proba(x)` - Predicted probabilities for new observations
+    - Returns P(y=1|x) for Logit/Probit models
+    - Essential for out-of-sample predictions and model validation
+  - All methods work seamlessly with formula API
+  - See `examples/marginal_effects.rs` for comprehensive usage
+
+### Changed
+- Enhanced `BinaryModelResult` struct to store design matrix for marginal effects
+- Updated `Logit::fit()` and `Probit::fit()` to cache X data for post-estimation
+- Marginal effects automatically detect model type (Logit vs Probit) for correct formula
+
+### Documentation
+- Added comprehensive marginal effects example (`examples/marginal_effects.rs`)
+  - College admission example with GPA, SAT, legacy status
+  - Demonstrates AME vs MEM comparison
+  - Logit vs Probit comparison
+  - Interpretation guidelines
+  - Stata/R/Python equivalents
+- Updated README.md with v0.5.0 marginal effects section
+- Enhanced CHANGELOG.md with detailed formulas and usage notes
+
+### Examples
+- `examples/marginal_effects.rs`: Complete demonstration of marginal effects
+  - Real-world college admission dataset
+  - Both Logit and Probit estimation
+  - AME and MEM calculation
+  - Model comparison and predictions
+  - Comprehensive interpretation guide
+
+### Technical Details
+- AME is computed by averaging marginal effects across all observations
+- MEM is computed at the vector of sample means
+- For continuous variables: ME_j = ∂P(y=1|x)/∂x_j
+- For binary variables: ME_j represents discrete change from 0 to 1
+- Marginal effects are in probability units (easy to interpret vs log-odds)
+
+### Why Marginal Effects Matter
+- Coefficients in Logit/Probit are on log-odds/z-score scale (hard to interpret)
+- Marginal effects show PROBABILITY changes (intuitive for policy/research)
+- Essential for:
+  - Policy analysis ("What's the effect of X on outcomes?")
+  - Treatment effect heterogeneity
+  - Economic significance vs statistical significance
+  - Comparing effects across different models
+
+### Stata/R/Python Equivalents
+- **Stata**: `margins, dydx(*)` for AME, `margins, dydx(*) atmeans` for MEM
+- **R**: `mfx::logitmfx()`, `margins::margins()`
+- **Python**: `statsmodels.discrete.discrete_model.*.get_margeff()`
+
 ## [0.4.0] - 2025-01-XX
 
 ### Added

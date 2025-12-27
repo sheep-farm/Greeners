@@ -1,7 +1,7 @@
 # Greeners: High-Performance Econometrics in Rust
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
-![Version](https://img.shields.io/badge/version-0.4.0-blue)
+![Version](https://img.shields.io/badge/version-0.5.0-blue)
 ![License](https://img.shields.io/badge/license-GPLv3-green)
 
 **Greeners** is a lightning-fast, type-safe econometrics library written in pure Rust. It provides a comprehensive suite of estimators for Cross-Sectional, Time-Series, and Panel Data analysis, leveraging linear algebra backends (LAPACK/BLAS) for maximum performance.
@@ -23,6 +23,75 @@ let result = OLS::from_formula(&formula, &df, CovarianceType::HC1)?;
 **All estimators support formulas:** OLS, WLS, DiD, IV/2SLS, Logit/Probit, Quantile Regression, Panel Data (FE/RE/Between), and more!
 
 📖 See [FORMULA_API.md](FORMULA_API.md) for complete documentation and examples.
+
+## 🌟 NEW in v0.5.0: Marginal Effects for Binary Choice Models
+
+After estimating Logit/Probit models, **coefficients alone are hard to interpret** (they're on log-odds/z-score scale). **Marginal effects** translate these to **probability changes** - essential for policy analysis and substantive interpretation!
+
+### Average Marginal Effects (AME) - RECOMMENDED
+
+```rust
+use greeners::{Logit, Formula, DataFrame};
+
+// Estimate Logit model
+let formula = Formula::parse("admitted ~ gpa + sat + legacy")?;
+let result = Logit::from_formula(&formula, &df)?;
+
+// Get design matrix
+let (_, x) = df.to_design_matrix(&formula)?;
+
+// Calculate Average Marginal Effects (AME)
+let ame = result.average_marginal_effects(&x)?;
+
+// Interpretation: AME[gpa] = 0.15 means:
+// "A 1-point increase in GPA increases admission probability by 15 percentage points"
+// (averaged across all students in the sample)
+```
+
+**Why AME?**
+- ✅ Accounts for heterogeneity across observations
+- ✅ More robust to non-linearities
+- ✅ Standard in modern econometrics (Stata, R, Python)
+- ✅ Easy to interpret: probability changes, not log-odds
+
+### Marginal Effects at Means (MEM)
+
+```rust
+// Calculate Marginal Effects at Means (MEM)
+let mem = result.marginal_effects_at_means(&x)?;
+
+// Interpretation: Effect for "average" student
+// ⚠️ Less robust than AME - can evaluate at impossible values (e.g., average of dummies)
+```
+
+### Predictions
+
+```rust
+// Predict admission probabilities for new students
+let probs = result.predict_proba(&x_new);
+
+// Example: probs[0] = 0.85 → 85% chance of admission
+```
+
+### Logit vs Probit Comparison
+
+```rust
+// Both models give similar marginal effects
+let logit_result = Logit::from_formula(&formula, &df)?;
+let probit_result = Probit::from_formula(&formula, &df)?;
+
+let ame_logit = logit_result.average_marginal_effects(&x)?;
+let ame_probit = probit_result.average_marginal_effects(&x)?;
+
+// Typically: ame_logit ≈ ame_probit (differences < 1-2 percentage points)
+```
+
+**Stata/R/Python Equivalents:**
+- **Stata**: `margins, dydx(*)` (AME) or `margins, dydx(*) atmeans` (MEM)
+- **R**: `mfx::logitmfx()` or `margins::margins()`
+- **Python**: `statsmodels.discrete.discrete_model.Logit(...).get_margeff()`
+
+📖 See `examples/marginal_effects.rs` for comprehensive demonstration with college admission data.
 
 ## 🎊 NEW in v0.4.0: Categorical Variables & Polynomial Terms
 
