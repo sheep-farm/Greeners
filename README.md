@@ -1,7 +1,7 @@
 # Greeners: High-Performance Econometrics in Rust
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
-![Version](https://img.shields.io/badge/version-0.3.0-blue)
+![Version](https://img.shields.io/badge/version-0.4.0-blue)
 ![License](https://img.shields.io/badge/license-GPLv3-green)
 
 **Greeners** is a lightning-fast, type-safe econometrics library written in pure Rust. It provides a comprehensive suite of estimators for Cross-Sectional, Time-Series, and Panel Data analysis, leveraging linear algebra backends (LAPACK/BLAS) for maximum performance.
@@ -23,6 +23,49 @@ let result = OLS::from_formula(&formula, &df, CovarianceType::HC1)?;
 **All estimators support formulas:** OLS, WLS, DiD, IV/2SLS, Logit/Probit, Quantile Regression, Panel Data (FE/RE/Between), and more!
 
 📖 See [FORMULA_API.md](FORMULA_API.md) for complete documentation and examples.
+
+## 🎊 NEW in v0.4.0: Categorical Variables & Polynomial Terms
+
+### Categorical Variable Encoding
+Automatic dummy variable creation with R/Python syntax:
+
+```rust
+// Categorical variable: creates dummies, drops first level
+let formula = Formula::parse("sales ~ advertising + C(region)")?;
+let result = OLS::from_formula(&formula, &df, CovarianceType::HC3)?;
+
+// If region has values [0, 1, 2, 3] → creates 3 dummies (drops 0 as reference)
+```
+
+**How it works:**
+- `C(var)` detects unique values in the variable
+- Creates K-1 dummy variables (drops first category as reference)
+- Essential for categorical data (regions, industries, treatment groups)
+
+### Polynomial Terms
+Non-linear relationships made easy:
+
+```rust
+// Quadratic model: captures diminishing returns
+let formula = Formula::parse("output ~ input + I(input^2)")?;
+
+// Cubic model: more flexible
+let formula = Formula::parse("y ~ x + I(x^2) + I(x^3)")?;
+
+// Alternative syntax (Python-style)
+let formula = Formula::parse("y ~ x + I(x**2)")?;
+```
+
+**Use cases:**
+- Production functions (diminishing returns)
+- Wage curves (experience effects)
+- Growth models (non-linear dynamics)
+
+**Combine with interactions:**
+```rust
+// Region-specific quadratic effects
+let formula = Formula::parse("sales ~ C(region) * I(advertising^2)")?;
+```
 
 ## 🆕 NEW in v0.2.0: Clustered Standard Errors & Advanced Diagnostics
 

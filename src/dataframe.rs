@@ -89,6 +89,45 @@ impl DataFrame {
         self.columns.keys().cloned().collect()
     }
 
+    /// Count the actual number of columns in the design matrix
+    /// (accounting for categorical variable expansion)
+    fn count_design_matrix_cols(&self, formula: &Formula) -> Result<usize, GreenersError> {
+        let mut count = 0;
+
+        // Intercept
+        if formula.intercept {
+            count += 1;
+        }
+
+        // Independent variables
+        for var_name in &formula.independents {
+            if var_name.starts_with("C(") && var_name.ends_with(')') {
+                // Categorical: count unique values - 1 (drop first)
+                let var = var_name[2..var_name.len()-1].trim();
+                let col_data = self.get(var)?;
+
+                use std::collections::BTreeSet;
+                let unique_vals: BTreeSet<i32> = col_data.iter()
+                    .map(|&v| v.round() as i32)
+                    .collect();
+
+                let n_categories = unique_vals.len();
+                if n_categories < 2 {
+                    return Err(GreenersError::FormulaError(
+                        format!("Categorical variable '{}' must have at least 2 categories", var)
+                    ));
+                }
+
+                count += n_categories - 1; // Drop first category
+            } else {
+                // Regular, interaction, or polynomial: 1 column each
+                count += 1;
+            }
+        }
+
+        Ok(count)
+    }
+
     /// Build design matrix (X) and response vector (y) from a Formula.
     ///
     /// # Examples
@@ -116,8 +155,10 @@ impl DataFrame {
 
         // Build X matrix
         let n_rows = self.n_rows;
-        let n_cols = formula.n_cols();
-        let mut x_mat = Array2::<f64>::zeros((n_rows, n_cols));
+
+        // Count actual number of columns (accounting for categorical expansion)
+        let actual_n_cols = self.count_design_matrix_cols(formula)?;
+        let mut x_mat = Array2::<f64>::zeros((n_rows, actual_n_cols));
 
         let mut col_idx = 0;
 
@@ -129,10 +170,91 @@ impl DataFrame {
             col_idx += 1;
         }
 
-        // Add independent variables (including interactions)
+        // Add independent variables (including interactions, categorical, polynomial)
         for var_name in &formula.independents {
+            // Check for categorical variable: C(var)
+            if var_name.starts_with("C(") && var_name.ends_with(')') {
+                // Extract variable name from C(var)
+                let var = var_name[2..var_name.len()-1].trim();
+                let col_data = self.get(var)?;
+
+                // Get unique values (categories)
+                use std::collections::BTreeSet;
+                let unique_vals: BTreeSet<i32> = col_data.iter()
+                    .map(|&v| v.round() as i32)
+                    .collect();
+
+                let mut categories: Vec<i32> = unique_vals.into_iter().collect();
+                categories.sort();
+
+                // Create dummies (drop first category for identification)
+                // e.g., if categories are [0, 1, 2], create dummies for 1 and 2
+                if categories.len() < 2 {
+                    return Err(GreenersError::FormulaError(
+                        format!("Categorical variable '{}' must have at least 2 categories", var)
+                    ));
+                }
+
+                // Skip first category (reference level)
+                for &cat_val in categories.iter().skip(1) {
+                    for i in 0..n_rows {
+                        x_mat[[i, col_idx]] = if (col_data[i].round() as i32) == cat_val { 1.0 } else { 0.0 };
+                    }
+                    col_idx += 1;
+                }
+
+                continue; // Skip col_idx increment at end since we handled it
+            }
+
+            // Check for polynomial term: I(expr)
+            if var_name.starts_with("I(") && var_name.ends_with(')') {
+                // Extract expression from I(...)
+                let expr = var_name[2..var_name.len()-1].trim();
+
+                // Parse simple expressions: var^power or var**power
+                if expr.find('^').or_else(|| expr.find("**")).is_some() {
+                    let var_part;
+                    let power_part;
+
+                    if expr.contains("**") {
+                        let parts: Vec<&str> = expr.split("**").collect();
+                        if parts.len() != 2 {
+                            return Err(GreenersError::FormulaError(
+                                format!("Invalid polynomial expression '{}'", expr)
+                            ));
+                        }
+                        var_part = parts[0].trim();
+                        power_part = parts[1].trim();
+                    } else {
+                        let parts: Vec<&str> = expr.split('^').collect();
+                        if parts.len() != 2 {
+                            return Err(GreenersError::FormulaError(
+                                format!("Invalid polynomial expression '{}'", expr)
+                            ));
+                        }
+                        var_part = parts[0].trim();
+                        power_part = parts[1].trim();
+                    }
+
+                    let col_data = self.get(var_part)?;
+                    let power: i32 = power_part.parse().map_err(|_| {
+                        GreenersError::FormulaError(
+                            format!("Invalid power in expression '{}'", expr)
+                        )
+                    })?;
+
+                    // Compute x^power
+                    for i in 0..n_rows {
+                        x_mat[[i, col_idx]] = col_data[i].powi(power);
+                    }
+                } else {
+                    return Err(GreenersError::FormulaError(
+                        format!("I() expression must contain ^ or **: '{}'", expr)
+                    ));
+                }
+            }
             // Check if this is an interaction term (contains ':')
-            if var_name.contains(':') {
+            else if var_name.contains(':') {
                 // Parse interaction: "x1:x2"
                 let parts: Vec<&str> = var_name.split(':').collect();
                 if parts.len() != 2 {

@@ -1,9 +1,9 @@
 [package]
 name = "greeners"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 authors = ["Flávio de Vasconcellos Corrêa <flavio.vcorrea@ufpel.edu.br>"]
-description = "High-performance econometrics library with R/Python-style formulas. OLS, IV/2SLS, DiD, Logit/Probit, Panel Data (FE/RE), Time Series (VAR/VECM). Interaction terms, HC2/HC3, Clustered SE, Diagnostics, Predictions!"
+description = "High-performance econometrics with R/Python formulas. Categorical C(var), Polynomial I(x^2), Interactions, HC2/HC3, Clustered SE, Diagnostics. OLS, IV/2SLS, DiD, Logit/Probit, Panel (FE/RE), Time Series (VAR/VECM), Quantile!"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/sheep-farm/Greeners" # Link OBRIGATÓRIO para o GitHub
 readme = "README.md"
