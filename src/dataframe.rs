@@ -129,11 +129,31 @@ impl DataFrame {
             col_idx += 1;
         }
 
-        // Add independent variables
+        // Add independent variables (including interactions)
         for var_name in &formula.independents {
-            let col_data = self.get(var_name)?;
-            for i in 0..n_rows {
-                x_mat[[i, col_idx]] = col_data[i];
+            // Check if this is an interaction term (contains ':')
+            if var_name.contains(':') {
+                // Parse interaction: "x1:x2"
+                let parts: Vec<&str> = var_name.split(':').collect();
+                if parts.len() != 2 {
+                    return Err(GreenersError::FormulaError(
+                        format!("Invalid interaction term '{}'", var_name)
+                    ));
+                }
+
+                let var1 = self.get(parts[0].trim())?;
+                let var2 = self.get(parts[1].trim())?;
+
+                // Compute interaction: elementwise multiplication
+                for i in 0..n_rows {
+                    x_mat[[i, col_idx]] = var1[i] * var2[i];
+                }
+            } else {
+                // Regular variable
+                let col_data = self.get(var_name)?;
+                for i in 0..n_rows {
+                    x_mat[[i, col_idx]] = col_data[i];
+                }
             }
             col_idx += 1;
         }

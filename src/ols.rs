@@ -28,11 +28,64 @@ pub struct OlsResult {
     pub cov_type: CovarianceType, // Store which type was used
 }
 
+impl OlsResult {
+    /// Generate predictions (fitted values) for new data
+    ///
+    /// # Arguments
+    /// * `x_new` - Design matrix for new observations (must have same number of columns as original X)
+    ///
+    /// # Returns
+    /// Array of predicted values
+    ///
+    /// # Example
+    /// ```no_run
+    /// use greeners::{OLS, CovarianceType};
+    /// use ndarray::{Array1, Array2};
+    ///
+    /// let y = Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
+    /// let x = Array2::from_shape_vec((5, 2), vec![1.0, 1.0, 1.0, 2.0, 1.0, 3.0, 1.0, 4.0, 1.0, 5.0]).unwrap();
+    /// let result = OLS::fit(&y, &x, CovarianceType::HC1).unwrap();
+    ///
+    /// // Predict for new data
+    /// let x_new = Array2::from_shape_vec((2, 2), vec![1.0, 6.0, 1.0, 7.0]).unwrap();
+    /// let y_pred = result.predict(&x_new);
+    /// ```
+    pub fn predict(&self, x_new: &Array2<f64>) -> Array1<f64> {
+        x_new.dot(&self.params)
+    }
+
+    /// Calculate residuals for given data
+    ///
+    /// # Arguments
+    /// * `y` - Actual values
+    /// * `x` - Design matrix
+    ///
+    /// # Returns
+    /// Array of residuals (y - ŷ)
+    pub fn residuals(&self, y: &Array1<f64>, x: &Array2<f64>) -> Array1<f64> {
+        let y_hat = x.dot(&self.params);
+        y - &y_hat
+    }
+
+    /// Get fitted values (in-sample predictions)
+    ///
+    /// # Arguments
+    /// * `x` - Original design matrix used in fitting
+    ///
+    /// # Returns
+    /// Array of fitted values
+    pub fn fitted_values(&self, x: &Array2<f64>) -> Array1<f64> {
+        x.dot(&self.params)
+    }
+}
+
 impl fmt::Display for OlsResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let cov_str = match &self.cov_type {
             CovarianceType::NonRobust => "Non-Robust".to_string(),
             CovarianceType::HC1 => "Robust (HC1)".to_string(),
+            CovarianceType::HC2 => "Robust (HC2)".to_string(),
+            CovarianceType::HC3 => "Robust (HC3)".to_string(),
             CovarianceType::NeweyWest(lags) => format!("HAC (Newey-West, L={})", lags),
             CovarianceType::Clustered(clusters) => {
                 let n_clusters = clusters.iter().collect::<std::collections::HashSet<_>>().len();
@@ -174,6 +227,8 @@ impl OLS {
         let cov_matrix = match &cov_type {
             CovarianceType::NonRobust => &xt_x_inv * sigma2,
             CovarianceType::HC1 => {
+                // HC1: White's heteroscedasticity-robust SE with small-sample correction
+                // V = (X'X)^-1 * X' diag(u²) X * (X'X)^-1 * (n / (n-k))
                 let u_squared = residuals.mapv(|r| r.powi(2));
                 let mut x_weighted = x.clone();
                 for (i, mut row) in x_weighted.axis_iter_mut(nd::Axis(0)).enumerate() {
@@ -185,6 +240,74 @@ impl OLS {
 
                 let correction = (n as f64) / (df_resid as f64);
                 sandwich * correction
+            }
+            CovarianceType::HC2 => {
+                // HC2: Leverage-adjusted heteroscedasticity-robust SE
+                // V = (X'X)^-1 * X' diag(u² / (1 - h_i)) X * (X'X)^-1
+                // More efficient than HC1 with small samples
+
+                // Calculate leverage values: h_i = x_i' (X'X)^-1 x_i
+                let mut leverage = Array1::<f64>::zeros(n);
+                for i in 0..n {
+                    let x_i = x.row(i);
+                    let temp = xt_x_inv.dot(&x_i);
+                    leverage[i] = x_i.dot(&temp);
+                }
+
+                // Adjust residuals: u²_i / (1 - h_i)
+                let mut u_adjusted = Array1::<f64>::zeros(n);
+                for i in 0..n {
+                    let h_i = leverage[i];
+                    if h_i >= 0.9999 {
+                        u_adjusted[i] = residuals[i].powi(2);  // Avoid division by zero
+                    } else {
+                        u_adjusted[i] = residuals[i].powi(2) / (1.0 - h_i);
+                    }
+                }
+
+                // Build sandwich estimator with adjusted weights
+                let mut x_weighted = x.clone();
+                for (i, mut row) in x_weighted.axis_iter_mut(nd::Axis(0)).enumerate() {
+                    row *= u_adjusted[i];
+                }
+
+                let meat = x_t.dot(&x_weighted);
+                let bread = &xt_x_inv;
+                bread.dot(&meat).dot(bread)
+            }
+            CovarianceType::HC3 => {
+                // HC3: Jackknife heteroscedasticity-robust SE
+                // V = (X'X)^-1 * X' diag(u² / (1 - h_i)²) X * (X'X)^-1
+                // Most robust for small samples - recommended default
+
+                // Calculate leverage values
+                let mut leverage = Array1::<f64>::zeros(n);
+                for i in 0..n {
+                    let x_i = x.row(i);
+                    let temp = xt_x_inv.dot(&x_i);
+                    leverage[i] = x_i.dot(&temp);
+                }
+
+                // Adjust residuals: u²_i / (1 - h_i)²
+                let mut u_adjusted = Array1::<f64>::zeros(n);
+                for i in 0..n {
+                    let h_i = leverage[i];
+                    if h_i >= 0.9999 {
+                        u_adjusted[i] = residuals[i].powi(2);  // Avoid division by zero
+                    } else {
+                        u_adjusted[i] = residuals[i].powi(2) / (1.0 - h_i).powi(2);
+                    }
+                }
+
+                // Build sandwich estimator with adjusted weights
+                let mut x_weighted = x.clone();
+                for (i, mut row) in x_weighted.axis_iter_mut(nd::Axis(0)).enumerate() {
+                    row *= u_adjusted[i];
+                }
+
+                let meat = x_t.dot(&x_weighted);
+                let bread = &xt_x_inv;
+                bread.dot(&meat).dot(bread)
             }
             CovarianceType::NeweyWest(lags) => {
                 // HAC Estimator (Newey-West)

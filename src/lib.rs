@@ -49,7 +49,17 @@ pub enum CovarianceType {
     /// Standard OLS (Homoscedastic)
     NonRobust,
     /// White's Robust Errors (HC1) - Only Heteroscedasticity
+    /// Uses small-sample correction: n/(n-k)
     HC1,
+    /// HC2 - Leverage-adjusted heteroscedasticity-robust SE
+    /// Adjusts for leverage: σ²_i / (1 - h_i)
+    /// More efficient than HC1 with small samples
+    HC2,
+    /// HC3 - Jackknife heteroscedasticity-robust SE
+    /// Uses squared leverage adjustment: σ²_i / (1 - h_i)²
+    /// Most robust for small samples (MacKinnon & White, 1985)
+    /// Recommended default robust SE estimator
+    HC3,
     /// Newey-West (HAC) - Heteroscedasticity + Autocorrelation
     /// The 'usize' parameter is the number of lags (L).
     /// Common rule of thumb: L = n^0.25

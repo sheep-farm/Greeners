@@ -1,11 +1,16 @@
 use crate::GreenersError;
 
 /// Represents a parsed formula in the form "y ~ x1 + x2 + ... + xn"
+///
+/// # Interaction Terms (NEW in v0.3.0)
+/// - `x1 * x2` : Full interaction (expands to x1 + x2 + x1:x2)
+/// - `x1 : x2` : Only the interaction term (x1 × x2)
 #[derive(Debug, Clone)]
 pub struct Formula {
     /// Name of the dependent variable (left-hand side)
     pub dependent: String,
     /// Names of independent variables (right-hand side)
+    /// May include interaction terms denoted as "var1:var2"
     pub independents: Vec<String>,
     /// Whether to include an intercept (default: true)
     pub intercept: bool,
@@ -18,6 +23,8 @@ impl Formula {
     /// - Basic: "y ~ x1 + x2 + x3" (with intercept)
     /// - No intercept: "y ~ x1 + x2 + x3 - 1" or "y ~ 0 + x1 + x2"
     /// - Intercept only: "y ~ 1"
+    /// - Full interaction: "y ~ x1 * x2" (expands to x1 + x2 + x1:x2)
+    /// - Interaction only: "y ~ x1 : x2" (only the interaction term)
     ///
     /// # Examples
     /// ```
@@ -83,7 +90,39 @@ impl Formula {
                 continue;
             }
 
-            independents.push(term.to_string());
+            // Check for interaction terms
+            if term.contains('*') {
+                // Full interaction: x1 * x2 expands to x1 + x2 + x1:x2
+                let vars: Vec<&str> = term.split('*').map(|s| s.trim()).collect();
+                if vars.len() != 2 {
+                    return Err(GreenersError::FormulaError(
+                        format!("Invalid interaction term '{}'. Expected 'var1 * var2'", term)
+                    ));
+                }
+
+                // Add main effects
+                independents.push(vars[0].to_string());
+                independents.push(vars[1].to_string());
+
+                // Add interaction term (using : notation)
+                independents.push(format!("{}:{}", vars[0], vars[1]));
+
+            } else if term.contains(':') {
+                // Interaction only: x1:x2 (just the interaction term)
+                let vars: Vec<&str> = term.split(':').map(|s| s.trim()).collect();
+                if vars.len() != 2 {
+                    return Err(GreenersError::FormulaError(
+                        format!("Invalid interaction term '{}'. Expected 'var1:var2'", term)
+                    ));
+                }
+
+                // Add interaction term as-is
+                independents.push(format!("{}:{}", vars[0], vars[1]));
+
+            } else {
+                // Regular term
+                independents.push(term.to_string());
+            }
         }
 
         let cleaned_independents = independents;
@@ -150,5 +189,44 @@ mod tests {
         assert!(Formula::parse("invalid").is_err());
         assert!(Formula::parse("~ x1 + x2").is_err());
         assert!(Formula::parse("y ~").is_ok()); // empty RHS is technically ok
+    }
+
+    #[test]
+    fn test_full_interaction() {
+        // x1 * x2 should expand to x1 + x2 + x1:x2
+        let f = Formula::parse("y ~ x1 * x2").unwrap();
+        assert_eq!(f.dependent, "y");
+        assert_eq!(f.independents, vec!["x1", "x2", "x1:x2"]);
+        assert!(f.intercept);
+        assert_eq!(f.n_cols(), 4); // intercept + x1 + x2 + x1:x2
+    }
+
+    #[test]
+    fn test_interaction_only() {
+        // x1:x2 should only add the interaction term
+        let f = Formula::parse("y ~ x1 : x2").unwrap();
+        assert_eq!(f.dependent, "y");
+        assert_eq!(f.independents, vec!["x1:x2"]);
+        assert!(f.intercept);
+        assert_eq!(f.n_cols(), 2); // intercept + x1:x2
+    }
+
+    #[test]
+    fn test_mixed_interaction() {
+        // Combination of regular terms and interactions
+        let f = Formula::parse("y ~ x1 + x2 * x3 + x4").unwrap();
+        assert_eq!(f.dependent, "y");
+        assert_eq!(f.independents, vec!["x1", "x2", "x3", "x2:x3", "x4"]);
+        assert!(f.intercept);
+        assert_eq!(f.n_cols(), 6); // intercept + x1 + x2 + x3 + x2:x3 + x4
+    }
+
+    #[test]
+    fn test_interaction_no_intercept() {
+        let f = Formula::parse("y ~ x1 * x2 - 1").unwrap();
+        assert_eq!(f.dependent, "y");
+        assert_eq!(f.independents, vec!["x1", "x2", "x1:x2"]);
+        assert!(!f.intercept);
+        assert_eq!(f.n_cols(), 3); // x1 + x2 + x1:x2 (no intercept)
     }
 }

@@ -5,6 +5,45 @@ All notable changes to the Greeners project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-01-XX
+
+### Added
+- **Interaction Terms in Formulas**: Full R/Python-style interaction syntax
+  - `y ~ x1 * x2` expands to x1 + x2 + x1:x2 (full interaction)
+  - `y ~ x1 : x2` adds only the interaction term (product)
+  - Essential for modeling differential effects and treatment heterogeneity
+  - Works seamlessly with all estimators (OLS, IV, Panel Data, etc.)
+  - See `examples/v0_3_features.rs` for comprehensive examples
+
+- **Additional Robust Covariance Estimators**: HC2 and HC3
+  - `CovarianceType::HC2`: Leverage-adjusted heteroscedasticity-robust SE
+    - Formula: σ²_i / (1 - h_i)
+    - More efficient than HC1 with small samples
+  - `CovarianceType::HC3`: Jackknife heteroscedasticity-robust SE
+    - Formula: σ²_i / (1 - h_i)²
+    - Most robust for small samples (MacKinnon & White, 1985)
+    - **Recommended as default robust SE estimator**
+  - Implemented for both OLS and IV/2SLS estimators
+
+- **Post-Estimation Methods**: Predictions and residual analysis
+  - `OlsResult::predict(&x_new)`: Out-of-sample predictions for new data
+  - `OlsResult::fitted_values(&x)`: In-sample fitted values
+  - `OlsResult::residuals(&y, &x)`: Calculate residuals
+  - Essential for model validation and forecasting
+
+### Changed
+- Updated formula parser to handle interaction operators (`*` and `:`)
+- Enhanced DataFrame::to_design_matrix to compute interaction columns automatically
+- Display output now shows HC2 and HC3 covariance types
+
+### Documentation
+- Added comprehensive v0.3.0 features example
+- Updated README.md with interaction, HC2/HC3, and prediction examples
+- Updated FORMULA_API.md with interaction syntax documentation
+
+### Examples
+- `examples/v0_3_features.rs`: Complete demo of all v0.3.0 features
+
 ## [0.2.0] - 2025-01-XX
 
 ### Added

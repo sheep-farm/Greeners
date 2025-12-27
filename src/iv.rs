@@ -27,6 +27,8 @@ impl fmt::Display for IvResult {
         let cov_str = match &self.cov_type {
             CovarianceType::NonRobust => "Non-Robust".to_string(),
             CovarianceType::HC1 => "Robust (HC1)".to_string(),
+            CovarianceType::HC2 => "Robust (HC2)".to_string(),
+            CovarianceType::HC3 => "Robust (HC3)".to_string(),
             CovarianceType::NeweyWest(lags) => format!("HAC (Newey-West, L={})", lags),
             CovarianceType::Clustered(clusters) => {
                 let n_clusters = clusters.iter().collect::<std::collections::HashSet<_>>().len();
@@ -210,6 +212,62 @@ impl IV {
 
                 let correction = (n as f64) / (df_resid as f64);
                 sandwich * correction
+            }
+            CovarianceType::HC2 => {
+                // HC2 for IV: leverage-adjusted
+                let mut leverage = Array1::<f64>::zeros(n);
+                for i in 0..n {
+                    let xhat_i = x_hat.row(i);
+                    let temp = xht_xh_inv.dot(&xhat_i);
+                    leverage[i] = xhat_i.dot(&temp);
+                }
+
+                let mut u_adjusted = Array1::<f64>::zeros(n);
+                for i in 0..n {
+                    let h_i = leverage[i];
+                    if h_i >= 0.9999 {
+                        u_adjusted[i] = residuals[i].powi(2);
+                    } else {
+                        u_adjusted[i] = residuals[i].powi(2) / (1.0 - h_i);
+                    }
+                }
+
+                let mut xhat_weighted = x_hat.clone();
+                for (i, mut row) in xhat_weighted.axis_iter_mut(nd::Axis(0)).enumerate() {
+                    row *= u_adjusted[i];
+                }
+
+                let meat = x_hat_t.dot(&xhat_weighted);
+                let bread = &xht_xh_inv;
+                bread.dot(&meat).dot(bread)
+            }
+            CovarianceType::HC3 => {
+                // HC3 for IV: jackknife (most robust)
+                let mut leverage = Array1::<f64>::zeros(n);
+                for i in 0..n {
+                    let xhat_i = x_hat.row(i);
+                    let temp = xht_xh_inv.dot(&xhat_i);
+                    leverage[i] = xhat_i.dot(&temp);
+                }
+
+                let mut u_adjusted = Array1::<f64>::zeros(n);
+                for i in 0..n {
+                    let h_i = leverage[i];
+                    if h_i >= 0.9999 {
+                        u_adjusted[i] = residuals[i].powi(2);
+                    } else {
+                        u_adjusted[i] = residuals[i].powi(2) / (1.0 - h_i).powi(2);
+                    }
+                }
+
+                let mut xhat_weighted = x_hat.clone();
+                for (i, mut row) in xhat_weighted.axis_iter_mut(nd::Axis(0)).enumerate() {
+                    row *= u_adjusted[i];
+                }
+
+                let meat = x_hat_t.dot(&xhat_weighted);
+                let bread = &xht_xh_inv;
+                bread.dot(&meat).dot(bread)
             }
             CovarianceType::NeweyWest(lags) => {
                 // HAC Implementation for IV
