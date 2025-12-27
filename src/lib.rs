@@ -19,6 +19,7 @@ pub mod varma;
 pub mod vecm;
 pub mod formula;
 pub mod dataframe;
+pub mod bootstrap;
 
 pub use diagnostics::Diagnostics;
 pub use did::DiffInDiff;
@@ -43,6 +44,7 @@ pub use varma::VARMA;
 pub use vecm::VECM;
 pub use formula::Formula;
 pub use dataframe::DataFrame;
+pub use bootstrap::{Bootstrap, HypothesisTest};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CovarianceType {
