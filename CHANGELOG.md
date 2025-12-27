@@ -5,6 +5,33 @@ All notable changes to the Greeners project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2025-01-XX
+
+### Added
+- **Bootstrap Methods for Inference**
+  - `Bootstrap::pairs_bootstrap(y, x, n_replications)` - Pairs bootstrap with replacement
+  - `Bootstrap::bootstrap_se(boot_coefs)` - Bootstrap standard errors
+  - `Bootstrap::percentile_ci(boot_coefs, alpha)` - Percentile confidence intervals
+  - Robust to non-normality, heteroscedasticity, and small samples
+  - Essential for finite-sample inference and asymptotic skepticism
+
+- **Hypothesis Testing Framework**
+  - `HypothesisTest::wald_test(beta, cov, R, q)` - Wald test for linear restrictions
+  - `HypothesisTest::joint_significance(beta, cov, has_intercept)` - Test all slopes = 0
+  - `HypothesisTest::f_test_nested(ssr_r, ssr_f, n, k_f, k_r)` - F-test for nested OLS models
+  - Flexible restriction matrices for complex hypotheses
+
+### Documentation
+- Added comprehensive bootstrap and hypothesis testing example
+- Demonstrated all three testing approaches with wage data
+- Comparison of asymptotic vs bootstrap inference
+
+### Examples
+- `examples/bootstrap_hypothesis.rs`: Complete demonstration
+  - Bootstrap SE and confidence intervals
+  - Wald tests (joint and specific restrictions)
+  - F-test for model selection
+
 ## [0.7.0] - 2025-01-XX
 
 ### Added
