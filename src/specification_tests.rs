@@ -182,9 +182,9 @@ impl SpecificationTests {
         let df_num = q;
         let df_denom = n - x_augmented.ncols();
 
-        if df_denom <= 0 {
-            return Err("Insufficient degrees of freedom for RESET test".to_string());
-        }
+        // if df_denom <= 0 {
+        //     return Err("Insufficient degrees of freedom for RESET test".to_string());
+        // }
 
         let f_stat = ((ssr_orig - ssr_aug) / df_num as f64) / (ssr_aug / df_denom as f64);
 
