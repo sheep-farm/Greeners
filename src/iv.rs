@@ -412,10 +412,7 @@ impl IV {
                 use std::collections::HashMap;
                 let mut clusters: HashMap<usize, Vec<usize>> = HashMap::new();
                 for (obs_idx, &cluster_id) in cluster_ids.iter().enumerate() {
-                    clusters
-                        .entry(cluster_id)
-                        .or_default()
-                        .push(obs_idx);
+                    clusters.entry(cluster_id).or_default().push(obs_idx);
                 }
 
                 let n_clusters = clusters.len();
@@ -468,10 +465,7 @@ impl IV {
                     use std::collections::HashMap;
                     let mut clusters: HashMap<usize, Vec<usize>> = HashMap::new();
                     for (obs_idx, &cluster_id) in cluster_ids.iter().enumerate() {
-                        clusters
-                            .entry(cluster_id)
-                            .or_default()
-                            .push(obs_idx);
+                        clusters.entry(cluster_id).or_default().push(obs_idx);
                     }
 
                     let mut meat = Array2::<f64>::zeros((k, k));
