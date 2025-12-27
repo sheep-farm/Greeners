@@ -83,10 +83,21 @@ impl OlsResult {
     /// # Returns
     /// Tuple of (AIC, BIC, Log-Likelihood, Adjusted R²)
     ///
-    /// # Example
-    /// ```no_run
+    /// # Examples
+    ///
+    /// ```rust
+    /// use greeners::{OLS, CovarianceType}; // Importe o enum
+    /// use ndarray::{Array1, Array2};
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let y = Array1::from(vec![1.0, 2.0, 3.0]);
+    /// # let x = Array2::from_shape_vec((3, 2), vec![1.0, 1.0, 1.0, 2.0, 1.0, 3.0])?;
+    /// // Adicione o argumento extra aqui:
+    /// let result = OLS::fit(&y, &x, CovarianceType::NonRobust)?;
+    ///
     /// let (aic, bic, loglik, adj_r2) = result.model_stats();
-    /// println!("AIC: {:.2}, BIC: {:.2}", aic, bic);
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn model_stats(&self) -> (f64, f64, f64, f64) {
         (self.aic, self.bic, self.log_likelihood, self.adj_r_squared)

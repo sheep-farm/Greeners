@@ -96,11 +96,24 @@ impl IvResult {
     /// # Returns
     /// Predicted values for new observations
     ///
-    /// # Example
-    /// ```no_run
-    /// use ndarray::Array2;
+    /// # Examples
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use greeners::{IV, CovarianceType}; // Adicionado CovarianceType
+    /// use ndarray::{Array1, Array2};
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let y = Array1::from(vec![1.0, 2.0, 3.0]);
+    /// # let x = Array2::from_shape_vec((3, 2), vec![1.0, 1.0, 1.0, 2.0, 1.0, 3.0])?;
+    /// # let z = x.clone();
+    /// let result = IV::fit(&y, &x, &z, CovarianceType::NonRobust)?;
+    ///
     /// let x_new = Array2::from_shape_vec((3, 2), vec![1.0, 5.0, 1.0, 6.0, 1.0, 7.0])?;
     /// let predictions = result.predict(&x_new);
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn predict(&self, x_new: &Array2<f64>) -> Array1<f64> {
         x_new.dot(&self.params)

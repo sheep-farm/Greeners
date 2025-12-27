@@ -20,19 +20,26 @@ impl Bootstrap {
     /// # Returns
     /// Array of bootstrap coefficient estimates (n_bootstrap × k)
     ///
-    /// # Example
-    /// ```no_run
+/// # Examples
+    ///
+    /// ```rust
     /// use greeners::Bootstrap;
     /// use ndarray::{Array1, Array2};
     ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let y = Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
-    /// let x = Array2::from_shape_vec((5, 2), vec![1.0, 1.0, 1.0, 2.0, 1.0, 3.0, 1.0, 4.0, 1.0, 5.0])?;
+    /// let x = Array2::from_shape_vec((5, 2), vec![
+    ///     1.0, 1.0,
+    ///     1.0, 2.0,
+    ///     1.0, 3.0,
+    ///     1.0, 4.0,
+    ///     1.0, 5.0
+    /// ])?;
     ///
-    /// // Generate 1000 bootstrap samples
-    /// let boot_coefs = Bootstrap::pairs_bootstrap(&y, &x, 1000)?;
-    ///
-    /// // Calculate bootstrap standard errors
-    /// let boot_se = boot_coefs.std_axis(ndarray::Axis(0), 0.0);
+    /// let boot_coefs = Bootstrap::pairs_bootstrap(&y, &x, 100)?;
+    /// // ...
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn pairs_bootstrap(
         y: &Array1<f64>,
@@ -154,16 +161,27 @@ impl HypothesisTest {
     /// # Returns
     /// Tuple of (wald_statistic, p_value, degrees_of_freedom)
     ///
-    /// # Example
-    /// ```no_run
-    /// // Test H₀: β₁ = β₂ = 0 (joint significance test)
+/// # Examples
+    ///
+    /// ```rust
+    /// use greeners::HypothesisTest;
+    /// use ndarray::{Array1, Array2};
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// // Setup de dados falsos para o exemplo
+    /// let beta = Array1::from(vec![0.5, 2.0, 0.0]);
+    /// let cov_matrix = Array2::eye(3); // Matriz identidade como exemplo
+    ///
+    /// // Testando se beta[1] = 0 e beta[2] = 0
     /// let r = Array2::from_shape_vec((2, 3), vec![
-    ///     0.0, 1.0, 0.0,  // β₁ = 0
-    ///     0.0, 0.0, 1.0,  // β₂ = 0
+    ///     0.0, 1.0, 0.0,
+    ///     0.0, 0.0, 1.0,
     /// ])?;
     /// let q = Array1::from(vec![0.0, 0.0]);
     ///
     /// let (wald_stat, p_value, df) = HypothesisTest::wald_test(&beta, &cov_matrix, &r, &q)?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn wald_test(
         beta: &Array1<f64>,
