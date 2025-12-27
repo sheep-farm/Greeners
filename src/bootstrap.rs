@@ -20,7 +20,7 @@ impl Bootstrap {
     /// # Returns
     /// Array of bootstrap coefficient estimates (n_bootstrap × k)
     ///
-/// # Examples
+    /// # Examples
     ///
     /// ```rust
     /// use greeners::Bootstrap;
@@ -161,7 +161,7 @@ impl HypothesisTest {
     /// # Returns
     /// Tuple of (wald_statistic, p_value, degrees_of_freedom)
     ///
-/// # Examples
+    /// # Examples
     ///
     /// ```rust
     /// use greeners::HypothesisTest;
