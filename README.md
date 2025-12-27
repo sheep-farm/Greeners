@@ -1,12 +1,70 @@
 # Greeners: High-Performance Econometrics in Rust
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
-![Version](https://img.shields.io/badge/version-0.9.0-blue)
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![License](https://img.shields.io/badge/license-GPLv3-green)
+![Stability](https://img.shields.io/badge/stability-stable-green)
 
 **Greeners** is a lightning-fast, type-safe econometrics library written in pure Rust. It provides a comprehensive suite of estimators for Cross-Sectional, Time-Series, and Panel Data analysis, leveraging linear algebra backends (LAPACK/BLAS) for maximum performance.
 
 Designed for academic research, heavy simulations, and production-grade economic modeling.
+
+## 🎉 v1.0.0 STABLE RELEASE: Specification Tests
+
+Greeners reaches **production stability** with comprehensive **specification tests** for diagnosing regression assumptions!
+
+### Specification Tests (NEW in v1.0.0)
+
+Diagnose violations of classical regression assumptions and identify appropriate remedies:
+
+```rust
+use greeners::{OLS, SpecificationTests, Formula, DataFrame, CovarianceType};
+
+// Estimate model
+let model = OLS::from_formula(&Formula::parse("wage ~ education + experience")?, &df, CovarianceType::NonRobust)?;
+let (y, x) = df.to_design_matrix(&formula)?;
+let residuals = model.residuals(&y, &x);
+let fitted = model.fitted_values(&x);
+
+// 1. White Test for Heteroskedasticity
+let (lm_stat, p_value, df) = SpecificationTests::white_test(&residuals, &x)?;
+if p_value < 0.05 {
+    println!("Heteroskedasticity detected! Use CovarianceType::HC3");
+}
+
+// 2. RESET Test for Functional Form Misspecification
+let (f_stat, p_value, _, _) = SpecificationTests::reset_test(&y, &x, &fitted, 3)?;
+if p_value < 0.05 {
+    println!("Misspecification detected! Add polynomials or interactions");
+}
+
+// 3. Breusch-Godfrey Test for Autocorrelation
+let (lm_stat, p_value, df) = SpecificationTests::breusch_godfrey_test(&residuals, &x, 1)?;
+if p_value < 0.05 {
+    println!("Autocorrelation detected! Use CovarianceType::NeweyWest(4)");
+}
+
+// 4. Goldfeld-Quandt Test for Heteroskedasticity
+let (f_stat, p_value, _, _) = SpecificationTests::goldfeld_quandt_test(&residuals, 0.25)?;
+```
+
+**When to Use:**
+- **White Test** → General heteroskedasticity test (any form)
+- **RESET Test** → Detect omitted variables or wrong functional form
+- **Breusch-Godfrey** → Detect autocorrelation in time series/panel data
+- **Goldfeld-Quandt** → Test heteroskedasticity when you suspect specific ordering
+
+**Remedies:**
+- Heteroskedasticity → `CovarianceType::HC3` or `HC4`
+- Autocorrelation → `CovarianceType::NeweyWest(lags)`
+- Misspecification → Add `I(x^2)`, `x1*x2` interactions
+
+**Stata/R/Python Equivalents:**
+- **Stata**: `estat hettest`, `estat ovtest`, `estat bgodfrey`
+- **R**: `lmtest::bptest()`, `lmtest::resettest()`, `lmtest::bgtest()`
+- **Python**: `statsmodels.stats.diagnostic.het_white()`
+
+📖 See `examples/specification_tests.rs` for comprehensive demonstration.
 
 ## ✨ NEW: R/Python-Style Formula API
 
