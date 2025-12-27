@@ -1,5 +1,5 @@
 use greeners::{
-    CovarianceType, DataFrame, FixedEffects, Formula, ModelSelection, PanelDiagnostics,
+    CovarianceType, DataFrame, Formula, ModelSelection, PanelDiagnostics,
     SummaryStats, OLS,
 };
 use ndarray::Array1;

@@ -71,7 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("1. WHITE TEST for Heteroskedasticity");
     println!("═══════════════════════════════════════════════════════════════════════════");
 
-    let (white_stat, white_p, white_df) = SpecificationTests::white_test(&residuals1, &x1)?;
+    let (white_stat, white_p, _white_df) = SpecificationTests::white_test(&residuals1, &x1)?;
 
     SpecificationTests::print_test_result(
         "White Test for Heteroskedasticity",
@@ -176,7 +176,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("3. BREUSCH-GODFREY TEST for Autocorrelation");
     println!("═══════════════════════════════════════════════════════════════════════════");
 
-    let (bg_stat, bg_p, bg_df) = SpecificationTests::breusch_godfrey_test(&residuals2, &x2, 1)?;
+    let (bg_stat, bg_p, _bg_df) = SpecificationTests::breusch_godfrey_test(&residuals2, &x2, 1)?;
 
     SpecificationTests::print_test_result(
         "Breusch-Godfrey LM Test (lag=1)",

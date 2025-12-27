@@ -146,7 +146,7 @@ fn test_panel_diagnostics_bp_no_panel_effect() {
 
     let entity_ids = vec![0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2];
 
-    let (lm_stat, p_value) = PanelDiagnostics::breusch_pagan_lm(&residuals, &entity_ids).unwrap();
+    let (lm_stat, _p_value) = PanelDiagnostics::breusch_pagan_lm(&residuals, &entity_ids).unwrap();
 
     // With no panel effect, LM should be small and p-value high
     assert!(lm_stat >= 0.0);
@@ -241,7 +241,7 @@ fn test_summary_stats_quartiles() {
 #[test]
 fn test_summary_stats_single_value() {
     let data = Array1::from(vec![5.0]);
-    let (mean, std, min, q25, median, q75, max, n) = SummaryStats::describe(&data);
+    let (mean, std, min, _q25, median, _q75, max, n) = SummaryStats::describe(&data);
 
     assert_eq!(n, 1);
     assert_eq!(mean, 5.0);
@@ -269,11 +269,11 @@ fn test_summary_stats_constant_values() {
 fn test_model_selection_ranking() {
     // Test that models are ranked correctly
     // AIC = -2*loglik + 2*k
-    let models = vec![
-        ("Best AIC", -50.0, 2, 100),  // AIC = 100 + 4 = 104 (best)
-        ("Worst AIC", -30.0, 5, 100), // AIC = 60 + 10 = 70... wait this is wrong
-        ("Middle", -45.0, 3, 100),    // AIC = 90 + 6 = 96
-    ];
+    // let models = vec![
+    //     ("Best AIC", -50.0, 2, 100),  // AIC = 100 + 4 = 104 (best)
+    //     ("Worst AIC", -30.0, 5, 100), // AIC = 60 + 10 = 70... wait this is wrong
+    //     ("Middle", -45.0, 3, 100),    // AIC = 90 + 6 = 96
+    // ];
 
     // Let me recalculate for correct ranking:
     // "Best": -50, k=2 -> AIC = 100 + 4 = 104
