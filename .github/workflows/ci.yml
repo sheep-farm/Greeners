@@ -15,9 +15,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Baixa seu código
+# 1. Baixa seu código
       - name: Checkout do código
         uses: actions/checkout@v4
+
+      # --- ADICIONE ESTE BLOCO AQUI ---
+      - name: Instalar dependências do sistema (OpenBLAS)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopenblas-dev liblapack-dev gfortran
+      # --------------------------------
 
       # 2. Instala o Rust
       - name: Instalar Rust Toolchain
