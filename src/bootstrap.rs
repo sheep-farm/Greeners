@@ -58,7 +58,7 @@ impl Bootstrap {
             // Resample indices with replacement
             let mut boot_indices = vec![0; n];
             // for i in 0..n {
-             for indice in boot_indices.iter_mut().take(n) {
+            for indice in boot_indices.iter_mut().take(n) {
                 *indice = *indices.choose(&mut rng).unwrap();
             }
 

@@ -131,7 +131,8 @@ impl PanelThreshold {
                     // Regime 2 Ativo: [0, x]
                     x_expanded_vec.extend(std::iter::repeat_n(0.0, k));
                     x_expanded_vec.extend(x_row);
-                }            }
+                }
+            }
 
             let x_expanded = Array2::from_shape_vec((n, 2 * k), x_expanded_vec)
                 .map_err(|e| GreenersError::ShapeMismatch(e.to_string()))?;
