@@ -21,14 +21,17 @@ impl SpecificationTests {
     /// - If p < 0.05: Reject H₀, heteroskedasticity is present (use robust SE)
     /// - If p > 0.05: Fail to reject H₀, homoskedasticity is plausible
     ///
-    /// # Example
-    /// ```no_run
+    /// ```rust
     /// use greeners::SpecificationTests;
+    /// use ndarray::{Array1, Array2};
     ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let residuals = Array1::from(vec![0.1, -0.2, 0.1, 0.0, 0.1]);
+    /// # let x = Array2::from_shape_vec((5, 2), vec![1., 1., 1., 2., 1., 3., 1., 4., 1., 5.])?;
+    /// // ... o resto do seu exemplo original aqui ...
     /// let (lm_stat, p_value, df) = SpecificationTests::white_test(&residuals, &x)?;
-    /// if p_value < 0.05 {
-    ///     println!("Heteroskedasticity detected! Use robust standard errors.");
-    /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn white_test(
         residuals: &Array1<f64>,
@@ -122,15 +125,17 @@ impl SpecificationTests {
     /// - If p < 0.05: Reject H₀, functional form misspecification detected
     /// - If p > 0.05: Fail to reject H₀, functional form appears adequate
     ///
-    /// # Example
-    /// ```no_run
+    /// ```rust
     /// use greeners::SpecificationTests;
+    /// use ndarray::{Array1, Array2};
     ///
-    /// let fitted = model.fitted_values(&x);
-    /// let (f_stat, p_value, _, _) = SpecificationTests::reset_test(&y, &x, &fitted, 3)?;
-    /// if p_value < 0.05 {
-    ///     println!("Functional form misspecification detected!");
-    /// }
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let y = Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
+    /// # let x = Array2::from_shape_vec((5, 2), vec![1., 1., 1., 2., 1., 3., 1., 4., 1., 5.])?;
+    /// # let fitted = Array1::from(vec![1.1, 1.9, 3.1, 3.9, 5.1]);
+    /// let (f_stat, p_value, _, _) = SpecificationTests::reset_test(&y, &x, &fitted, 2)?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn reset_test(
         y: &Array1<f64>,
@@ -212,14 +217,20 @@ impl SpecificationTests {
     /// - If p < 0.05: Reject H₀, autocorrelation detected
     /// - If p > 0.05: Fail to reject H₀, no evidence of autocorrelation
     ///
-    /// # Example
-    /// ```no_run
-    /// use greeners::SpecificationTests;
+    /// # Examples
     ///
+    /// ```rust
+    /// use greeners::SpecificationTests;
+    /// use ndarray::{Array1, Array2};
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # // Setup escondido para o teste rodar:
+    /// # let residuals = Array1::from(vec![0.1, -0.2, 0.1, 0.0, 0.1]);
+    /// # let x = Array2::from_shape_vec((5, 2), vec![1., 1., 1., 2., 1., 3., 1., 4., 1., 5.])?;
+    /// // O exemplo visível começa aqui:
     /// let (lm_stat, p_value, df) = SpecificationTests::breusch_godfrey_test(&residuals, &x, 1)?;
-    /// if p_value < 0.05 {
-    ///     println!("Autocorrelation detected! Consider using Newey-West SE.");
-    /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn breusch_godfrey_test(
         residuals: &Array1<f64>,
