@@ -21,6 +21,7 @@ pub mod formula;
 pub mod dataframe;
 pub mod bootstrap;
 pub mod model_selection;
+pub mod specification_tests;
 
 pub use diagnostics::Diagnostics;
 pub use did::DiffInDiff;
@@ -47,6 +48,7 @@ pub use formula::Formula;
 pub use dataframe::DataFrame;
 pub use bootstrap::{Bootstrap, HypothesisTest};
 pub use model_selection::{ModelSelection, PanelDiagnostics, SummaryStats};
+pub use specification_tests::SpecificationTests;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CovarianceType {

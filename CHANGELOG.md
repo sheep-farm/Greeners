@@ -5,6 +5,67 @@ All notable changes to the Greeners project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2025-01-XX 🎉 STABLE RELEASE
+
+### Added
+- **Specification Tests Module** - Comprehensive diagnostic tests for regression assumptions
+  - `SpecificationTests::white_test(residuals, x)` - White's test for heteroskedasticity
+    - Tests H₀: Homoskedasticity vs H₁: Heteroskedasticity
+    - Uses auxiliary regression with u² on X and X²
+    - Returns (LM_statistic, p_value, degrees_of_freedom)
+    - If p < 0.05 → Use robust standard errors (HC1-HC4)
+
+  - `SpecificationTests::reset_test(y, x, fitted, power)` - Ramsey RESET test for functional form
+    - Tests H₀: Correctly specified vs H₁: Misspecification
+    - Adds powers of fitted values (ŷ², ŷ³, ...) to regression
+    - Returns (F_statistic, p_value, df_num, df_denom)
+    - If p < 0.05 → Add polynomials, interactions, or transformations
+
+  - `SpecificationTests::breusch_godfrey_test(residuals, x, lags)` - LM test for autocorrelation
+    - Tests H₀: No autocorrelation vs H₁: AR(p) autocorrelation
+    - More general than Durbin-Watson, allows lagged dependent variables
+    - Returns (LM_statistic, p_value, degrees_of_freedom)
+    - If p < 0.05 → Use Newey-West HAC standard errors
+
+  - `SpecificationTests::goldfeld_quandt_test(residuals, split_fraction)` - Test for heteroskedasticity
+    - Tests H₀: Homoskedasticity vs H₁: Variance differs across groups
+    - Compares variance between first and last portions of ordered data
+    - Returns (F_statistic, p_value, df1, df2)
+    - Simple and intuitive alternative to White test
+
+  - `SpecificationTests::print_test_result()` - Pretty-printed test results with interpretation
+
+### Changed
+- First stable release (v1.0.0) with production-ready API
+- All core econometric estimators fully tested and documented
+- Comprehensive test coverage for regression diagnostics
+
+### Documentation
+- Added comprehensive specification tests example (`examples/specification_tests.rs`)
+- Demonstrates all v1.0.0 tests with realistic datasets:
+  - Wage equation with heteroskedasticity
+  - Time series consumption function with autocorrelation
+- Complete interpretation guidelines and remedies
+- Comparison with Stata/R/Python equivalents
+
+### Examples
+- `examples/specification_tests.rs`: Complete demonstration
+  - White test detecting heteroskedasticity
+  - RESET test detecting functional form issues
+  - Breusch-Godfrey detecting autocorrelation
+  - Goldfeld-Quandt comparing group variances
+  - Remedies: robust SE, HAC SE, polynomial terms
+
+### Stata/R/Python Equivalents
+- **Stata**: `estat hettest` (White), `estat ovtest` (RESET), `estat bgodfrey`
+- **R**: `lmtest::bptest()`, `lmtest::resettest()`, `lmtest::bgtest()`
+- **Python**: `statsmodels.stats.diagnostic.het_white()`, `acorr_breusch_godfrey()`
+
+### Migration to 1.0.0
+- All previous features (v0.1-v0.9) remain fully compatible
+- No breaking API changes from v0.9.0
+- New specification tests are additive, not replacing existing diagnostics
+
 ## [0.9.0] - 2025-01-XX
 
 ### Added
