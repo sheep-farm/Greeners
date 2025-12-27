@@ -1,6 +1,5 @@
 use greeners::{
-    CovarianceType, DataFrame, Formula, ModelSelection, PanelDiagnostics,
-    SummaryStats, OLS,
+    CovarianceType, DataFrame, Formula, ModelSelection, PanelDiagnostics, SummaryStats, OLS,
 };
 use ndarray::Array1;
 use rand::{thread_rng, Rng};
