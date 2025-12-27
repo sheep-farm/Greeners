@@ -1,7 +1,7 @@
 # Greeners: High-Performance Econometrics in Rust
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
-![Version](https://img.shields.io/badge/version-0.8.0-blue)
+![Version](https://img.shields.io/badge/version-0.9.0-blue)
 ![License](https://img.shields.io/badge/license-GPLv3-green)
 
 **Greeners** is a lightning-fast, type-safe econometrics library written in pure Rust. It provides a comprehensive suite of estimators for Cross-Sectional, Time-Series, and Panel Data analysis, leveraging linear algebra backends (LAPACK/BLAS) for maximum performance.
@@ -23,6 +23,118 @@ let result = OLS::from_formula(&formula, &df, CovarianceType::HC1)?;
 **All estimators support formulas:** OLS, WLS, DiD, IV/2SLS, Logit/Probit, Quantile Regression, Panel Data (FE/RE/Between), and more!
 
 📖 See [FORMULA_API.md](FORMULA_API.md) for complete documentation and examples.
+
+## 🚀 NEW in v0.9.0: Panel Diagnostics & Model Selection
+
+Greeners now provides comprehensive tools for **panel data model selection** and **information criteria-based model comparison** - essential for rigorous empirical research!
+
+### Model Selection & Comparison
+
+Compare multiple models using **AIC/BIC** with automatic ranking and **Akaike weights** for model averaging:
+
+```rust
+use greeners::{OLS, ModelSelection, DataFrame, Formula, CovarianceType};
+
+// Estimate competing models
+let model1 = OLS::from_formula(&Formula::parse("y ~ x1 + x2 + x3")?, &df, CovarianceType::NonRobust)?;
+let model2 = OLS::from_formula(&Formula::parse("y ~ x1 + x2")?, &df, CovarianceType::NonRobust)?;
+let model3 = OLS::from_formula(&Formula::parse("y ~ x1")?, &df, CovarianceType::NonRobust)?;
+
+// Compare models
+let models = vec![
+    ("Full Model", model1.log_likelihood, 4, n_obs),
+    ("Restricted", model2.log_likelihood, 3, n_obs),
+    ("Simple", model3.log_likelihood, 2, n_obs),
+];
+let comparison = ModelSelection::compare_models(models);
+ModelSelection::print_comparison(&comparison);
+
+// Calculate Akaike weights for model averaging
+let aic_values: Vec<f64> = comparison.iter().map(|(_, aic, _, _, _)| *aic).collect();
+let (delta_aic, weights) = ModelSelection::akaike_weights(&aic_values);
+```
+
+**Output:**
+```
+=============================== Model Comparison ===============================
+Model                |          AIC |          BIC | Rank(AIC) | Rank(BIC)
+--------------------------------------------------------------------------------
+Full Model           |       183.83 |       191.48 |        1 |        1
+Restricted           |       184.77 |       190.50 |        2 |        2
+Simple               |       188.19 |       192.01 |        3 |        3
+
+📊 AKAIKE WEIGHTS:
+Δ_AIC < 2: Substantial support
+Δ_AIC 4-7: Considerably less support
+Δ_AIC > 10: Essentially no support
+```
+
+### Panel Diagnostics Tests
+
+Test whether pooled OLS is appropriate or if panel data methods (Fixed/Random Effects) are needed:
+
+#### Breusch-Pagan LM Test for Random Effects
+
+```rust
+use greeners::{PanelDiagnostics, OLS, Formula};
+
+// Estimate pooled OLS
+let model_pooled = OLS::from_formula(&formula, &df, CovarianceType::NonRobust)?;
+let (y, x) = df.to_design_matrix(&formula)?;
+let residuals = model_pooled.residuals(&y, &x);
+
+// Test for random effects
+let (lm_stat, p_value) = PanelDiagnostics::breusch_pagan_lm(&residuals, &firm_ids)?;
+
+// Interpretation:
+// H₀: σ²_u = 0 (no panel effects, pooled OLS adequate)
+// H₁: σ²_u > 0 (random effects needed)
+// If p < 0.05 → Use Random Effects or Fixed Effects
+```
+
+#### F-Test for Fixed Effects
+
+```rust
+// Test if firm fixed effects are significant
+let (f_stat, p_value) = PanelDiagnostics::f_test_fixed_effects(
+    ssr_pooled,
+    ssr_fe,
+    n_obs,
+    n_firms,
+    k_params,
+)?;
+
+// Interpretation:
+// H₀: All firm effects are zero (pooled OLS adequate)
+// H₁: Firm effects exist (use fixed effects)
+// If p < 0.05 → Use Fixed Effects model
+```
+
+### Summary Statistics
+
+Quick descriptive statistics for initial data exploration:
+
+```rust
+use greeners::SummaryStats;
+
+let stats = SummaryStats::describe(&data);
+// Returns: (mean, std, min, Q25, median, Q75, max, n_obs)
+
+// Pretty-print summary table
+let summary_data = vec![
+    ("investment", stats_inv),
+    ("profit", stats_profit),
+    ("cash_flow", stats_cf),
+];
+SummaryStats::print_summary(&summary_data);
+```
+
+**Stata/R/Python Equivalents:**
+- **Stata**: `estat ic` (AIC/BIC), `xttest0` (BP LM), `testparm` (F-test)
+- **R**: `AIC()`, `BIC()`, `plm::plmtest()`, `plm::pFtest()`
+- **Python**: `statsmodels` information criteria, `linearmodels.panel` diagnostics
+
+📖 See `examples/panel_model_selection.rs` for comprehensive demonstration with panel data workflow.
 
 ## 🌟 NEW in v0.5.0: Marginal Effects for Binary Choice Models
 

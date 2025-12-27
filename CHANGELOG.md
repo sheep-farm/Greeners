@@ -5,6 +5,51 @@ All notable changes to the Greeners project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2025-01-XX
+
+### Added
+- **Model Selection Utilities**
+  - `ModelSelection::compare_models(models)` - Compare multiple models by AIC/BIC
+  - `ModelSelection::akaike_weights(aic_values)` - Calculate Akaike weights for model averaging
+  - `ModelSelection::print_comparison(comparison)` - Pretty-print model comparison table
+  - Automatic ranking and sorting by information criteria
+  - Δ_AIC interpretation guidelines (< 2: substantial, 4-7: less support, > 10: no support)
+
+- **Panel Diagnostics Tests**
+  - `PanelDiagnostics::breusch_pagan_lm(residuals, entity_ids)` - LM test for random effects
+    - Tests H₀: σ²_u = 0 (no panel effect) vs H₁: σ²_u > 0 (random effects needed)
+    - Uses chi-squared distribution with 1 degree of freedom
+    - Essential for choosing between pooled OLS and panel data models
+  - `PanelDiagnostics::f_test_fixed_effects(ssr_pooled, ssr_fe, n, n_entities, k)` - F-test for fixed effects
+    - Tests H₀: All entity effects are zero vs H₁: Entity effects exist
+    - Compares SSR from pooled OLS and fixed effects models
+    - Critical for model selection in panel data analysis
+
+- **Summary Statistics Helper**
+  - `SummaryStats::describe(data)` - Comprehensive descriptive statistics
+  - Returns (mean, std, min, Q25, median, Q75, max, n_obs)
+  - `SummaryStats::print_summary(stats)` - Pretty-printed summary table
+  - Essential for initial data exploration
+
+### Documentation
+- Added comprehensive panel diagnostics and model selection example
+- Demonstrates all v0.9.0 features with realistic firm investment panel data
+- Comparison with Stata/R/Python equivalents
+- Decision tree for panel data model selection
+
+### Examples
+- `examples/panel_model_selection.rs`: Complete demonstration
+  - Descriptive statistics for panel data
+  - Multiple pooled OLS specifications
+  - Model comparison by AIC/BIC and Akaike weights
+  - Breusch-Pagan LM test for panel effects
+  - Panel data model selection workflow
+
+### Stata/R/Python Equivalents
+- **Stata**: `estat ic` (AIC/BIC), `xttest0` (BP LM test), `testparm` (F-test)
+- **R**: `AIC()`, `BIC()`, `plm::plmtest()`, `plm::pFtest()`
+- **Python**: `linearmodels.panel` diagnostics, `statsmodels` information criteria
+
 ## [0.8.0] - 2025-01-XX
 
 ### Added
