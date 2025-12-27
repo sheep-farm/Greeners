@@ -277,7 +277,7 @@ impl RandomEffects {
         let mut groups: HashMap<i64, Vec<usize>> = HashMap::new();
         for (idx, &id) in entity_ids.iter().enumerate() {
             // CORREÇÃO: or_insert em vez de or_insert_vec
-            groups.entry(id).or_insert(Vec::new()).push(idx);
+            groups.entry(id).or_default().push(idx);
         }
 
         let n_entities = groups.len();
@@ -490,7 +490,7 @@ impl BetweenEstimator {
         // 1. Agrupar por Entidade
         let mut groups: HashMap<i64, Vec<usize>> = HashMap::new();
         for (idx, &id) in entity_ids.iter().enumerate() {
-            groups.entry(id).or_insert(Vec::new()).push(idx);
+            groups.entry(id).or_default().push(idx);
         }
 
         let n_entities = groups.len();
