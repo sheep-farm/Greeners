@@ -17,7 +17,7 @@ pub struct BinaryModelResult {
     pub log_likelihood: f64,
     pub pseudo_r2: f64, // McFadden's R2
     // Store X for marginal effects calculations
-    x_data: Option<Array2<f64>>,
+    _x_data: Option<Array2<f64>>,
 }
 
 impl fmt::Display for BinaryModelResult {
@@ -167,7 +167,7 @@ impl Logit {
             iterations: iter,
             log_likelihood,
             pseudo_r2,
-            x_data: Some(x.clone()),
+            _x_data: Some(x.clone()),
         })
     }
 }
@@ -476,7 +476,7 @@ impl Probit {
             iterations: iter,
             log_likelihood,
             pseudo_r2,
-            x_data: Some(x.clone()),
+            _x_data: Some(x.clone()),
         })
     }
 }
