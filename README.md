@@ -1,7 +1,7 @@
 # Greeners: High-Performance Econometrics in Rust
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
-![Version](https://img.shields.io/badge/version-0.2.0-blue)
+![Version](https://img.shields.io/badge/version-0.3.0-blue)
 ![License](https://img.shields.io/badge/license-GPLv3-green)
 
 **Greeners** is a lightning-fast, type-safe econometrics library written in pure Rust. It provides a comprehensive suite of estimators for Cross-Sectional, Time-Series, and Panel Data analysis, leveraging linear algebra backends (LAPACK/BLAS) for maximum performance.
@@ -59,6 +59,54 @@ let cooks_d = Diagnostics::cooks_distance(&residuals, &x, mse)?;  // Cook's Dist
 let (jb_stat, jb_p) = Diagnostics::jarque_bera(&residuals)?;  // Normality
 let (bp_stat, bp_p) = Diagnostics::breusch_pagan(&residuals, &x)?;  // Heteroskedasticity
 let dw_stat = Diagnostics::durbin_watson(&residuals);  // Autocorrelation
+```
+
+## 🎉 NEW in v0.3.0: Interactions, HC2/HC3, and Predictions
+
+### Interaction Terms
+Model interaction effects with R/Python syntax:
+
+```rust
+// Full interaction: x1 * x2 expands to x1 + x2 + x1:x2
+let formula = Formula::parse("wage ~ education * female")?;
+let result = OLS::from_formula(&formula, &df, CovarianceType::HC3)?;
+
+// Interaction only: just the product term
+let formula2 = Formula::parse("wage ~ education + female + education:female")?;
+```
+
+**Use cases:**
+- Differential effects by groups (e.g., education returns by gender)
+- Treatment effect heterogeneity
+- Testing moderation/mediation hypotheses
+
+### Enhanced Robust Standard Errors
+
+```rust
+// HC2: Leverage-adjusted (more efficient with small samples)
+let result_hc2 = OLS::from_formula(&formula, &df, CovarianceType::HC2)?;
+
+// HC3: Jackknife (most robust - RECOMMENDED for small samples)
+let result_hc3 = OLS::from_formula(&formula, &df, CovarianceType::HC3)?;
+```
+
+**Comparison:**
+- **HC1**: White (1980), uses n/(n-k) correction
+- **HC2**: Adjusts for leverage: σ²/(1-h_i)
+- **HC3**: Jackknife: σ²/(1-h_i)² - Most conservative & robust
+
+### Post-Estimation Predictions
+
+```rust
+// Out-of-sample predictions
+let x_new = Array2::from_shape_vec((3, 2), vec![1.0, 12.0, 1.0, 16.0, 1.0, 20.0])?;
+let predictions = result.predict(&x_new);
+
+// In-sample fitted values
+let fitted = result.fitted_values(&x);
+
+// Residuals
+let resid = result.residuals(&y, &x);
 ```
 
 ## 🚀 Features
