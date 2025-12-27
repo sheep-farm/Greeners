@@ -5,6 +5,44 @@ All notable changes to the Greeners project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-01-XX
+
+### Added
+- **Categorical Variable Encoding**: Automatic dummy variable creation with `C(var)` syntax
+  - R/Python-style syntax: `y ~ x + C(region)`
+  - Automatically detects unique categories from numerical values
+  - Creates K-1 dummy variables (drops first category as reference)
+  - Follows same convention as R's `factor()` and Python's `pd.get_dummies(drop_first=True)`
+  - Essential for: regions, industries, treatment groups, demographic categories
+  - Works seamlessly with all estimators and can be combined with interactions
+  - See `examples/categorical_polynomial.rs` for comprehensive examples
+
+- **Polynomial Terms**: Non-linear relationship modeling with `I(expr)` syntax
+  - Supports `I(x^2)`, `I(x^3)`, ..., `I(x^n)` for any integer power
+  - Alternative Python-style syntax: `I(x**2)`
+  - Captures diminishing returns, growth curves, and non-linear effects
+  - Use cases: production functions, wage-experience curves, growth models
+  - Combine with categorical and interactions for rich specifications
+  - Automatic computation of polynomial columns in design matrix
+
+### Changed
+- Enhanced `DataFrame::to_design_matrix()` to process `C()` and `I()` terms
+- Added `DataFrame::count_design_matrix_cols()` to handle variable column expansion
+- Formula parser now recognizes and preserves `C()` and `I()` expressions
+- Design matrix allocation now accounts for categorical variable expansion
+
+### Documentation
+- Added comprehensive categorical and polynomial examples
+- Updated README.md with v0.4.0 feature sections
+- Enhanced formula documentation with new syntax
+
+### Examples
+- `examples/categorical_polynomial.rs`: Complete demonstration of C() and I() features
+  - Categorical encoding with regional sales data
+  - Polynomial modeling with production function
+  - Model comparison (linear vs quadratic vs cubic)
+  - Combined categorical + polynomial specifications
+
 ## [0.3.0] - 2025-01-XX
 
 ### Added

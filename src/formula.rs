@@ -2,15 +2,25 @@ use crate::GreenersError;
 
 /// Represents a parsed formula in the form "y ~ x1 + x2 + ... + xn"
 ///
-/// # Interaction Terms (NEW in v0.3.0)
+/// # Interaction Terms (v0.3.0)
 /// - `x1 * x2` : Full interaction (expands to x1 + x2 + x1:x2)
 /// - `x1 : x2` : Only the interaction term (x1 × x2)
+///
+/// # Categorical Variables (NEW in v0.4.0)
+/// - `C(var)` : Categorical encoding (creates dummies, drops first level)
+///
+/// # Polynomial Terms (NEW in v0.4.0)
+/// - `I(x^2)` : Polynomial terms (e.g., squared, cubed)
 #[derive(Debug, Clone)]
 pub struct Formula {
     /// Name of the dependent variable (left-hand side)
     pub dependent: String,
     /// Names of independent variables (right-hand side)
-    /// May include interaction terms denoted as "var1:var2"
+    /// May include:
+    /// - Regular variables: "x1"
+    /// - Interactions: "x1:x2"
+    /// - Categorical: "C(region)"
+    /// - Polynomials: "I(x^2)"
     pub independents: Vec<String>,
     /// Whether to include an intercept (default: true)
     pub intercept: bool,
@@ -25,6 +35,8 @@ impl Formula {
     /// - Intercept only: "y ~ 1"
     /// - Full interaction: "y ~ x1 * x2" (expands to x1 + x2 + x1:x2)
     /// - Interaction only: "y ~ x1 : x2" (only the interaction term)
+    /// - Categorical: "y ~ C(region)" (creates dummies)
+    /// - Polynomial: "y ~ I(x^2)" or "y ~ I(x**2)" (power terms)
     ///
     /// # Examples
     /// ```
