@@ -31,7 +31,9 @@ fn test_white_test_basic() {
 #[test]
 fn test_white_test_homoskedastic_data() {
     // Generate homoskedastic residuals (constant variance)
-    let residuals = Array1::from(vec![0.1, -0.1, 0.12, -0.11, 0.09, -0.08, 0.11, -0.1, 0.1, -0.09]);
+    let residuals = Array1::from(vec![
+        0.1, -0.1, 0.12, -0.11, 0.09, -0.08, 0.11, -0.1, 0.1, -0.09,
+    ]);
     let x = Array2::from_shape_vec(
         (10, 2),
         vec![
@@ -247,27 +249,15 @@ fn test_goldfeld_quandt_insufficient_obs() {
 fn test_white_test_with_multiple_regressors() {
     // More observations to avoid singular matrix issues
     let residuals = Array1::from(vec![
-        0.1, -0.15, 0.12, -0.08, 0.14, -0.1, 0.11, -0.13, 0.09, -0.12,
-        0.08, -0.11, 0.13, -0.09, 0.10,
+        0.1, -0.15, 0.12, -0.08, 0.14, -0.1, 0.11, -0.13, 0.09, -0.12, 0.08, -0.11, 0.13, -0.09,
+        0.10,
     ]);
     let x = Array2::from_shape_vec(
         (15, 3),
         vec![
-            1.0, 1.0, 2.0,
-            1.0, 2.0, 3.0,
-            1.0, 3.0, 4.0,
-            1.0, 4.0, 5.5,
-            1.0, 5.0, 6.0,
-            1.0, 6.0, 7.5,
-            1.0, 7.0, 8.0,
-            1.0, 8.0, 9.5,
-            1.0, 9.0, 10.0,
-            1.0, 10.0, 11.5,
-            1.0, 11.0, 12.0,
-            1.0, 12.0, 13.5,
-            1.0, 13.0, 14.0,
-            1.0, 14.0, 15.5,
-            1.0, 15.0, 16.0,
+            1.0, 1.0, 2.0, 1.0, 2.0, 3.0, 1.0, 3.0, 4.0, 1.0, 4.0, 5.5, 1.0, 5.0, 6.0, 1.0, 6.0,
+            7.5, 1.0, 7.0, 8.0, 1.0, 8.0, 9.5, 1.0, 9.0, 10.0, 1.0, 10.0, 11.5, 1.0, 11.0, 12.0,
+            1.0, 12.0, 13.5, 1.0, 13.0, 14.0, 1.0, 14.0, 15.5, 1.0, 15.0, 16.0,
         ],
     )
     .unwrap();
@@ -286,7 +276,10 @@ fn test_white_test_with_multiple_regressors() {
 fn test_reset_test_misspecified_model() {
     // Quadratic data fitted with linear model (misspecification)
     let x_vals: Vec<f64> = (1..=10).map(|i| i as f64).collect();
-    let y_vals: Vec<f64> = x_vals.iter().map(|&x| 1.0 + 2.0 * x + 0.5 * x * x).collect();
+    let y_vals: Vec<f64> = x_vals
+        .iter()
+        .map(|&x| 1.0 + 2.0 * x + 0.5 * x * x)
+        .collect();
 
     let y = Array1::from(y_vals.clone());
 
@@ -341,20 +334,17 @@ fn test_specification_tests_statistics_are_finite() {
     assert!(white_p.is_finite());
 
     // RESET test
-    let (reset_stat, reset_p, _, _) =
-        SpecificationTests::reset_test(&y, &x, &fitted, 2).unwrap();
+    let (reset_stat, reset_p, _, _) = SpecificationTests::reset_test(&y, &x, &fitted, 2).unwrap();
     assert!(reset_stat.is_finite());
     assert!(reset_p.is_finite());
 
     // Breusch-Godfrey test
-    let (bg_stat, bg_p, _) =
-        SpecificationTests::breusch_godfrey_test(&residuals, &x, 1).unwrap();
+    let (bg_stat, bg_p, _) = SpecificationTests::breusch_godfrey_test(&residuals, &x, 1).unwrap();
     assert!(bg_stat.is_finite());
     assert!(bg_p.is_finite());
 
     // Goldfeld-Quandt test
-    let (gq_stat, gq_p, _, _) =
-        SpecificationTests::goldfeld_quandt_test(&residuals, 0.25).unwrap();
+    let (gq_stat, gq_p, _, _) = SpecificationTests::goldfeld_quandt_test(&residuals, 0.25).unwrap();
     assert!(gq_stat.is_finite());
     assert!(gq_p.is_finite());
 }

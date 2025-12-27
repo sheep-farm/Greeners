@@ -1,5 +1,5 @@
 use greeners::VECM;
-use ndarray::{Array2};
+use ndarray::Array2;
 use ndarray_rand::rand_distr::Normal;
 use rand::prelude::*;
 
@@ -9,20 +9,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let norm = Normal::new(0.0, 1.0).unwrap();
 
     let mut data = Array2::<f64>::zeros((t_obs, 2));
-    
+
     // Simular Cointegração
     // Common Trend (W_t) -> Random Walk
     let mut w = 0.0;
-    
+
     for t in 0..t_obs {
         w += norm.sample(&mut rng); // Passeio aleatório
-        
+
         let noise_y = norm.sample(&mut rng) * 0.5;
         let noise_x = norm.sample(&mut rng) * 0.5;
-        
+
         // X = W + noise
         data[[t, 0]] = w + noise_x;
-        
+
         // Y = 2*W + noise (Y é o dobro de X no longo prazo)
         // Logo Y - 2X ~ 0
         data[[t, 1]] = 2.0 * w + noise_y;
@@ -41,13 +41,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Dividir tudo pelo primeiro elemento de Beta
     let beta_0 = model.beta[[0, 0]];
     let beta_1 = model.beta[[1, 0]];
-    
+
     println!("Normalized Beta (Div by first element):");
     println!("1.0000");
     println!("{:.4}", beta_1 / beta_0);
-    
+
     println!("\nConclusion:");
     println!("If the second value is approx -0.5 (if X is var1) or -2.0 (if Y is var1), cointegration was found.");
-    
+
     Ok(())
 }

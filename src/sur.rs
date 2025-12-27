@@ -1,6 +1,6 @@
+use crate::{CovarianceType, GreenersError, OLS};
 use ndarray::{Array1, Array2};
 use ndarray_linalg::Inverse;
-use crate::{GreenersError, OLS, CovarianceType};
 use std::fmt;
 
 /// Estrutura de entrada para o SUR
@@ -32,7 +32,7 @@ impl fmt::Display for SurResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "\n{:=^78}", " Seemingly Unrelated Regressions (SUR) ")?;
         writeln!(f, "Zellner's Efficient Estimator")?;
-        
+
         writeln!(f, "\n{:-^78}", " Cross-Equation Error Correlation (Sigma) ")?;
         for row in self.sigma_cross.rows() {
             write!(f, "[ ")?;
@@ -44,12 +44,17 @@ impl fmt::Display for SurResult {
 
         for eq in &self.equations {
             writeln!(f, "\n{:-^78}", format!(" Equation: {} ", eq.name))?;
-            writeln!(f, "{:<10} | {:>10} | {:>10} | {:>8} | {:>8}", 
-                "Variable", "Coef", "Std Err", "t", "P>|t|")?;
+            writeln!(
+                f,
+                "{:<10} | {:>10} | {:>10} | {:>8} | {:>8}",
+                "Variable", "Coef", "Std Err", "t", "P>|t|"
+            )?;
             writeln!(f, "{:-^78}", "")?;
-            
+
             for i in 0..eq.params.len() {
-                writeln!(f, "x{:<9} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}", 
+                writeln!(
+                    f,
+                    "x{:<9} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
                     i, eq.params[i], eq.std_errors[i], eq.t_values[i], eq.p_values[i]
                 )?;
             }
@@ -70,15 +75,17 @@ impl SUR {
 
         // 1. Passo OLS: Obter resíduos iniciais para estimar Sigma
         let mut residuals_ols = Array2::<f64>::zeros((n_obs, n_eq));
-        
+
         for (i, eq) in equations.iter().enumerate() {
             if eq.y.len() != n_obs {
-                return Err(GreenersError::ShapeMismatch("All equations must have same N observations".into()));
+                return Err(GreenersError::ShapeMismatch(
+                    "All equations must have same N observations".into(),
+                ));
             }
-            
+
             // Rodar OLS simples
             let ols = OLS::fit(&eq.y, &eq.x, CovarianceType::NonRobust)?;
-            
+
             // Recalcular resíduos (y - Xb)
             let pred = eq.x.dot(&ols.params);
             let u = &eq.y - &pred;
@@ -88,13 +95,13 @@ impl SUR {
         // 2. Estimar Matriz de Covariância dos Erros (Sigma)
         // Sigma = (u'u) / N
         let sigma = residuals_ols.t().dot(&residuals_ols) / (n_obs as f64);
-        
+
         // Inverter Sigma para usar no GLS
         let sigma_inv = sigma.inv().map_err(|_| GreenersError::SingularMatrix)?;
 
         // 3. Montar Sistema GLS (Kronecker Product implícito por blocos)
         // [X' (Sigma^-1 ox I) X] Beta = X' (Sigma^-1 ox I) y
-        
+
         let mut k_total = 0;
         let mut k_per_eq = Vec::new();
         for eq in equations {
@@ -110,24 +117,25 @@ impl SUR {
         for i in 0..n_eq {
             let ki = k_per_eq[i];
             let xi = &equations[i].x;
-            
+
             let mut start_j = 0;
             for j in 0..n_eq {
                 let kj = k_per_eq[j];
                 let xj = &equations[j].x;
-                
+
                 // Elemento s^{ij} da inversa de Sigma
                 let s_ij = sigma_inv[[i, j]];
-                
+
                 // Bloco LHS = s_ij * (Xi' * Xj)
                 let block = xi.t().dot(xj) * s_ij;
-                lhs.slice_mut(ndarray::s![start_i..start_i+ki, start_j..start_j+kj]).assign(&block);
+                lhs.slice_mut(ndarray::s![start_i..start_i + ki, start_j..start_j + kj])
+                    .assign(&block);
 
                 // Bloco RHS (acumulado na linha i)
                 // RHS_i += s_ij * (Xi' * yj)
                 let yj = &equations[j].y;
                 let vec_part = xi.t().dot(yj) * s_ij;
-                let mut target_slice = rhs.slice_mut(ndarray::s![start_i..start_i+ki]);
+                let mut target_slice = rhs.slice_mut(ndarray::s![start_i..start_i + ki]);
                 target_slice += &vec_part;
 
                 start_j += kj;
@@ -147,12 +155,14 @@ impl SUR {
 
         for (i, eq) in equations.iter().enumerate() {
             let k = k_per_eq[i];
-            let params = beta_sur.slice(ndarray::s![cursor..cursor+k]).to_owned();
-            
+            let params = beta_sur.slice(ndarray::s![cursor..cursor + k]).to_owned();
+
             // Variância: Bloco diagonal da inversa da Hessiana
-            let cov_params = lhs_inv.slice(ndarray::s![cursor..cursor+k, cursor..cursor+k]).to_owned();
+            let cov_params = lhs_inv
+                .slice(ndarray::s![cursor..cursor + k, cursor..cursor + k])
+                .to_owned();
             let std_errors = cov_params.diag().mapv(f64::sqrt);
-            
+
             let t_values = &params / &std_errors;
             let p_values = t_values.mapv(|t| 2.0 * (1.0 - normal.cdf(t.abs())));
 
@@ -178,7 +188,7 @@ impl SUR {
         Ok(SurResult {
             equations: final_results,
             sigma_cross: sigma,
-            system_r2: 0.0, 
+            system_r2: 0.0,
         })
     }
 }

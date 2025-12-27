@@ -1,4 +1,4 @@
-use greeners::{OLS, SpecificationTests, DataFrame, Formula, CovarianceType};
+use greeners::{CovarianceType, DataFrame, Formula, SpecificationTests, OLS};
 use ndarray::Array1;
 use rand::{thread_rng, Rng};
 use std::collections::HashMap;
@@ -176,8 +176,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("3. BREUSCH-GODFREY TEST for Autocorrelation");
     println!("═══════════════════════════════════════════════════════════════════════════");
 
-    let (bg_stat, bg_p, bg_df) =
-        SpecificationTests::breusch_godfrey_test(&residuals2, &x2, 1)?;
+    let (bg_stat, bg_p, bg_df) = SpecificationTests::breusch_godfrey_test(&residuals2, &x2, 1)?;
 
     SpecificationTests::print_test_result(
         "Breusch-Godfrey LM Test (lag=1)",

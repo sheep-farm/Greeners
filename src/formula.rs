@@ -56,15 +56,16 @@ impl Formula {
         // Split by ~ to get LHS and RHS
         let parts: Vec<&str> = formula.split('~').collect();
         if parts.len() != 2 {
-            return Err(GreenersError::FormulaError(
-                format!("Invalid formula syntax. Expected 'y ~ x1 + x2', got: '{}'", formula)
-            ));
+            return Err(GreenersError::FormulaError(format!(
+                "Invalid formula syntax. Expected 'y ~ x1 + x2', got: '{}'",
+                formula
+            )));
         }
 
         let dependent = parts[0].trim().to_string();
         if dependent.is_empty() {
             return Err(GreenersError::FormulaError(
-                "Dependent variable (LHS) cannot be empty".into()
+                "Dependent variable (LHS) cannot be empty".into(),
             ));
         }
 
@@ -107,9 +108,10 @@ impl Formula {
                 // Full interaction: x1 * x2 expands to x1 + x2 + x1:x2
                 let vars: Vec<&str> = term.split('*').map(|s| s.trim()).collect();
                 if vars.len() != 2 {
-                    return Err(GreenersError::FormulaError(
-                        format!("Invalid interaction term '{}'. Expected 'var1 * var2'", term)
-                    ));
+                    return Err(GreenersError::FormulaError(format!(
+                        "Invalid interaction term '{}'. Expected 'var1 * var2'",
+                        term
+                    )));
                 }
 
                 // Add main effects
@@ -118,19 +120,18 @@ impl Formula {
 
                 // Add interaction term (using : notation)
                 independents.push(format!("{}:{}", vars[0], vars[1]));
-
             } else if term.contains(':') {
                 // Interaction only: x1:x2 (just the interaction term)
                 let vars: Vec<&str> = term.split(':').map(|s| s.trim()).collect();
                 if vars.len() != 2 {
-                    return Err(GreenersError::FormulaError(
-                        format!("Invalid interaction term '{}'. Expected 'var1:var2'", term)
-                    ));
+                    return Err(GreenersError::FormulaError(format!(
+                        "Invalid interaction term '{}'. Expected 'var1:var2'",
+                        term
+                    )));
                 }
 
                 // Add interaction term as-is
                 independents.push(format!("{}:{}", vars[0], vars[1]));
-
             } else {
                 // Regular term
                 independents.push(term.to_string());

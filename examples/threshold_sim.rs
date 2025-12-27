@@ -1,13 +1,13 @@
-use greeners::{PanelThreshold, FixedEffects};
+use greeners::{FixedEffects, PanelThreshold};
 use ndarray::{Array1, Array2};
-use rand::prelude::*;
 use ndarray_rand::rand_distr::Normal;
+use rand::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let n_entities = 200;
     let t_periods = 20; // T grande ajuda a identificar a quebra
     let n_obs = n_entities * t_periods;
-    
+
     let mut rng = rand::thread_rng();
     let norm = Normal::new(0.0, 1.0).unwrap();
 
@@ -20,12 +20,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let gamma_true = 50.0;
 
     for i in 0..n_entities {
-        let alpha_i = norm.sample(&mut rng); 
-        
+        let alpha_i = norm.sample(&mut rng);
+
         for _ in 0..t_periods {
             // X: Cash Flow
             let x_val = 1.0 + norm.sample(&mut rng);
-            
+
             // Q: Size (Threshold Variable)
             // Uniforme entre 0 e 100 para garantir busca ampla
             let q_val = rng.gen_range(0.0..100.0);
@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             let e_it = norm.sample(&mut rng) * 0.5;
-            
+
             // Modelo
             let y_val = alpha_i + (beta * x_val) + e_it;
 
@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             x_vec.push(x_val);
             q_vec.push(q_val);
             id_vec.push(i as i64);
-            
+
             x_mat_flat.push(x_val);
         }
     }
@@ -70,7 +70,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Comparação com FE Linear Simples (ignorando a quebra)
     let fe_linear = FixedEffects::fit(&y, &x, id.as_slice().unwrap())?;
     println!("Comparação - Fixed Effects Linear (Ignorando a quebra):");
-    println!("Beta Estimado (Média): {:.4} (Deveria estar entre 0.5 e 2.0)", fe_linear.params[0]);
+    println!(
+        "Beta Estimado (Média): {:.4} (Deveria estar entre 0.5 e 2.0)",
+        fe_linear.params[0]
+    );
 
     Ok(())
 }

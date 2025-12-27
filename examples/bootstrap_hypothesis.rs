@@ -1,4 +1,4 @@
-use greeners::{OLS, Bootstrap, HypothesisTest, DataFrame, Formula, CovarianceType};
+use greeners::{Bootstrap, CovarianceType, DataFrame, Formula, HypothesisTest, OLS};
 use ndarray::{Array1, Array2};
 use std::collections::HashMap;
 
@@ -22,21 +22,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Generate realistic wage data
     let education = vec![
-        12.0, 16.0, 14.0, 18.0, 12.0, 16.0, 14.0, 20.0, 12.0, 14.0,
-        16.0, 18.0, 12.0, 14.0, 16.0, 18.0, 20.0, 12.0, 14.0, 16.0,
-        12.0, 14.0, 16.0, 18.0, 12.0, 16.0, 14.0, 18.0, 16.0, 14.0,
+        12.0, 16.0, 14.0, 18.0, 12.0, 16.0, 14.0, 20.0, 12.0, 14.0, 16.0, 18.0, 12.0, 14.0, 16.0,
+        18.0, 20.0, 12.0, 14.0, 16.0, 12.0, 14.0, 16.0, 18.0, 12.0, 16.0, 14.0, 18.0, 16.0, 14.0,
     ];
 
     let experience = vec![
-        2.0, 5.0, 3.0, 8.0, 1.0, 6.0, 4.0, 10.0, 3.0, 5.0,
-        7.0, 9.0, 2.0, 4.0, 6.0, 8.0, 12.0, 1.0, 3.0, 5.0,
-        2.0, 4.0, 6.0, 9.0, 3.0, 7.0, 5.0, 10.0, 8.0, 6.0,
+        2.0, 5.0, 3.0, 8.0, 1.0, 6.0, 4.0, 10.0, 3.0, 5.0, 7.0, 9.0, 2.0, 4.0, 6.0, 8.0, 12.0, 1.0,
+        3.0, 5.0, 2.0, 4.0, 6.0, 9.0, 3.0, 7.0, 5.0, 10.0, 8.0, 6.0,
     ];
 
     let female = vec![
-        0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
-        0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
-        0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
+        0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
+        0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
     ];
 
     // Generate wages: wage = 5 + 2*education + 1*experience - 3*female + noise
@@ -89,7 +86,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n✅ Bootstrap complete!");
     println!("\n📊 COMPARISON: Asymptotic vs Bootstrap SE:");
     println!("{:-^78}", "");
-    println!("{:<15} | {:>15} | {:>15} | {:>15}", "Coefficient", "HC3 SE", "Bootstrap SE", "Difference");
+    println!(
+        "{:<15} | {:>15} | {:>15} | {:>15}",
+        "Coefficient", "HC3 SE", "Bootstrap SE", "Difference"
+    );
     println!("{:-^78}", "");
     for i in 0..result_hc3.params.len() {
         println!(
@@ -114,7 +114,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n📊 95% CONFIDENCE INTERVALS:");
     println!("{:-^78}", "");
-    println!("{:<15} | {:>12} | {:>18} | {:>18}", "Coefficient", "Estimate", "Lower (2.5%)", "Upper (97.5%)");
+    println!(
+        "{:<15} | {:>12} | {:>18} | {:>18}",
+        "Coefficient", "Estimate", "Lower (2.5%)", "Upper (97.5%)"
+    );
     println!("{:-^78}", "");
     for i in 0..result_hc3.params.len() {
         println!(
@@ -181,15 +184,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let r = Array2::from_shape_vec((1, 4), vec![0.0, 1.0, -1.0, 0.0])?;
     let q = Array1::from(vec![0.0]);
 
-    let (wald_stat2, wald_p2, df_wald2) = HypothesisTest::wald_test(
-        &result_for_test.params,
-        &cov_matrix,
-        &r,
-        &q,
-    )?;
+    let (wald_stat2, wald_p2, df_wald2) =
+        HypothesisTest::wald_test(&result_for_test.params, &cov_matrix, &r, &q)?;
 
     println!("Testing: β(education) - β(experience) = 0");
-    println!("Point estimate: β₁ - β₂ = {:.4}", result_for_test.params[1] - result_for_test.params[2]);
+    println!(
+        "Point estimate: β₁ - β₂ = {:.4}",
+        result_for_test.params[1] - result_for_test.params[2]
+    );
     println!("\nWald Statistic: {:.4}", wald_stat2);
     println!("Degrees of Freedom: {}", df_wald2);
     println!("P-value: {:.6}", wald_p2);

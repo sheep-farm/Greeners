@@ -1,4 +1,4 @@
-use greeners::{CovarianceType, DataFrame, Formula, OLS, FGLS};
+use greeners::{CovarianceType, DataFrame, Formula, FGLS, OLS};
 use ndarray::Array1;
 use rand::prelude::*;
 use statrs::distribution::Normal;
@@ -18,13 +18,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Generate independent variables
     let tratado: Vec<f64> = (0..n).map(|i| if i < n / 2 { 0.0 } else { 1.0 }).collect();
     let t: Vec<f64> = (0..n).map(|i| (i % 10) as f64).collect();
-    let effect: Vec<f64> = (0..n).map(|i| (i as f64 / 10.0) + normal.sample(&mut rng)).collect();
+    let effect: Vec<f64> = (0..n)
+        .map(|i| (i as f64 / 10.0) + normal.sample(&mut rng))
+        .collect();
 
     // Generate dependent variable with a linear relationship + noise
     let fte: Vec<f64> = (0..n)
-        .map(|i| {
-            10.0 + 5.0 * tratado[i] + 2.0 * t[i] + 1.5 * effect[i] + normal.sample(&mut rng)
-        })
+        .map(|i| 10.0 + 5.0 * tratado[i] + 2.0 * t[i] + 1.5 * effect[i] + normal.sample(&mut rng))
         .collect();
 
     data.insert("fte".to_string(), Array1::from(fte));
@@ -43,7 +43,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Python equivalent: smf.ols('fte ~ tratado + t + effect', data=df).fit()
     println!("{:=^78}", " Example 1: OLS with Formula ");
     let formula = Formula::parse("fte ~ tratado + t + effect")?;
-    println!("Formula: {} ~ {}", formula.dependent, formula.independents.join(" + "));
+    println!(
+        "Formula: {} ~ {}",
+        formula.dependent,
+        formula.independents.join(" + ")
+    );
     println!("Intercept: {}\n", formula.intercept);
 
     let result = OLS::from_formula(&formula, &df, CovarianceType::NonRobust)?;
@@ -59,9 +63,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Python equivalent: smf.ols('fte ~ tratado + t + effect - 1', data=df).fit()
     println!("\n{:=^78}", " Example 3: OLS without Intercept ");
     let formula_no_int = Formula::parse("fte ~ tratado + t + effect - 1")?;
-    println!("Formula: {} ~ {} (no intercept)\n",
+    println!(
+        "Formula: {} ~ {} (no intercept)\n",
         formula_no_int.dependent,
-        formula_no_int.independents.join(" + "));
+        formula_no_int.independents.join(" + ")
+    );
 
     let result_no_int = OLS::from_formula(&formula_no_int, &df, CovarianceType::HC1)?;
     println!("{}", result_no_int);

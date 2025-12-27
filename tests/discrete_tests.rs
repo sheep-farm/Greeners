@@ -1,16 +1,16 @@
-use greeners::{Logit, Probit, DataFrame, Formula};
+use greeners::{DataFrame, Formula, Logit, Probit};
 use ndarray::Array1;
 use std::collections::HashMap;
 
 // Helper function to create realistic binary outcome data without perfect separation
 fn create_test_data() -> (Vec<f64>, Vec<f64>) {
     let x_data = vec![
-        -2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0, 2.5,
-        -1.8, -1.3, -0.8, -0.3, 0.2, 0.7, 1.2, 1.7, 2.2, 2.7,
+        -2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0, 2.5, -1.8, -1.3, -0.8, -0.3, 0.2, 0.7,
+        1.2, 1.7, 2.2, 2.7,
     ];
     let y_data = vec![
-        0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0,
-        0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+        0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+        1.0, 1.0,
     ];
     (x_data, y_data)
 }

@@ -41,17 +41,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         t_vec.push(0.0);
 
         // Treated Post (1, 1)
-        fte_vec.push(
-            baseline + group_diff + time_trend + att_real + normal.sample(&mut rng)
-        );
+        fte_vec.push(baseline + group_diff + time_trend + att_real + normal.sample(&mut rng));
         tratado_vec.push(1.0);
         t_vec.push(1.0);
     }
 
     // Calculate interaction effect (this is the DiD estimator)
-    let effect_vec: Vec<f64> = (0..total_n)
-        .map(|i| tratado_vec[i] * t_vec[i])
-        .collect();
+    let effect_vec: Vec<f64> = (0..total_n).map(|i| tratado_vec[i] * t_vec[i]).collect();
 
     // Create DataFrame
     let mut data = HashMap::new();
@@ -78,9 +74,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create formula (same syntax as Python/R)
     let formula = Formula::parse("fte ~ tratado + t + effect")?;
 
-    println!("Formula: {} ~ {}",
+    println!(
+        "Formula: {} ~ {}",
         formula.dependent,
-        formula.independents.join(" + "));
+        formula.independents.join(" + ")
+    );
     println!("Intercept: {}\n", formula.intercept);
 
     // Create weights (all equal to 1 for WLS = OLS)
@@ -99,7 +97,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Tratado (x1):    Group fixed effect (selection bias)");
     println!("  t (x2):          Time fixed effect (common trend)");
     println!("  Effect (x3):     ** ATT (Difference-in-Differences Estimator) **");
-    println!("\nThe coefficient on 'effect' (x3) should be close to {:.1}", att_real);
+    println!(
+        "\nThe coefficient on 'effect' (x3) should be close to {:.1}",
+        att_real
+    );
 
     // Also demonstrate with robust standard errors using OLS
     println!("\n{:=^78}", " Same Model with Robust SE (HC1) ");

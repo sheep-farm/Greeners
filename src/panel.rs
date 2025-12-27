@@ -1,4 +1,4 @@
-use crate::{CovarianceType, GreenersError, OLS, DataFrame, Formula};
+use crate::{CovarianceType, DataFrame, Formula, GreenersError, OLS};
 use ndarray::{Array1, Array2, Axis};
 use std::collections::HashMap;
 use std::fmt;
@@ -224,16 +224,8 @@ impl fmt::Display for RandomEffectsResult {
             "R-squared (Over):", self.r_squared_overall
         )?;
         writeln!(f, "{:<20} {:>15.4}", "Theta:", self.theta)?;
-        writeln!(
-            f,
-            "{:<20} {:>15.4}",
-            "Sigma Alpha (Ind):", self.sigma_e
-        )?;
-        writeln!(
-            f,
-            "{:<20} {:>15.4}",
-            "Sigma U (Idiosync):", self.sigma_u
-        )?;
+        writeln!(f, "{:<20} {:>15.4}", "Sigma Alpha (Ind):", self.sigma_e)?;
+        writeln!(f, "{:<20} {:>15.4}", "Sigma U (Idiosync):", self.sigma_u)?;
 
         writeln!(f, "\n{:-^78}", "")?;
         writeln!(
@@ -366,11 +358,7 @@ impl RandomEffects {
         let x_between_arr = Array2::from_shape_vec((n_entities, k), x_means)
             .map_err(|e| GreenersError::ShapeMismatch(e.to_string()))?;
 
-        let be_model = OLS::fit(
-            &y_between_arr,
-            &x_between_arr,
-            CovarianceType::NonRobust,
-        )?;
+        let be_model = OLS::fit(&y_between_arr, &x_between_arr, CovarianceType::NonRobust)?;
 
         let residuals_be = &y_between_arr - &x_between_arr.dot(&be_model.params);
         let ssr_between = residuals_be.mapv(|v| v.powi(2)).sum();
@@ -450,14 +438,19 @@ impl fmt::Display for BetweenResult {
         writeln!(f, "\n{:=^78}", " Between Estimator (Means) ")?;
         writeln!(f, "{:<20} {:>15.4}", "R-squared:", self.r_squared)?;
         writeln!(f, "{:<20} {:>15}", "No. Entities:", self.n_entities)?;
-        
+
         writeln!(f, "\n{:-^78}", "")?;
-        writeln!(f, "{:<10} | {:>10} | {:>10} | {:>8} | {:>8}", 
-            "Variable", "Coef", "Std Err", "t", "P>|t|")?;
+        writeln!(
+            f,
+            "{:<10} | {:>10} | {:>10} | {:>8} | {:>8}",
+            "Variable", "Coef", "Std Err", "t", "P>|t|"
+        )?;
         writeln!(f, "{:-^78}", "")?;
-        
+
         for i in 0..self.params.len() {
-            writeln!(f, "x{:<9} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}", 
+            writeln!(
+                f,
+                "x{:<9} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
                 i, self.params[i], self.std_errors[i], self.t_values[i], self.p_values[i]
             )?;
         }
@@ -483,13 +476,15 @@ impl BetweenEstimator {
     pub fn fit(
         y: &Array1<f64>,
         x: &Array2<f64>,
-        entity_ids: &Array1<i64>
+        entity_ids: &Array1<i64>,
     ) -> Result<BetweenResult, GreenersError> {
         let n_obs = y.len();
         let k = x.ncols();
 
         if entity_ids.len() != n_obs {
-            return Err(GreenersError::ShapeMismatch("Entity IDs length mismatch".into()));
+            return Err(GreenersError::ShapeMismatch(
+                "Entity IDs length mismatch".into(),
+            ));
         }
 
         // 1. Agrupar por Entidade
@@ -507,17 +502,17 @@ impl BetweenEstimator {
         // Iterar sobre os grupos para criar o dataset reduzido (N x K)
         for indices in groups.values() {
             let t_i = indices.len() as f64;
-            
+
             let mut y_sum = 0.0;
             let mut x_sum = Array1::<f64>::zeros(k);
-            
+
             for &idx in indices {
                 y_sum += y[idx];
                 x_sum = &x_sum + &x.row(idx);
             }
-            
+
             y_means.push(y_sum / t_i);
-            
+
             let x_mean = x_sum / t_i;
             for val in x_mean.iter() {
                 x_means.push(*val);
