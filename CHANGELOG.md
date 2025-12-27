@@ -5,9 +5,42 @@ All notable changes to the Greeners project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2025-01-XX
+
+### Added
+- **HC4 Covariance Estimator** (Cribari-Neto, 2004)
+  - `CovarianceType::HC4` - Refined jackknife with adaptive power adjustment
+  - Formula: σ²_i / (1 - h_i)^δᵢ where δᵢ = min(4, n·h_i/k)
+  - Best small-sample performance, especially with influential observations
+  - More refined than HC3 for datasets with high-leverage points
+  - Implemented for both OLS and IV/2SLS
+
+- **Predictions for IV/2SLS Models**
+  - `IvResult::predict(x_new)` - Out-of-sample predictions
+  - `IvResult::fitted_values(x)` - In-sample fitted values
+  - `IvResult::residuals(y, x)` - Calculate residuals
+  - Same API as OLS predictions for consistency
+  - Essential for model validation and forecasting
+
+### Changed
+- Enhanced IV module with post-estimation methods
+- Completed HC series (HC1, HC2, HC3, HC4) for comprehensive robustness options
+
+### Documentation
+- Updated examples with HC4 usage
+- Added IV prediction examples
+
 ## [0.5.0] - 2025-01-XX
 
 ### Added
+- **Two-Way Clustered Standard Errors** (Cameron-Gelbach-Miller, 2011)
+  - `CovarianceType::ClusteredTwoWay(firm_ids, time_ids)`
+  - Essential for panel data with two-dimensional dependence
+  - Formula: V = V₁ + V₂ - V₁₂ (corrects for both firm and time clustering)
+  - Implemented for both OLS and IV/2SLS
+  - More robust than one-way clustering for panel data
+  - See `examples/two_way_clustering.rs` for comprehensive demonstration
+
 - **Marginal Effects for Binary Choice Models**: Post-estimation analysis for Logit/Probit
   - `average_marginal_effects(x)` - Average Marginal Effects (AME) - RECOMMENDED
     - Formula (Logit): AME_j = (1/n) Σ_i [β_j × exp(x'β)/(1+exp(x'β))²]
