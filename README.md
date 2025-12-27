@@ -9,11 +9,11 @@
 
 Designed for academic research, heavy simulations, and production-grade economic modeling.
 
-## 🎉 v1.0.0 STABLE RELEASE: Specification Tests
+## 🎉 v1.0.1 STABLE RELEASE: Specification Tests
 
 Greeners reaches **production stability** with comprehensive **specification tests** for diagnosing regression assumptions!
 
-### Specification Tests (NEW in v1.0.0)
+### Specification Tests (NEW in v1.0.1)
 
 Diagnose violations of classical regression assumptions and identify appropriate remedies:
 
