@@ -77,6 +77,79 @@ impl OlsResult {
     pub fn fitted_values(&self, x: &Array2<f64>) -> Array1<f64> {
         x.dot(&self.params)
     }
+
+    /// Model comparison statistics
+    ///
+    /// # Returns
+    /// Tuple of (AIC, BIC, Log-Likelihood, Adjusted R²)
+    ///
+    /// # Example
+    /// ```no_run
+    /// let (aic, bic, loglik, adj_r2) = result.model_stats();
+    /// println!("AIC: {:.2}, BIC: {:.2}", aic, bic);
+    /// ```
+    pub fn model_stats(&self) -> (f64, f64, f64, f64) {
+        (self.aic, self.bic, self.log_likelihood, self.adj_r_squared)
+    }
+
+    /// Calculate partial R² for subset of coefficients
+    ///
+    /// Measures the contribution of specific variables to model fit
+    ///
+    /// # Arguments
+    /// * `indices` - Indices of coefficients to test (excluding intercept)
+    /// * `y` - Dependent variable
+    /// * `x` - Full design matrix
+    ///
+    /// # Returns
+    /// Partial R² showing variance explained by specified variables
+    ///
+    /// # Note
+    /// Partial R² = (SSR_restricted - SSR_full) / SSR_restricted
+    pub fn partial_r_squared(&self, indices: &[usize], y: &Array1<f64>, x: &Array2<f64>) -> f64 {
+        use ndarray::Array1;
+
+        // Full model SSR (already fitted)
+        let fitted_full = self.fitted_values(x);
+        let resid_full = y - &fitted_full;
+        let ssr_full = resid_full.dot(&resid_full);
+
+        // Restricted model: drop specified variables
+        let n = x.nrows();
+        let k_full = x.ncols();
+        let k_restricted = k_full - indices.len();
+
+        if k_restricted == 0 {
+            return self.r_squared; // All variables removed = compare to mean
+        }
+
+        // Build restricted design matrix (keep columns NOT in indices)
+        let mut x_restricted = Array2::<f64>::zeros((n, k_restricted));
+        let mut col_idx = 0;
+        for j in 0..k_full {
+            if !indices.contains(&j) {
+                x_restricted.column_mut(col_idx).assign(&x.column(j));
+                col_idx += 1;
+            }
+        }
+
+        // Fit restricted model (simple OLS)
+        use ndarray_linalg::Inverse;
+        let xt_x = x_restricted.t().dot(&x_restricted);
+        let xt_y = x_restricted.t().dot(y);
+
+        if let Ok(xt_x_inv) = xt_x.inv() {
+            let beta_restricted = xt_x_inv.dot(&xt_y);
+            let fitted_restricted = x_restricted.dot(&beta_restricted);
+            let resid_restricted = y - &fitted_restricted;
+            let ssr_restricted = resid_restricted.dot(&resid_restricted);
+
+            // Partial R²
+            (ssr_restricted - ssr_full) / ssr_restricted
+        } else {
+            0.0 // Singular matrix
+        }
+    }
 }
 
 impl fmt::Display for OlsResult {

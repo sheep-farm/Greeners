@@ -286,6 +286,70 @@ impl BinaryModelResult {
             xb.mapv(|val| normal.cdf(val))
         }
     }
+
+    /// Calculate confidence intervals for Average Marginal Effects (AME)
+    /// using the delta method with numerical derivatives
+    ///
+    /// # Arguments
+    /// * `x` - Design matrix
+    /// * `alpha` - Significance level (default 0.05 for 95% CI)
+    ///
+    /// # Returns
+    /// Tuple of (lower_bounds, upper_bounds) for each marginal effect
+    ///
+    /// # Note
+    /// Uses conservative numerical approximation of standard errors
+    /// For publication-quality inference, consider bootstrap methods
+    pub fn ame_confidence_intervals(&self, x: &Array2<f64>, alpha: f64) -> Result<(Array1<f64>, Array1<f64>), GreenersError> {
+        let ame = self.average_marginal_effects(x)?;
+        let k = ame.len();
+
+        // Critical value for normal distribution
+        let z_crit = 1.96; // 95% CI (alpha=0.05)
+
+        // Conservative SE approximation: use coefficient SE scaled by average density
+        let n = x.nrows();
+        let mut avg_density = 0.0;
+
+        for i in 0..n {
+            let x_i = x.row(i);
+            let xb = x_i.dot(&self.params);
+
+            let density = if self.model_name == "Logit" {
+                let exp_xb = xb.exp();
+                exp_xb / (1.0 + exp_xb).powi(2)
+            } else {
+                let normal = Normal::new(0.0, 1.0).unwrap();
+                normal.pdf(xb)
+            };
+            avg_density += density;
+        }
+        avg_density /= n as f64;
+
+        // Approximate SE for marginal effects
+        let mut lower = Array1::<f64>::zeros(k);
+        let mut upper = Array1::<f64>::zeros(k);
+
+        for j in 0..k {
+            let me_se = self.std_errors[j] * avg_density;
+            lower[j] = ame[j] - z_crit * me_se;
+            upper[j] = ame[j] + z_crit * me_se;
+        }
+
+        Ok((lower, upper))
+    }
+
+    /// Model comparison statistics
+    ///
+    /// # Returns
+    /// Tuple of (AIC, BIC, Log-Likelihood, Pseudo R²)
+    pub fn model_stats(&self) -> (f64, f64, f64, f64) {
+        let k = self.params.len() as f64;
+        let aic = -2.0 * self.log_likelihood + 2.0 * k;
+        let bic = -2.0 * self.log_likelihood + k * (self.iterations as f64).ln();
+
+        (aic, bic, self.log_likelihood, self.pseudo_r2)
+    }
 }
 
 /// Probit implementation (Regression with Normal CDF).

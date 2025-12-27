@@ -257,7 +257,7 @@ dependencies = [
 
 [[package]]
 name = "greeners"
-version = "0.5.0"
+version = "0.7.0"
 dependencies = [
  "csv",
  "ndarray 0.17.1",
