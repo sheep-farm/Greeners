@@ -159,7 +159,8 @@ impl VECM {
 
         // 5. Estimar Beta e Alpha
         let mut beta_est = Array2::<f64>::zeros((k, rank));
-        for r in 0..rank {
+        // for r in 0..rank {
+        for (r, _pair) in pairs.iter().enumerate().take(rank) {
             let v = &pairs[r].1;
             let beta_vec = s11_inv_chol.t().dot(v);
             beta_est.column_mut(r).assign(&beta_vec);
