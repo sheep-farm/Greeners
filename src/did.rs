@@ -167,7 +167,7 @@ impl DiffInDiff {
         }
 
         // 2. Run OLS
-        let ols = OLS::fit(y, &x_mat, cov_type)?;
+        let ols = OLS::fit(y, &x_mat, cov_type.clone())?;
 
         // The ATT is the interaction coefficient (index 3)
         let att = ols.params[3];

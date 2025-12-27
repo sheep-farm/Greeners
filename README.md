@@ -1,7 +1,7 @@
 # Greeners: High-Performance Econometrics in Rust
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Version](https://img.shields.io/badge/version-0.2.0-blue)
 ![License](https://img.shields.io/badge/license-GPLv3-green)
 
 **Greeners** is a lightning-fast, type-safe econometrics library written in pure Rust. It provides a comprehensive suite of estimators for Cross-Sectional, Time-Series, and Panel Data analysis, leveraging linear algebra backends (LAPACK/BLAS) for maximum performance.
@@ -23,6 +23,43 @@ let result = OLS::from_formula(&formula, &df, CovarianceType::HC1)?;
 **All estimators support formulas:** OLS, WLS, DiD, IV/2SLS, Logit/Probit, Quantile Regression, Panel Data (FE/RE/Between), and more!
 
 📖 See [FORMULA_API.md](FORMULA_API.md) for complete documentation and examples.
+
+## 🆕 NEW in v0.2.0: Clustered Standard Errors & Advanced Diagnostics
+
+### Clustered Standard Errors
+Critical for panel data and hierarchical structures where observations are grouped:
+
+```rust
+// Panel data: firms over time
+let cluster_ids = vec![0,0,0, 1,1,1, 2,2,2]; // Firm IDs
+let result = OLS::from_formula(&formula, &df, CovarianceType::Clustered(cluster_ids))?;
+```
+
+**Use clustered SE when:**
+- Panel data (repeated observations per entity)
+- Hierarchical data (students in schools, patients in hospitals)
+- Experimental data with treatment clusters
+- Geographic clustering (observations in regions/countries)
+
+### Advanced Diagnostics
+New diagnostic tools for model validation:
+
+```rust
+use greeners::Diagnostics;
+
+// Multicollinearity detection
+let vif = Diagnostics::vif(&x)?;              // Variance Inflation Factor
+let cond_num = Diagnostics::condition_number(&x)?;  // Condition Number
+
+// Influential observations
+let leverage = Diagnostics::leverage(&x)?;    // Hat values
+let cooks_d = Diagnostics::cooks_distance(&residuals, &x, mse)?;  // Cook's Distance
+
+// Assumption testing (already available)
+let (jb_stat, jb_p) = Diagnostics::jarque_bera(&residuals)?;  // Normality
+let (bp_stat, bp_p) = Diagnostics::breusch_pagan(&residuals, &x)?;  // Heteroskedasticity
+let dw_stat = Diagnostics::durbin_watson(&residuals);  // Autocorrelation
+```
 
 ## 🚀 Features
 
