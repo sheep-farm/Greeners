@@ -144,7 +144,7 @@ impl PanelDiagnostics {
         for (i, &entity_id) in entity_ids.iter().enumerate() {
             entity_residuals
                 .entry(entity_id)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(residuals_pooled[i]);
         }
 

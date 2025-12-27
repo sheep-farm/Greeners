@@ -414,7 +414,7 @@ impl IV {
                 for (obs_idx, &cluster_id) in cluster_ids.iter().enumerate() {
                     clusters
                         .entry(cluster_id)
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push(obs_idx);
                 }
 
@@ -470,7 +470,7 @@ impl IV {
                     for (obs_idx, &cluster_id) in cluster_ids.iter().enumerate() {
                         clusters
                             .entry(cluster_id)
-                            .or_insert_with(Vec::new)
+                            .or_default()
                             .push(obs_idx);
                     }
 
