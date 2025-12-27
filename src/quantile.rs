@@ -1,7 +1,7 @@
+use crate::{CovarianceType, DataFrame, Formula, GreenersError, OLS};
 use ndarray::{Array1, Array2, Axis};
 use ndarray_rand::rand_distr::Uniform;
 use rand::distributions::Distribution;
-use crate::{GreenersError, OLS, CovarianceType, DataFrame, Formula};
 use std::fmt;
 
 #[derive(Debug)]
@@ -17,17 +17,26 @@ pub struct QuantileResult {
 
 impl fmt::Display for QuantileResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "\n{:=^78}", format!(" Quantile Regression (tau={:.2}) ", self.tau))?;
+        writeln!(
+            f,
+            "\n{:=^78}",
+            format!(" Quantile Regression (tau={:.2}) ", self.tau)
+        )?;
         writeln!(f, "{:<20} {:>15.4} (Pseudo)", "R-squared:", self.r_squared)?;
         writeln!(f, "{:<20} {:>15}", "Iterations:", self.iterations)?;
-        
+
         writeln!(f, "\n{:-^78}", "")?;
-        writeln!(f, "{:<10} | {:>10} | {:>10} | {:>8} | {:>8}", 
-            "Variable", "Coef", "Std Err", "t", "P>|t|")?;
+        writeln!(
+            f,
+            "{:<10} | {:>10} | {:>10} | {:>8} | {:>8}",
+            "Variable", "Coef", "Std Err", "t", "P>|t|"
+        )?;
         writeln!(f, "{:-^78}", "")?;
-        
+
         for i in 0..self.params.len() {
-            writeln!(f, "x{:<9} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}", 
+            writeln!(
+                f,
+                "x{:<9} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
                 i, self.params[i], self.std_errors[i], self.t_values[i], self.p_values[i]
             )?;
         }
@@ -58,7 +67,7 @@ impl QuantileReg {
         y: &Array1<f64>,
         x: &Array2<f64>,
         tau: f64,
-        n_boot: usize
+        n_boot: usize,
     ) -> Result<QuantileResult, GreenersError> {
         if tau <= 0.0 || tau >= 1.0 {
             return Err(GreenersError::OptimizationFailed); // "Tau must be in (0, 1)"
@@ -80,13 +89,13 @@ impl QuantileReg {
         // R1 = 1 - (Loss(Model) / Loss(Null))
         // Null Model: Apenas intercepto (quantil da variável Y bruta)
         let loss_model = Self::check_loss(y, &x.dot(&params), tau);
-        
+
         // Null model (apenas constante)
         let n = y.len();
         let ones = Array2::<f64>::ones((n, 1));
         let (params_null, _) = Self::irls_solver(y, &ones, tau)?;
         let loss_null = Self::check_loss(y, &ones.dot(&params_null), tau);
-        
+
         let pseudo_r2 = 1.0 - (loss_model / loss_null);
 
         Ok(QuantileResult {
@@ -104,7 +113,7 @@ impl QuantileReg {
     fn irls_solver(
         y: &Array1<f64>,
         x: &Array2<f64>,
-        tau: f64
+        tau: f64,
     ) -> Result<(Array1<f64>, usize), GreenersError> {
         let n = y.len();
         let max_iter = 1000;
@@ -119,7 +128,7 @@ impl QuantileReg {
 
         while diff > tol && iter < max_iter {
             let old_beta = beta.clone();
-            
+
             // Calcular Resíduos
             let pred = x.dot(&beta);
             let residuals = y - &pred;
@@ -128,12 +137,12 @@ impl QuantileReg {
             // w_i = tau / |u| se u > 0
             // w_i = (1-tau) / |u| se u < 0
             // Aproximação suave: w_i = 1 / max(epsilon, |u|) * (tau if u>0 else 1-tau)
-            
+
             let mut weights = Array1::<f64>::zeros(n);
             for i in 0..n {
                 let u = residuals[i];
                 let abs_u = u.abs().max(epsilon); // Evitar 0
-                
+
                 let w = if u >= 0.0 {
                     tau / abs_u
                 } else {
@@ -153,7 +162,7 @@ impl QuantileReg {
             }
 
             let wls_res = OLS::fit(&y_w, &x_w, CovarianceType::NonRobust);
-            
+
             // Se WLS falhar (matriz singular devido a pesos extremos), retornar erro ou parar
             if let Ok(res) = wls_res {
                 beta = res.params;
@@ -174,18 +183,18 @@ impl QuantileReg {
         y: &Array1<f64>,
         x: &Array2<f64>,
         tau: f64,
-        n_boot: usize
+        n_boot: usize,
     ) -> Result<Array1<f64>, GreenersError> {
         let n = y.len();
         let k = x.ncols();
         let mut boot_betas = Array2::<f64>::zeros((n_boot, k));
-        
+
         let mut rng = rand::thread_rng();
 
         for b in 0..n_boot {
             // Reamostragem com reposição
             let indices = Array1::from_iter((0..n).map(|_| Uniform::new(0, n).sample(&mut rng)));
-            
+
             let mut y_boot_vec = Vec::with_capacity(n);
             let mut x_boot_vec = Vec::with_capacity(n * k);
 
@@ -195,7 +204,7 @@ impl QuantileReg {
                     x_boot_vec.push(*val);
                 }
             }
-            
+
             let y_boot = Array1::from(y_boot_vec);
             let x_boot = Array2::from_shape_vec((n, k), x_boot_vec)
                 .map_err(|_| GreenersError::ShapeMismatch("Bootstrap shape error".into()))?;
@@ -222,6 +231,7 @@ impl QuantileReg {
     /// Função de Perda (Check Loss)
     fn check_loss(y: &Array1<f64>, y_pred: &Array1<f64>, tau: f64) -> f64 {
         let res = y - y_pred;
-        res.mapv(|u| if u >= 0.0 { tau * u } else { (tau - 1.0) * u }).sum()
+        res.mapv(|u| if u >= 0.0 { tau * u } else { (tau - 1.0) * u })
+            .sum()
     }
 }

@@ -1,6 +1,6 @@
 use greeners::{
-    OLS, FixedEffects, ModelSelection, PanelDiagnostics, SummaryStats, DataFrame, Formula,
-    CovarianceType,
+    CovarianceType, DataFrame, FixedEffects, Formula, ModelSelection, PanelDiagnostics,
+    SummaryStats, OLS,
 };
 use ndarray::Array1;
 use rand::{thread_rng, Rng};
@@ -48,7 +48,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let size = 5.0 + firm_effect * 0.4 + t * 0.15 + rng.gen_range(-0.8..0.8);
 
             // Investment depends on other variables + firm effect + noise
-            let investment = 2.0 + firm_effect * 1.0
+            let investment = 2.0
+                + firm_effect * 1.0
                 + profit * 0.35
                 + cash_flow * 0.25
                 + size * 0.15
@@ -144,12 +145,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             4, // intercept + 3 slopes
             n_obs,
         ),
-        (
-            "Pooled (No size)",
-            model2_pooled.log_likelihood,
-            3,
-            n_obs,
-        ),
+        ("Pooled (No size)", model2_pooled.log_likelihood, 3, n_obs),
         (
             "Pooled (Profit only)",
             model3_simple.log_likelihood,
@@ -167,7 +163,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n📊 AKAIKE WEIGHTS (Model Averaging):");
     println!("{:-^80}", "");
-    println!("{:<20} | {:>12} | {:>12} | {:>20}", "Model", "Δ_AIC", "Weight", "Interpretation");
+    println!(
+        "{:<20} | {:>12} | {:>12} | {:>20}",
+        "Model", "Δ_AIC", "Weight", "Interpretation"
+    );
     println!("{:-^80}", "");
 
     for (i, (name, _, _, _, _)) in comparison.iter().enumerate() {

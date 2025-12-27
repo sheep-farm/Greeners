@@ -32,12 +32,21 @@ impl fmt::Display for IvResult {
             CovarianceType::HC4 => "Robust (HC4)".to_string(),
             CovarianceType::NeweyWest(lags) => format!("HAC (Newey-West, L={})", lags),
             CovarianceType::Clustered(clusters) => {
-                let n_clusters = clusters.iter().collect::<std::collections::HashSet<_>>().len();
+                let n_clusters = clusters
+                    .iter()
+                    .collect::<std::collections::HashSet<_>>()
+                    .len();
                 format!("Clustered ({} clusters)", n_clusters)
             }
             CovarianceType::ClusteredTwoWay(clusters1, clusters2) => {
-                let n_clusters_1 = clusters1.iter().collect::<std::collections::HashSet<_>>().len();
-                let n_clusters_2 = clusters2.iter().collect::<std::collections::HashSet<_>>().len();
+                let n_clusters_1 = clusters1
+                    .iter()
+                    .collect::<std::collections::HashSet<_>>()
+                    .len();
+                let n_clusters_2 = clusters2
+                    .iter()
+                    .collect::<std::collections::HashSet<_>>()
+                    .len();
                 format!("Two-Way Clustered ({}×{})", n_clusters_1, n_clusters_2)
             }
         };
@@ -403,7 +412,10 @@ impl IV {
                 use std::collections::HashMap;
                 let mut clusters: HashMap<usize, Vec<usize>> = HashMap::new();
                 for (obs_idx, &cluster_id) in cluster_ids.iter().enumerate() {
-                    clusters.entry(cluster_id).or_insert_with(Vec::new).push(obs_idx);
+                    clusters
+                        .entry(cluster_id)
+                        .or_insert_with(Vec::new)
+                        .push(obs_idx);
                 }
 
                 let n_clusters = clusters.len();
@@ -456,7 +468,10 @@ impl IV {
                     use std::collections::HashMap;
                     let mut clusters: HashMap<usize, Vec<usize>> = HashMap::new();
                     for (obs_idx, &cluster_id) in cluster_ids.iter().enumerate() {
-                        clusters.entry(cluster_id).or_insert_with(Vec::new).push(obs_idx);
+                        clusters
+                            .entry(cluster_id)
+                            .or_insert_with(Vec::new)
+                            .push(obs_idx);
                     }
 
                     let mut meat = Array2::<f64>::zeros((k, k));

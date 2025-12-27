@@ -140,16 +140,11 @@ fn test_panel_diagnostics_bp_no_panel_effect() {
     // Residuals with NO panel effect (all random)
     // Should have high p-value (fail to reject H0)
     let residuals = Array1::from(vec![
-        0.05, -0.03, 0.02, -0.04, 0.01,
-        -0.02, 0.04, -0.01, 0.03, -0.05,
-        0.03, -0.05, 0.04, -0.02, 0.01,
+        0.05, -0.03, 0.02, -0.04, 0.01, -0.02, 0.04, -0.01, 0.03, -0.05, 0.03, -0.05, 0.04, -0.02,
+        0.01,
     ]);
 
-    let entity_ids = vec![
-        0, 0, 0, 0, 0,
-        1, 1, 1, 1, 1,
-        2, 2, 2, 2, 2,
-    ];
+    let entity_ids = vec![0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2];
 
     let (lm_stat, p_value) = PanelDiagnostics::breusch_pagan_lm(&residuals, &entity_ids).unwrap();
 
@@ -190,7 +185,8 @@ fn test_panel_diagnostics_f_test_no_effect() {
     let n_entities = 10;
     let k = 3;
 
-    let (f_stat, p_value) = PanelDiagnostics::f_test_fixed_effects(ssr_pooled, ssr_fe, n, n_entities, k).unwrap();
+    let (f_stat, p_value) =
+        PanelDiagnostics::f_test_fixed_effects(ssr_pooled, ssr_fe, n, n_entities, k).unwrap();
 
     // F should be near 0
     assert!(f_stat.abs() < 1e-10);
@@ -274,9 +270,9 @@ fn test_model_selection_ranking() {
     // Test that models are ranked correctly
     // AIC = -2*loglik + 2*k
     let models = vec![
-        ("Best AIC", -50.0, 2, 100),    // AIC = 100 + 4 = 104 (best)
-        ("Worst AIC", -30.0, 5, 100),   // AIC = 60 + 10 = 70... wait this is wrong
-        ("Middle", -45.0, 3, 100),      // AIC = 90 + 6 = 96
+        ("Best AIC", -50.0, 2, 100),  // AIC = 100 + 4 = 104 (best)
+        ("Worst AIC", -30.0, 5, 100), // AIC = 60 + 10 = 70... wait this is wrong
+        ("Middle", -45.0, 3, 100),    // AIC = 90 + 6 = 96
     ];
 
     // Let me recalculate for correct ranking:
@@ -287,9 +283,9 @@ fn test_model_selection_ranking() {
     // Correct order by AIC (ascending): Worst(70), Middle(96), Best(104)
     // Let me fix this properly:
     let models = vec![
-        ("Best", -52.0, 2, 100),    // AIC = 104 + 4 = 108 -> Best (lowest)
-        ("Middle", -51.0, 4, 100),  // AIC = 102 + 8 = 110 -> Middle
-        ("Worst", -50.0, 6, 100),   // AIC = 100 + 12 = 112 -> Worst (highest)
+        ("Best", -52.0, 2, 100),   // AIC = 104 + 4 = 108 -> Best (lowest)
+        ("Middle", -51.0, 4, 100), // AIC = 102 + 8 = 110 -> Middle
+        ("Worst", -50.0, 6, 100),  // AIC = 100 + 12 = 112 -> Worst (highest)
     ];
 
     let comparison = ModelSelection::compare_models(models);

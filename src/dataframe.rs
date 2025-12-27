@@ -1,4 +1,4 @@
-use crate::{GreenersError, formula::Formula};
+use crate::{formula::Formula, GreenersError};
 use ndarray::{Array1, Array2};
 use std::collections::HashMap;
 use std::path::Path;
@@ -33,19 +33,19 @@ impl DataFrame {
     /// ```
     pub fn new(columns: HashMap<String, Array1<f64>>) -> Result<Self, GreenersError> {
         if columns.is_empty() {
-            return Ok(DataFrame {
-                columns,
-                n_rows: 0,
-            });
+            return Ok(DataFrame { columns, n_rows: 0 });
         }
 
         // Check that all columns have the same length
         let first_len = columns.values().next().unwrap().len();
         for (name, col) in &columns {
             if col.len() != first_len {
-                return Err(GreenersError::ShapeMismatch(
-                    format!("Column '{}' has length {}, expected {}", name, col.len(), first_len)
-                ));
+                return Err(GreenersError::ShapeMismatch(format!(
+                    "Column '{}' has length {}, expected {}",
+                    name,
+                    col.len(),
+                    first_len
+                )));
             }
         }
 
@@ -67,16 +67,16 @@ impl DataFrame {
 
     /// Get a column by name, returning a reference to the Array1
     pub fn get(&self, name: &str) -> Result<&Array1<f64>, GreenersError> {
-        self.columns.get(name).ok_or_else(|| {
-            GreenersError::VariableNotFound(format!("Column '{}' not found", name))
-        })
+        self.columns
+            .get(name)
+            .ok_or_else(|| GreenersError::VariableNotFound(format!("Column '{}' not found", name)))
     }
 
     /// Get a mutable column by name
     pub fn get_mut(&mut self, name: &str) -> Result<&mut Array1<f64>, GreenersError> {
-        self.columns.get_mut(name).ok_or_else(|| {
-            GreenersError::VariableNotFound(format!("Column '{}' not found", name))
-        })
+        self.columns
+            .get_mut(name)
+            .ok_or_else(|| GreenersError::VariableNotFound(format!("Column '{}' not found", name)))
     }
 
     /// Check if a column exists
@@ -103,19 +103,19 @@ impl DataFrame {
         for var_name in &formula.independents {
             if var_name.starts_with("C(") && var_name.ends_with(')') {
                 // Categorical: count unique values - 1 (drop first)
-                let var = var_name[2..var_name.len()-1].trim();
+                let var = var_name[2..var_name.len() - 1].trim();
                 let col_data = self.get(var)?;
 
                 use std::collections::BTreeSet;
-                let unique_vals: BTreeSet<i32> = col_data.iter()
-                    .map(|&v| v.round() as i32)
-                    .collect();
+                let unique_vals: BTreeSet<i32> =
+                    col_data.iter().map(|&v| v.round() as i32).collect();
 
                 let n_categories = unique_vals.len();
                 if n_categories < 2 {
-                    return Err(GreenersError::FormulaError(
-                        format!("Categorical variable '{}' must have at least 2 categories", var)
-                    ));
+                    return Err(GreenersError::FormulaError(format!(
+                        "Categorical variable '{}' must have at least 2 categories",
+                        var
+                    )));
                 }
 
                 count += n_categories - 1; // Drop first category
@@ -149,7 +149,10 @@ impl DataFrame {
     /// assert_eq!(y.len(), 3);
     /// assert_eq!(x.shape(), &[3, 3]); // 3 rows, 3 cols (intercept + x1 + x2)
     /// ```
-    pub fn to_design_matrix(&self, formula: &Formula) -> Result<(Array1<f64>, Array2<f64>), GreenersError> {
+    pub fn to_design_matrix(
+        &self,
+        formula: &Formula,
+    ) -> Result<(Array1<f64>, Array2<f64>), GreenersError> {
         // Extract y (dependent variable)
         let y = self.get(&formula.dependent)?.clone();
 
@@ -175,14 +178,13 @@ impl DataFrame {
             // Check for categorical variable: C(var)
             if var_name.starts_with("C(") && var_name.ends_with(')') {
                 // Extract variable name from C(var)
-                let var = var_name[2..var_name.len()-1].trim();
+                let var = var_name[2..var_name.len() - 1].trim();
                 let col_data = self.get(var)?;
 
                 // Get unique values (categories)
                 use std::collections::BTreeSet;
-                let unique_vals: BTreeSet<i32> = col_data.iter()
-                    .map(|&v| v.round() as i32)
-                    .collect();
+                let unique_vals: BTreeSet<i32> =
+                    col_data.iter().map(|&v| v.round() as i32).collect();
 
                 let mut categories: Vec<i32> = unique_vals.into_iter().collect();
                 categories.sort();
@@ -190,15 +192,20 @@ impl DataFrame {
                 // Create dummies (drop first category for identification)
                 // e.g., if categories are [0, 1, 2], create dummies for 1 and 2
                 if categories.len() < 2 {
-                    return Err(GreenersError::FormulaError(
-                        format!("Categorical variable '{}' must have at least 2 categories", var)
-                    ));
+                    return Err(GreenersError::FormulaError(format!(
+                        "Categorical variable '{}' must have at least 2 categories",
+                        var
+                    )));
                 }
 
                 // Skip first category (reference level)
                 for &cat_val in categories.iter().skip(1) {
                     for i in 0..n_rows {
-                        x_mat[[i, col_idx]] = if (col_data[i].round() as i32) == cat_val { 1.0 } else { 0.0 };
+                        x_mat[[i, col_idx]] = if (col_data[i].round() as i32) == cat_val {
+                            1.0
+                        } else {
+                            0.0
+                        };
                     }
                     col_idx += 1;
                 }
@@ -209,7 +216,7 @@ impl DataFrame {
             // Check for polynomial term: I(expr)
             if var_name.starts_with("I(") && var_name.ends_with(')') {
                 // Extract expression from I(...)
-                let expr = var_name[2..var_name.len()-1].trim();
+                let expr = var_name[2..var_name.len() - 1].trim();
 
                 // Parse simple expressions: var^power or var**power
                 if expr.find('^').or_else(|| expr.find("**")).is_some() {
@@ -219,18 +226,20 @@ impl DataFrame {
                     if expr.contains("**") {
                         let parts: Vec<&str> = expr.split("**").collect();
                         if parts.len() != 2 {
-                            return Err(GreenersError::FormulaError(
-                                format!("Invalid polynomial expression '{}'", expr)
-                            ));
+                            return Err(GreenersError::FormulaError(format!(
+                                "Invalid polynomial expression '{}'",
+                                expr
+                            )));
                         }
                         var_part = parts[0].trim();
                         power_part = parts[1].trim();
                     } else {
                         let parts: Vec<&str> = expr.split('^').collect();
                         if parts.len() != 2 {
-                            return Err(GreenersError::FormulaError(
-                                format!("Invalid polynomial expression '{}'", expr)
-                            ));
+                            return Err(GreenersError::FormulaError(format!(
+                                "Invalid polynomial expression '{}'",
+                                expr
+                            )));
                         }
                         var_part = parts[0].trim();
                         power_part = parts[1].trim();
@@ -238,9 +247,10 @@ impl DataFrame {
 
                     let col_data = self.get(var_part)?;
                     let power: i32 = power_part.parse().map_err(|_| {
-                        GreenersError::FormulaError(
-                            format!("Invalid power in expression '{}'", expr)
-                        )
+                        GreenersError::FormulaError(format!(
+                            "Invalid power in expression '{}'",
+                            expr
+                        ))
                     })?;
 
                     // Compute x^power
@@ -248,9 +258,10 @@ impl DataFrame {
                         x_mat[[i, col_idx]] = col_data[i].powi(power);
                     }
                 } else {
-                    return Err(GreenersError::FormulaError(
-                        format!("I() expression must contain ^ or **: '{}'", expr)
-                    ));
+                    return Err(GreenersError::FormulaError(format!(
+                        "I() expression must contain ^ or **: '{}'",
+                        expr
+                    )));
                 }
             }
             // Check if this is an interaction term (contains ':')
@@ -258,9 +269,10 @@ impl DataFrame {
                 // Parse interaction: "x1:x2"
                 let parts: Vec<&str> = var_name.split(':').collect();
                 if parts.len() != 2 {
-                    return Err(GreenersError::FormulaError(
-                        format!("Invalid interaction term '{}'", var_name)
-                    ));
+                    return Err(GreenersError::FormulaError(format!(
+                        "Invalid interaction term '{}'",
+                        var_name
+                    )));
                 }
 
                 let var1 = self.get(parts[0].trim())?;
@@ -286,9 +298,12 @@ impl DataFrame {
     /// Insert or update a column
     pub fn insert(&mut self, name: String, data: Array1<f64>) -> Result<(), GreenersError> {
         if !self.columns.is_empty() && data.len() != self.n_rows {
-            return Err(GreenersError::ShapeMismatch(
-                format!("New column '{}' has length {}, expected {}", name, data.len(), self.n_rows)
-            ));
+            return Err(GreenersError::ShapeMismatch(format!(
+                "New column '{}' has length {}, expected {}",
+                name,
+                data.len(),
+                self.n_rows
+            )));
         }
 
         if self.columns.is_empty() {
@@ -321,7 +336,8 @@ impl DataFrame {
             .map_err(|e| GreenersError::FormulaError(format!("Failed to read CSV: {}", e)))?;
 
         // Get headers
-        let headers = reader.headers()
+        let headers = reader
+            .headers()
             .map_err(|e| GreenersError::FormulaError(format!("Failed to read headers: {}", e)))?
             .clone();
 
@@ -333,15 +349,18 @@ impl DataFrame {
 
         // Read all records
         for result in reader.records() {
-            let record = result
-                .map_err(|e| GreenersError::FormulaError(format!("Failed to read record: {}", e)))?;
+            let record = result.map_err(|e| {
+                GreenersError::FormulaError(format!("Failed to read record: {}", e))
+            })?;
 
             for (i, field) in record.iter().enumerate() {
                 let header = &headers[i];
-                let value: f64 = field.trim().parse()
-                    .map_err(|_| GreenersError::FormulaError(
-                        format!("Failed to parse '{}' as f64 in column '{}'", field, header)
-                    ))?;
+                let value: f64 = field.trim().parse().map_err(|_| {
+                    GreenersError::FormulaError(format!(
+                        "Failed to parse '{}' as f64 in column '{}'",
+                        field, header
+                    ))
+                })?;
 
                 columns.get_mut(header).unwrap().push(value);
             }

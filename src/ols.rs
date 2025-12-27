@@ -107,8 +107,6 @@ impl OlsResult {
     /// # Note
     /// Partial R² = (SSR_restricted - SSR_full) / SSR_restricted
     pub fn partial_r_squared(&self, indices: &[usize], y: &Array1<f64>, x: &Array2<f64>) -> f64 {
-        
-
         // Full model SSR (already fitted)
         let fitted_full = self.fitted_values(x);
         let resid_full = y - &fitted_full;
@@ -162,12 +160,21 @@ impl fmt::Display for OlsResult {
             CovarianceType::HC4 => "Robust (HC4)".to_string(),
             CovarianceType::NeweyWest(lags) => format!("HAC (Newey-West, L={})", lags),
             CovarianceType::Clustered(clusters) => {
-                let n_clusters = clusters.iter().collect::<std::collections::HashSet<_>>().len();
+                let n_clusters = clusters
+                    .iter()
+                    .collect::<std::collections::HashSet<_>>()
+                    .len();
                 format!("Clustered ({} clusters)", n_clusters)
             }
             CovarianceType::ClusteredTwoWay(clusters1, clusters2) => {
-                let n_clusters_1 = clusters1.iter().collect::<std::collections::HashSet<_>>().len();
-                let n_clusters_2 = clusters2.iter().collect::<std::collections::HashSet<_>>().len();
+                let n_clusters_1 = clusters1
+                    .iter()
+                    .collect::<std::collections::HashSet<_>>()
+                    .len();
+                let n_clusters_2 = clusters2
+                    .iter()
+                    .collect::<std::collections::HashSet<_>>()
+                    .len();
                 format!("Two-Way Clustered ({}×{})", n_clusters_1, n_clusters_2)
             }
         };
@@ -338,7 +345,7 @@ impl OLS {
                 for i in 0..n {
                     let h_i = leverage[i];
                     if h_i >= 0.9999 {
-                        u_adjusted[i] = residuals[i].powi(2);  // Avoid division by zero
+                        u_adjusted[i] = residuals[i].powi(2); // Avoid division by zero
                     } else {
                         u_adjusted[i] = residuals[i].powi(2) / (1.0 - h_i);
                     }
@@ -372,7 +379,7 @@ impl OLS {
                 for i in 0..n {
                     let h_i = leverage[i];
                     if h_i >= 0.9999 {
-                        u_adjusted[i] = residuals[i].powi(2);  // Avoid division by zero
+                        u_adjusted[i] = residuals[i].powi(2); // Avoid division by zero
                     } else {
                         u_adjusted[i] = residuals[i].powi(2) / (1.0 - h_i).powi(2);
                     }
@@ -503,7 +510,10 @@ impl OLS {
                 use std::collections::HashMap;
                 let mut clusters: HashMap<usize, Vec<usize>> = HashMap::new();
                 for (obs_idx, &cluster_id) in cluster_ids.iter().enumerate() {
-                    clusters.entry(cluster_id).or_insert_with(Vec::new).push(obs_idx);
+                    clusters
+                        .entry(cluster_id)
+                        .or_insert_with(Vec::new)
+                        .push(obs_idx);
                 }
 
                 let n_clusters = clusters.len();
@@ -578,7 +588,10 @@ impl OLS {
                     use std::collections::HashMap;
                     let mut clusters: HashMap<usize, Vec<usize>> = HashMap::new();
                     for (obs_idx, &cluster_id) in cluster_ids.iter().enumerate() {
-                        clusters.entry(cluster_id).or_insert_with(Vec::new).push(obs_idx);
+                        clusters
+                            .entry(cluster_id)
+                            .or_insert_with(Vec::new)
+                            .push(obs_idx);
                     }
 
                     let mut meat = Array2::<f64>::zeros((k, k));

@@ -1,4 +1,4 @@
-use greeners::{DataFrame, Formula, OLS, CovarianceType};
+use greeners::{CovarianceType, DataFrame, Formula, OLS};
 
 /// Example demonstrating CSV file reading with Formula API
 ///
@@ -21,7 +21,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Example 1: Simple OLS with formula
     println!("{:=^78}", " Example 1: OLS with Formula ");
     let formula = Formula::parse("y ~ x1 + x2")?;
-    println!("Formula: {} ~ {}\n", formula.dependent, formula.independents.join(" + "));
+    println!(
+        "Formula: {} ~ {}\n",
+        formula.dependent,
+        formula.independents.join(" + ")
+    );
 
     let result = OLS::from_formula(&formula, &df, CovarianceType::HC1)?;
     println!("{}", result);
@@ -29,7 +33,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Example 2: Different model specification
     println!("\n{:=^78}", " Example 2: Different Variables ");
     let formula2 = Formula::parse("y ~ x1 + x3")?;
-    println!("Formula: {} ~ {}\n", formula2.dependent, formula2.independents.join(" + "));
+    println!(
+        "Formula: {} ~ {}\n",
+        formula2.dependent,
+        formula2.independents.join(" + ")
+    );
 
     let result2 = OLS::from_formula(&formula2, &df, CovarianceType::HC1)?;
     println!("{}", result2);
@@ -37,7 +45,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Example 3: All variables
     println!("\n{:=^78}", " Example 3: All Variables ");
     let formula3 = Formula::parse("y ~ x1 + x2 + x3")?;
-    println!("Formula: {} ~ {}\n", formula3.dependent, formula3.independents.join(" + "));
+    println!(
+        "Formula: {} ~ {}\n",
+        formula3.dependent,
+        formula3.independents.join(" + ")
+    );
 
     let result3 = OLS::from_formula(&formula3, &df, CovarianceType::HC1)?;
     println!("{}", result3);

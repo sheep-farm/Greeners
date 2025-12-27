@@ -166,7 +166,8 @@ impl PanelDiagnostics {
         }
 
         // LM statistic
-        let lm_stat = (n as f64 / 2.0) * ((sum_squared_means / sum_squared_residuals) - 1.0).powi(2)
+        let lm_stat = (n as f64 / 2.0)
+            * ((sum_squared_means / sum_squared_residuals) - 1.0).powi(2)
             / (t_bar - 1.0);
 
         // Under H₀, LM ~ χ²(1)

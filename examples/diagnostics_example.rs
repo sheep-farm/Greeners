@@ -1,4 +1,4 @@
-use greeners::{OLS, Diagnostics, CovarianceType};
+use greeners::{CovarianceType, Diagnostics, OLS};
 use ndarray::{Array1, Array2};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -16,15 +16,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         vec![
             // Intercept, x1, x2
             1.0, 1.0, 1.1, // x2 ≈ x1 (multicollinearity)
-            1.0, 2.0, 2.2,
-            1.0, 3.0, 3.1,
-            1.0, 4.0, 4.2,
-            1.0, 5.0, 5.1,
-            1.0, 6.0, 6.3,
-            1.0, 7.0, 7.2,
-            1.0, 8.0, 8.1,
-            1.0, 9.0, 9.2,
-            1.0, 10.0, 10.5, // Outlier with high leverage
+            1.0, 2.0, 2.2, 1.0, 3.0, 3.1, 1.0, 4.0, 4.2, 1.0, 5.0, 5.1, 1.0, 6.0, 6.3, 1.0, 7.0,
+            7.2, 1.0, 8.0, 8.1, 1.0, 9.0, 9.2, 1.0, 10.0, 10.5, // Outlier with high leverage
         ],
     )?;
 
@@ -64,10 +57,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "✗ High (problematic)"
         };
 
-        println!(
-            "{:<20} | {:>15.2} | {:<20}",
-            var_names[i], vif, assessment
-        );
+        println!("{:<20} | {:>15.2} | {:<20}", var_names[i], vif, assessment);
     }
 
     // Condition Number
@@ -141,7 +131,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\nThresholds:");
     println!("  • Average Leverage (k/n):     {:.4}", avg_leverage);
-    println!("  • High Leverage (2k/n):       {:.4}", high_leverage_threshold);
+    println!(
+        "  • High Leverage (2k/n):       {:.4}",
+        high_leverage_threshold
+    );
     println!("  • Cook's D Influential (4/n): {:.4}", 4.0 / (n as f64));
     println!("  • Cook's D Critical:          1.0");
 
@@ -211,7 +204,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if jb_pvalue < 0.05 {
-        recommendations.push("⚠ NON-NORMAL RESIDUALS: Check for outliers or model misspecification");
+        recommendations
+            .push("⚠ NON-NORMAL RESIDUALS: Check for outliers or model misspecification");
     }
 
     if recommendations.is_empty() {

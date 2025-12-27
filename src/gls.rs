@@ -1,35 +1,44 @@
-use ndarray::{Array1, Array2, Axis, s};
-use crate::{OLS, CovarianceType, GreenersError, DataFrame, Formula};
+use crate::{CovarianceType, DataFrame, Formula, GreenersError, OLS};
+use ndarray::{s, Array1, Array2, Axis};
 use std::fmt;
 
 /// FGLS Result
 #[derive(Debug)]
 pub struct FglsResult {
-    pub method: String,     // "WLS" or "Cochrane-Orcutt"
+    pub method: String, // "WLS" or "Cochrane-Orcutt"
     pub params: Array1<f64>,
     pub std_errors: Array1<f64>,
     pub t_values: Array1<f64>,
     pub p_values: Array1<f64>,
     pub r_squared: f64,
-    pub rho: Option<f64>,   // Only for Cochrane-Orcutt
-    pub iter: Option<usize>,// Iterations until convergence
+    pub rho: Option<f64>,    // Only for Cochrane-Orcutt
+    pub iter: Option<usize>, // Iterations until convergence
 }
 
 impl fmt::Display for FglsResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "\n{:=^78}", format!(" FGLS Estimation ({}) ", self.method))?;
+        writeln!(
+            f,
+            "\n{:=^78}",
+            format!(" FGLS Estimation ({}) ", self.method)
+        )?;
         if let Some(r) = self.rho {
             writeln!(f, "Autocorrelation (rho): {:>10.4}", r)?;
         }
         writeln!(f, "{:<20} {:>15.4}", "R-squared:", self.r_squared)?;
-        
+
         writeln!(f, "\n{:-^78}", "")?;
-        writeln!(f, "{:<10} | {:>10} | {:>10} | {:>8} | {:>8}", 
-            "Variable", "coef", "std err", "t", "P>|t|")?;
+        writeln!(
+            f,
+            "{:<10} | {:>10} | {:>10} | {:>8} | {:>8}",
+            "Variable", "coef", "std err", "t", "P>|t|"
+        )?;
         writeln!(f, "{:-^78}", "")?;
-        
+
         for i in 0..self.params.len() {
-            writeln!(f, "x{:<9} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}", 
+            writeln!(
+                f,
+                "x{:<9} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
                 i, self.params[i], self.std_errors[i], self.t_values[i], self.p_values[i]
             )?;
         }
@@ -62,7 +71,7 @@ impl FGLS {
     pub fn wls_from_formula(
         formula: &Formula,
         data: &DataFrame,
-        weights: &Array1<f64>
+        weights: &Array1<f64>,
     ) -> Result<FglsResult, GreenersError> {
         let (y, x) = data.to_design_matrix(formula)?;
         Self::wls(&y, &x, weights)
@@ -74,20 +83,22 @@ impl FGLS {
     pub fn wls(
         y: &Array1<f64>,
         x: &Array2<f64>,
-        weights: &Array1<f64>
+        weights: &Array1<f64>,
     ) -> Result<FglsResult, GreenersError> {
         let n = y.len();
         if weights.len() != n {
-            return Err(GreenersError::ShapeMismatch("Weights length mismatch".into()));
+            return Err(GreenersError::ShapeMismatch(
+                "Weights length mismatch".into(),
+            ));
         }
 
         // GLS Transformation: Multiply X and y by the square root of weights
         // y* = sqrt(w) * y
         // X* = sqrt(w) * X
         let sqrt_w = weights.mapv(f64::sqrt);
-        
+
         let y_transformed = y * &sqrt_w;
-        
+
         // Broadcast multiplication of weight column by X rows
         let mut x_transformed = x.clone();
         for (i, mut row) in x_transformed.axis_iter_mut(Axis(0)).enumerate() {
@@ -112,7 +123,7 @@ impl FGLS {
     /// Cochrane-Orcutt Iterative Procedure (AR(1)) from a formula and DataFrame.
     pub fn cochrane_orcutt_from_formula(
         formula: &Formula,
-        data: &DataFrame
+        data: &DataFrame,
     ) -> Result<FglsResult, GreenersError> {
         let (y, x) = data.to_design_matrix(formula)?;
         Self::cochrane_orcutt(&y, &x)
@@ -121,10 +132,7 @@ impl FGLS {
     /// Cochrane-Orcutt Iterative Procedure (AR(1))
     /// Solves serial correlation: u_t = rho * u_{t-1} + e_t
     /// Recovers the efficiency (BLUE) that OLS loses.
-    pub fn cochrane_orcutt(
-        y: &Array1<f64>,
-        x: &Array2<f64>
-    ) -> Result<FglsResult, GreenersError> {
+    pub fn cochrane_orcutt(y: &Array1<f64>, x: &Array2<f64>) -> Result<FglsResult, GreenersError> {
         let n = y.len();
         // let k = x.ncols();
         let tol = 1e-6;
@@ -133,7 +141,7 @@ impl FGLS {
         // 1. Initial OLS to get residuals
         let initial_ols = OLS::fit(y, x, CovarianceType::NonRobust)?;
         let mut residuals = y - &x.dot(&initial_ols.params);
-        
+
         let mut rho = 0.0;
         let mut iter = 0;
         let mut diff = 1.0;
@@ -144,8 +152,8 @@ impl FGLS {
 
             // 2. Estimar Rho regressando resid[t] em resid[t-1]
             let u_t = residuals.slice(s![1..]).to_owned();
-            let u_tm1 = residuals.slice(s![..n-1]).to_owned();
-            
+            let u_tm1 = residuals.slice(s![..n - 1]).to_owned();
+
             // Regressão simples sem intercepto: rho = (u_{t-1}' u_{t-1})^-1 u_{t-1}' u_t
             let num = u_tm1.dot(&u_t);
             let den = u_tm1.dot(&u_tm1);
@@ -156,16 +164,20 @@ impl FGLS {
             // x*_t = x_t - rho * x_{t-1}
             // Nota: Perdemos a primeira observação (n vira n-1)
             let y_t = y.slice(s![1..]);
-            let y_tm1 = y.slice(s![..n-1]);
+            let y_tm1 = y.slice(s![..n - 1]);
             let y_star = &y_t - &(&y_tm1 * rho);
 
             let x_t = x.slice(s![1.., ..]);
-            let x_tm1 = x.slice(s![..n-1, ..]);
+            let x_tm1 = x.slice(s![..n - 1, ..]);
             let x_star = &x_t - &(&x_tm1 * rho);
 
             // 4. Re-estimar OLS nos dados transformados
-            final_ols = OLS::fit(&y_star.to_owned(), &x_star.to_owned(), CovarianceType::NonRobust)?;
-            
+            final_ols = OLS::fit(
+                &y_star.to_owned(),
+                &x_star.to_owned(),
+                CovarianceType::NonRobust,
+            )?;
+
             // Atualizar resíduos ORIGINAIS (não transformados) para próxima iteração
             residuals = y - &x.dot(&final_ols.params);
 

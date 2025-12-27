@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for _ in 0..n {
         let x_val = rng.gen_range(1.0..10.0); // X entre 1 e 10
         let error = normal.sample(&mut rng);
-        
+
         // A variância do erro depende de X (Heterocedasticidade)
         let y_val = 10.0 + 2.0 * x_val + (1.0 + 0.5 * x_val) * error;
 

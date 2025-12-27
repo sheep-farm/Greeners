@@ -156,7 +156,9 @@ impl SpecificationTests {
             let n_rows = x_augmented.nrows();
             let n_cols = x_augmented.ncols();
             let mut new_x = Array2::<f64>::zeros((n_rows, n_cols + 1));
-            new_x.slice_mut(ndarray::s![.., 0..n_cols]).assign(&x_augmented);
+            new_x
+                .slice_mut(ndarray::s![.., 0..n_cols])
+                .assign(&x_augmented);
             new_x.column_mut(n_cols).assign(&y_hat_p);
             x_augmented = new_x;
         }
@@ -243,7 +245,9 @@ impl SpecificationTests {
             let n_rows = x_augmented.nrows();
             let n_cols = x_augmented.ncols();
             let mut new_x = Array2::<f64>::zeros((n_rows, n_cols + 1));
-            new_x.slice_mut(ndarray::s![.., 0..n_cols]).assign(&x_augmented);
+            new_x
+                .slice_mut(ndarray::s![.., 0..n_cols])
+                .assign(&x_augmented);
             new_x.column_mut(n_cols).assign(&lagged);
             x_augmented = new_x;
         }

@@ -1,4 +1,4 @@
-use greeners::{OLS, DataFrame, Formula, CovarianceType};
+use greeners::{CovarianceType, DataFrame, Formula, OLS};
 use ndarray::{Array1, Array2};
 use std::collections::HashMap;
 

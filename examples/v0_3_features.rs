@@ -1,4 +1,4 @@
-use greeners::{OLS, DataFrame, Formula, CovarianceType};
+use greeners::{CovarianceType, DataFrame, Formula, OLS};
 use ndarray::Array1;
 use std::collections::HashMap;
 
@@ -11,28 +11,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut data = HashMap::new();
 
     // Wage (dependent variable)
-    data.insert("wage".to_string(), Array1::from(vec![
-        15.5, 18.2, 22.1, 25.3, 19.8, 28.5, 32.1, 24.9, 21.3, 26.7,
-        17.2, 20.8, 23.5, 27.2, 30.1, 19.5, 22.8, 26.4, 29.7, 24.2,
-    ]));
+    data.insert(
+        "wage".to_string(),
+        Array1::from(vec![
+            15.5, 18.2, 22.1, 25.3, 19.8, 28.5, 32.1, 24.9, 21.3, 26.7, 17.2, 20.8, 23.5, 27.2,
+            30.1, 19.5, 22.8, 26.4, 29.7, 24.2,
+        ]),
+    );
 
     // Education (years)
-    data.insert("education".to_string(), Array1::from(vec![
-        12.0, 14.0, 16.0, 18.0, 14.0, 16.0, 18.0, 16.0, 14.0, 16.0,
-        12.0, 14.0, 16.0, 18.0, 20.0, 13.0, 15.0, 17.0, 19.0, 15.0,
-    ]));
+    data.insert(
+        "education".to_string(),
+        Array1::from(vec![
+            12.0, 14.0, 16.0, 18.0, 14.0, 16.0, 18.0, 16.0, 14.0, 16.0, 12.0, 14.0, 16.0, 18.0,
+            20.0, 13.0, 15.0, 17.0, 19.0, 15.0,
+        ]),
+    );
 
     // Experience (years)
-    data.insert("experience".to_string(), Array1::from(vec![
-        5.0, 7.0, 8.0, 10.0, 6.0, 12.0, 15.0, 9.0, 7.0, 11.0,
-        4.0, 6.0, 8.0, 10.0, 12.0, 5.0, 7.0, 9.0, 11.0, 8.0,
-    ]));
+    data.insert(
+        "experience".to_string(),
+        Array1::from(vec![
+            5.0, 7.0, 8.0, 10.0, 6.0, 12.0, 15.0, 9.0, 7.0, 11.0, 4.0, 6.0, 8.0, 10.0, 12.0, 5.0,
+            7.0, 9.0, 11.0, 8.0,
+        ]),
+    );
 
     // Female indicator (0 = male, 1 = female)
-    data.insert("female".to_string(), Array1::from(vec![
-        0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0,
-        1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
-    ]));
+    data.insert(
+        "female".to_string(),
+        Array1::from(vec![
+            0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0,
+            1.0, 0.0, 1.0,
+        ]),
+    );
 
     let df = DataFrame::new(data)?;
 
@@ -82,7 +94,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result_hc2 = OLS::from_formula(&formula3, &df, CovarianceType::HC2)?;
     let result_hc3 = OLS::from_formula(&formula3, &df, CovarianceType::HC3)?;
 
-    println!("{:<20} | {:>12} | {:>12} | {:>12}", "Variable", "HC1", "HC2", "HC3 (Recommended)");
+    println!(
+        "{:<20} | {:>12} | {:>12} | {:>12}",
+        "Variable", "HC1", "HC2", "HC3 (Recommended)"
+    );
     println!("{:-<20}-+-{:-<12}-+-{:-<12}-+-{:-<12}", "", "", "", "");
 
     for i in 0..result_hc1.params.len() {
@@ -95,10 +110,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         println!(
             "{:<20} | {:>12.4} | {:>12.4} | {:>12.4}",
-            var_name,
-            result_hc1.std_errors[i],
-            result_hc2.std_errors[i],
-            result_hc3.std_errors[i]
+            var_name, result_hc1.std_errors[i], result_hc2.std_errors[i], result_hc3.std_errors[i]
         );
     }
 
@@ -129,32 +141,53 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create new data for prediction
     println!("\n🔮 OUT-OF-SAMPLE PREDICTIONS:");
     println!("{:-<78}", "");
-    println!("{:<15} | {:<15} | {:>15} | {:>15}", "Education", "Experience", "Predicted Wage", "Description");
+    println!(
+        "{:<15} | {:<15} | {:>15} | {:>15}",
+        "Education", "Experience", "Predicted Wage", "Description"
+    );
     println!("{:-<78}", "");
 
     // Scenario 1: High school graduate, entry level
     let scenario1 = ndarray::Array2::from_shape_vec((1, 3), vec![1.0, 12.0, 0.0])?;
     let pred1 = result4.predict(&scenario1);
-    println!("{:<15} | {:<15} | {:>15.2} | {:>15}", "12 years", "0 years", pred1[0], "Entry-level");
+    println!(
+        "{:<15} | {:<15} | {:>15.2} | {:>15}",
+        "12 years", "0 years", pred1[0], "Entry-level"
+    );
 
     // Scenario 2: Bachelor's degree, 5 years exp
     let scenario2 = ndarray::Array2::from_shape_vec((1, 3), vec![1.0, 16.0, 5.0])?;
     let pred2 = result4.predict(&scenario2);
-    println!("{:<15} | {:<15} | {:>15.2} | {:>15}", "16 years", "5 years", pred2[0], "Mid-career");
+    println!(
+        "{:<15} | {:<15} | {:>15.2} | {:>15}",
+        "16 years", "5 years", pred2[0], "Mid-career"
+    );
 
     // Scenario 3: Master's degree, 10 years exp
     let scenario3 = ndarray::Array2::from_shape_vec((1, 3), vec![1.0, 18.0, 10.0])?;
     let pred3 = result4.predict(&scenario3);
-    println!("{:<15} | {:<15} | {:>15.2} | {:>15}", "18 years", "10 years", pred3[0], "Senior");
+    println!(
+        "{:<15} | {:<15} | {:>15.2} | {:>15}",
+        "18 years", "10 years", pred3[0], "Senior"
+    );
 
     // Scenario 4: PhD, 15 years exp
     let scenario4 = ndarray::Array2::from_shape_vec((1, 3), vec![1.0, 20.0, 15.0])?;
     let pred4 = result4.predict(&scenario4);
-    println!("{:<15} | {:<15} | {:>15.2} | {:>15}", "20 years", "15 years", pred4[0], "Expert");
+    println!(
+        "{:<15} | {:<15} | {:>15.2} | {:>15}",
+        "20 years", "15 years", pred4[0], "Expert"
+    );
 
     println!("\n📊 INTERPRETATION:");
-    println!("   • Each additional year of education increases wage by ${:.2}/hr", result4.params[1]);
-    println!("   • Each additional year of experience increases wage by ${:.2}/hr", result4.params[2]);
+    println!(
+        "   • Each additional year of education increases wage by ${:.2}/hr",
+        result4.params[1]
+    );
+    println!(
+        "   • Each additional year of experience increases wage by ${:.2}/hr",
+        result4.params[2]
+    );
     println!("   • Use predictions for policy analysis, salary benchmarking, etc.\n");
 
     // ═══════════════════════════════════════════════════════════════════════════

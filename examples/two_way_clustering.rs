@@ -1,4 +1,4 @@
-use greeners::{OLS, DataFrame, Formula, CovarianceType};
+use greeners::{CovarianceType, DataFrame, Formula, OLS};
 use ndarray::Array1;
 use std::collections::HashMap;
 
@@ -79,7 +79,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n─────────────────────────────────────────────────────────────────────────────");
     println!("2. ONE-WAY Clustered SE (by firm)");
     println!("─────────────────────────────────────────────────────────────────────────────");
-    let result_firm = OLS::from_formula(&formula, &df, CovarianceType::Clustered(firm_ids.clone()))?;
+    let result_firm =
+        OLS::from_formula(&formula, &df, CovarianceType::Clustered(firm_ids.clone()))?;
     println!("{}", result_firm);
     println!("\n✅ ACCOUNTS FOR: Correlation within firms over time");
     println!("⚠️  IGNORES: Correlation across firms within time periods");
@@ -91,7 +92,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n─────────────────────────────────────────────────────────────────────────────");
     println!("3. ONE-WAY Clustered SE (by time)");
     println!("─────────────────────────────────────────────────────────────────────────────");
-    let result_time = OLS::from_formula(&formula, &df, CovarianceType::Clustered(time_ids.clone()))?;
+    let result_time =
+        OLS::from_formula(&formula, &df, CovarianceType::Clustered(time_ids.clone()))?;
     println!("{}", result_time);
     println!("\n✅ ACCOUNTS FOR: Correlation across firms within time periods");
     println!("⚠️  IGNORES: Correlation within firms over time");
@@ -106,7 +108,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result_twoway = OLS::from_formula(
         &formula,
         &df,
-        CovarianceType::ClusteredTwoWay(firm_ids.clone(), time_ids.clone())
+        CovarianceType::ClusteredTwoWay(firm_ids.clone(), time_ids.clone()),
     )?;
     println!("{}", result_twoway);
     println!("\n✅ ACCOUNTS FOR: BOTH within-firm AND within-time correlation");
@@ -122,43 +124,54 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("══════════════════════════════════════════════════════════════════════════════\n");
 
     println!("{:-^78}", "");
-    println!("{:<20} | {:>12} | {:>12} | {:>12}", "Variable", "Coef", "Std Err", "t-stat");
+    println!(
+        "{:<20} | {:>12} | {:>12} | {:>12}",
+        "Variable", "Coef", "Std Err", "t-stat"
+    );
     println!("{:-^78}", "");
 
     println!("\nNon-Robust (WRONG):");
     for i in 0..result_nonrobust.params.len() {
-        println!("{:<20} | {:>12.4} | {:>12.4} | {:>12.3}",
+        println!(
+            "{:<20} | {:>12.4} | {:>12.4} | {:>12.3}",
             format!("x{}", i),
             result_nonrobust.params[i],
             result_nonrobust.std_errors[i],
-            result_nonrobust.t_values[i]);
+            result_nonrobust.t_values[i]
+        );
     }
 
     println!("\nOne-Way: Firm Clusters:");
     for i in 0..result_firm.params.len() {
-        println!("{:<20} | {:>12.4} | {:>12.4} | {:>12.3}",
+        println!(
+            "{:<20} | {:>12.4} | {:>12.4} | {:>12.3}",
             format!("x{}", i),
             result_firm.params[i],
             result_firm.std_errors[i],
-            result_firm.t_values[i]);
+            result_firm.t_values[i]
+        );
     }
 
     println!("\nOne-Way: Time Clusters:");
     for i in 0..result_time.params.len() {
-        println!("{:<20} | {:>12.4} | {:>12.4} | {:>12.3}",
+        println!(
+            "{:<20} | {:>12.4} | {:>12.4} | {:>12.3}",
             format!("x{}", i),
             result_time.params[i],
             result_time.std_errors[i],
-            result_time.t_values[i]);
+            result_time.t_values[i]
+        );
     }
 
     println!("\nTwo-Way: Firm × Time (BEST):");
     for i in 0..result_twoway.params.len() {
-        println!("{:<20} | {:>12.4} | {:>12.4} | {:>12.3}",
+        println!(
+            "{:<20} | {:>12.4} | {:>12.4} | {:>12.3}",
             format!("x{}", i),
             result_twoway.params[i],
             result_twoway.std_errors[i],
-            result_twoway.t_values[i]);
+            result_twoway.t_values[i]
+        );
     }
     println!("{:-^78}", "");
 

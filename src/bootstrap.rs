@@ -114,10 +114,7 @@ impl Bootstrap {
     ///
     /// # Returns
     /// Tuple of (lower_bounds, upper_bounds)
-    pub fn percentile_ci(
-        boot_coefs: &Array2<f64>,
-        alpha: f64,
-    ) -> (Array1<f64>, Array1<f64>) {
+    pub fn percentile_ci(boot_coefs: &Array2<f64>, alpha: f64) -> (Array1<f64>, Array1<f64>) {
         let k = boot_coefs.ncols();
         let n_boot = boot_coefs.nrows();
 
@@ -192,8 +189,7 @@ impl HypothesisTest {
         let wald_stat = diff.dot(&r_cov_rt_inv.dot(&diff));
 
         // Under H₀, Wald ~ χ²(m)
-        let chi2_dist = ChiSquared::new(m as f64)
-            .map_err(|_| GreenersError::OptimizationFailed)?;
+        let chi2_dist = ChiSquared::new(m as f64).map_err(|_| GreenersError::OptimizationFailed)?;
         let p_value = 1.0 - chi2_dist.cdf(wald_stat);
 
         Ok((wald_stat, p_value, m))

@@ -1,4 +1,4 @@
-use crate::{CovarianceType, GreenersError, OLS, DataFrame, Formula};
+use crate::{CovarianceType, DataFrame, Formula, GreenersError, OLS};
 use ndarray::{Array1, Array2};
 use std::fmt;
 

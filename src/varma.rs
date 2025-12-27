@@ -1,6 +1,6 @@
-use ndarray::{Array2, s};
-use ndarray_linalg::{Inverse, Determinant};
 use crate::GreenersError;
+use ndarray::{s, Array2};
+use ndarray_linalg::{Determinant, Inverse};
 use std::fmt;
 
 #[derive(Debug)]
@@ -18,12 +18,19 @@ pub struct VarmaResult {
 
 impl fmt::Display for VarmaResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "\n{:=^78}", format!(" VARMA({}, {}) via Hannan-Rissanen ", self.p_lags, self.q_lags))?;
+        writeln!(
+            f,
+            "\n{:=^78}",
+            format!(
+                " VARMA({}, {}) via Hannan-Rissanen ",
+                self.p_lags, self.q_lags
+            )
+        )?;
         writeln!(f, "{:<15} {:>10}", "No. Variables:", self.n_vars)?;
         writeln!(f, "{:<15} {:>10}", "Observations:", self.n_obs)?;
         writeln!(f, "{:<15} {:>10.4}", "AIC:", self.aic)?;
         writeln!(f, "{:<15} {:>10.4}", "BIC:", self.bic)?;
-        
+
         writeln!(f, "\n{:-^78}", " Residual Covariance (Sigma) ")?;
         for row in self.sigma_u.rows() {
             write!(f, "[ ")?;
@@ -46,26 +53,28 @@ impl VARMA {
     pub fn fit(
         data: &Array2<f64>,
         p: usize, // Lags AR
-        q: usize  // Lags MA
+        q: usize, // Lags MA
     ) -> Result<VarmaResult, GreenersError> {
         let t_total = data.nrows();
         let k = data.ncols();
 
         // Heurística para o "Long VAR": p_long > p e q.
         // Geralmente usamos algo maior para capturar a estrutura MA via AR.
-        let p_long = (p + q).max((t_total as f64).powf(0.25) as usize + 2).max(4); 
-        
+        let p_long = (p + q).max((t_total as f64).powf(0.25) as usize + 2).max(4);
+
         if t_total <= p_long + 1 {
-            return Err(GreenersError::ShapeMismatch("Not enough observations for Hannan-Rissanen".into()));
+            return Err(GreenersError::ShapeMismatch(
+                "Not enough observations for Hannan-Rissanen".into(),
+            ));
         }
 
         // --- PASSO 1: LONG VAR para estimar resíduos (u_hat) ---
         // Y = A_long * Y_lags + u
-        
+
         // Y efetivo começa em p_long
         let y_long = data.slice(s![p_long.., ..]).to_owned();
         let n_obs_long = y_long.nrows();
-        
+
         // Montar X para o Long VAR
         let n_cols_long = 1 + k * p_long;
         let mut x_long = Array2::<f64>::zeros((n_obs_long, n_cols_long));
@@ -98,13 +107,15 @@ impl VARMA {
         // Agora regredimos Y contra Y_lags (AR) e u_hat_lags (MA)
         // Precisamos perder mais observações pq agora dependemos de lags de u_hat
         // O "tempo zero" da segunda regressão deve garantir que temos u_hat_{t-q}
-        
+
         // O vetor u_hat começa no índice temporal original 'p_long'.
         // Para ter q lags de u_hat, precisamos começar q passos depois.
         // Novo início efetivo: t = p_long + q
-        
+
         if t_total <= p_long + q {
-             return Err(GreenersError::ShapeMismatch("Not enough obs for step 2".into()));
+            return Err(GreenersError::ShapeMismatch(
+                "Not enough obs for step 2".into(),
+            ));
         }
 
         let start_t_step2 = p_long + q;
@@ -136,7 +147,7 @@ impl VARMA {
             for l in 1..=q {
                 let u_idx = (t_real - l) - p_long;
                 let u_row = u_hat.row(u_idx);
-                
+
                 let start_col = 1 + (p * k) + (l - 1) * k; // Pula os ARs
                 for j in 0..k {
                     x_final[[i, start_col + j]] = u_row[j];
@@ -153,7 +164,7 @@ impl VARMA {
         // --- Pós-Processamento ---
         // Separar parâmetros AR e MA
         // params structure: [Intercept (1) | AR lags (p*k) | MA lags (q*k)]
-        
+
         // Extrair AR (pegando todos os lags e empilhando, simplificado aqui retornamos raw rows)
         // Para simplificar a struct, vamos retornar a matriz de coeficientes 'achatada' por tipo
         // AR Params Matrix: (1 + p*k) rows (incluindo intercepto)
@@ -165,11 +176,11 @@ impl VARMA {
         let preds = x_final.dot(&params_final);
         let residuals = &y_final - &preds;
         let sigma_u = residuals.t().dot(&residuals) / ((n_obs_final - n_cols_final) as f64);
-        
+
         let det_sigma = sigma_u.det().unwrap_or(1.0).max(1e-10);
         let log_det = det_sigma.ln();
         let t_float = n_obs_final as f64;
-        
+
         let aic = log_det + (2.0 * (k * n_cols_final) as f64) / t_float;
         let bic = log_det + ((k * n_cols_final) as f64 * t_float.ln()) / t_float;
 

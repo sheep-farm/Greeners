@@ -1,4 +1,4 @@
-use greeners::{RandomEffects};
+use greeners::RandomEffects;
 use ndarray::{Array1, Array2};
 use rand::prelude::*;
 use statrs::distribution::Normal;
@@ -7,7 +7,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let n_entities = 50;
     let t_periods = 10;
     let n_obs = n_entities * t_periods;
-    
+
     let mut rng = rand::thread_rng();
     let norm = Normal::new(0.0, 1.0).unwrap();
 
@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Variância alta (4.0) para justificar Random Effects
     let mut alphas = Vec::new();
     for _ in 0..n_entities {
-        alphas.push(norm.sample(&mut rng) * 2.0); 
+        alphas.push(norm.sample(&mut rng) * 2.0);
     }
 
     // 2. Gerar Dados de Painel
@@ -30,13 +30,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for _ in 0..t_periods {
             let x_val = norm.sample(&mut rng) + 2.0;
             let u_it = norm.sample(&mut rng); // Erro idiossincrático
-            
+
             let y_val = 2.5 * x_val + alpha + u_it;
 
             ids_vec.push(i as i64);
             y_vec.push(y_val);
             x_vec.push(x_val);
-            
+
             x_flat.push(1.0); // Intercepto
             x_flat.push(x_val);
         }
@@ -56,10 +56,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Diagnóstico:");
     if re.theta > 0.5 {
-        println!("Theta alto ({:.4}) indica forte efeito individual.", re.theta);
+        println!(
+            "Theta alto ({:.4}) indica forte efeito individual.",
+            re.theta
+        );
         println!("O modelo se aproxima do Fixed Effects.");
     } else {
-        println!("Theta baixo ({:.4}) indica pouco efeito individual.", re.theta);
+        println!(
+            "Theta baixo ({:.4}) indica pouco efeito individual.",
+            re.theta
+        );
         println!("O modelo se aproxima do Pooled OLS.");
     }
 

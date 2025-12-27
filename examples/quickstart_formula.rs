@@ -1,4 +1,4 @@
-use greeners::{OLS, DataFrame, Formula, CovarianceType};
+use greeners::{CovarianceType, DataFrame, Formula, OLS};
 use ndarray::Array1;
 use std::collections::HashMap;
 
@@ -7,9 +7,18 @@ use std::collections::HashMap;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create data (like a pandas DataFrame)
     let mut data = HashMap::new();
-    data.insert("y".to_string(), Array1::from(vec![1.0, 2.1, 3.2, 3.9, 5.1, 6.0, 7.2, 8.1, 9.0, 10.1]));
-    data.insert("x1".to_string(), Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]));
-    data.insert("x2".to_string(), Array1::from(vec![1.5, 2.8, 2.9, 3.6, 3.8, 4.2, 5.1, 5.3, 6.2, 6.4]));
+    data.insert(
+        "y".to_string(),
+        Array1::from(vec![1.0, 2.1, 3.2, 3.9, 5.1, 6.0, 7.2, 8.1, 9.0, 10.1]),
+    );
+    data.insert(
+        "x1".to_string(),
+        Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]),
+    );
+    data.insert(
+        "x2".to_string(),
+        Array1::from(vec![1.5, 2.8, 2.9, 3.6, 3.8, 4.2, 5.1, 5.3, 6.2, 6.4]),
+    );
 
     let df = DataFrame::new(data)?;
 
@@ -20,9 +29,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Specify model using formula (just like Python/R!)
     let formula = Formula::parse("y ~ x1 + x2")?;
 
-    println!("Model formula: {} ~ {}",
+    println!(
+        "Model formula: {} ~ {}",
         formula.dependent,
-        formula.independents.join(" + "));
+        formula.independents.join(" + ")
+    );
 
     // Estimate with robust standard errors
     let result = OLS::from_formula(&formula, &df, CovarianceType::HC1)?;

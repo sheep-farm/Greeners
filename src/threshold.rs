@@ -1,5 +1,5 @@
-use ndarray::{Array1, Array2, s};
-use crate::{GreenersError, FixedEffects};
+use crate::{FixedEffects, GreenersError};
+use ndarray::{s, Array1, Array2};
 use std::fmt;
 
 #[derive(Debug)]
@@ -15,10 +15,18 @@ pub struct ThresholdResult {
 impl fmt::Display for ThresholdResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "\n{:=^78}", " Panel Threshold Model (Hansen 1999) ")?;
-        writeln!(f, "{:<25} {:>10.4}", "Estimated Threshold (Gamma):", self.threshold_gamma)?;
-        writeln!(f, "{:<25} {:>10.4}", "R-squared (Combined):", self.r_squared)?;
+        writeln!(
+            f,
+            "{:<25} {:>10.4}",
+            "Estimated Threshold (Gamma):", self.threshold_gamma
+        )?;
+        writeln!(
+            f,
+            "{:<25} {:>10.4}",
+            "R-squared (Combined):", self.r_squared
+        )?;
         writeln!(f, "{:<25} {:>10.4e}", "Min SSR:", self.ssr_min)?;
-        
+
         writeln!(f, "\n{:-^78}", " Regime 1 (Below Threshold) ")?;
         writeln!(f, "{:<10} | {:>12}", "Variable", "Coef")?;
         for i in 0..self.params_regime1.len() {
@@ -43,7 +51,7 @@ impl PanelThreshold {
         y: &Array1<f64>,
         x: &Array2<f64>,
         q: &Array1<f64>, // Variável de Limiar (Threshold Variable)
-        entity_ids: &Array1<i64>
+        entity_ids: &Array1<i64>,
     ) -> Result<ThresholdResult, GreenersError> {
         let n = y.len();
         let k = x.ncols();
@@ -62,15 +70,19 @@ impl PanelThreshold {
         // Hansen recomenda descartar 15% das pontas (trimming parameter)
         // para evitar regimes com pouquíssimos dados.
         let trim_idx = (n_unique as f64 * 0.15).ceil() as usize;
-        
+
         if n_unique < 2 * trim_idx + 5 {
-             return Err(GreenersError::OptimizationFailed); // "Not enough variability in threshold variable"
+            return Err(GreenersError::OptimizationFailed); // "Not enough variability in threshold variable"
         }
 
         let candidates = &q_vec[trim_idx..(n_unique - trim_idx)];
 
         // Otimização: Se houver muitos candidatos (>300), pular alguns para velocidade
-        let step = if candidates.len() > 300 { candidates.len() / 100 } else { 1 };
+        let step = if candidates.len() > 300 {
+            candidates.len() / 100
+        } else {
+            1
+        };
 
         let mut best_gamma = 0.0;
         let mut min_ssr = f64::INFINITY;
@@ -87,27 +99,35 @@ impl PanelThreshold {
             // Construir Matriz Expandida [X_low, X_high]
             // X_low = X * I(q <= gamma)
             // X_high = X * I(q > gamma)
-            
+
             // É mais eficiente criar vetores flat e transformar em Array2
             let mut x_expanded_vec = Vec::with_capacity(n * 2 * k);
-            
+
             for row_idx in 0..n {
                 let q_val = q[row_idx];
                 let x_row = x.row(row_idx);
-                
+
                 if q_val <= gamma {
                     // Regime 1 Ativo: [x, 0]
-                    for val in x_row { x_expanded_vec.push(*val); }
-                    for _ in 0..k { x_expanded_vec.push(0.0); }
+                    for val in x_row {
+                        x_expanded_vec.push(*val);
+                    }
+                    for _ in 0..k {
+                        x_expanded_vec.push(0.0);
+                    }
                 } else {
                     // Regime 2 Ativo: [0, x]
-                    for _ in 0..k { x_expanded_vec.push(0.0); }
-                    for val in x_row { x_expanded_vec.push(*val); }
+                    for _ in 0..k {
+                        x_expanded_vec.push(0.0);
+                    }
+                    for val in x_row {
+                        x_expanded_vec.push(*val);
+                    }
                 }
             }
-            
+
             let x_expanded = Array2::from_shape_vec((n, 2 * k), x_expanded_vec)
-                 .map_err(|e| GreenersError::ShapeMismatch(e.to_string()))?;
+                .map_err(|e| GreenersError::ShapeMismatch(e.to_string()))?;
 
             // Rodar Fixed Effects para este Gamma
             // Isso já cuida da remoção das médias individuais (mu_i)
@@ -129,7 +149,7 @@ impl PanelThreshold {
 
         // 3. Separar os parâmetros
         let params_regime1 = best_params.slice(s![0..k]).to_owned();
-        let params_regime2 = best_params.slice(s![k..2*k]).to_owned();
+        let params_regime2 = best_params.slice(s![k..2 * k]).to_owned();
 
         Ok(ThresholdResult {
             threshold_gamma: best_gamma,

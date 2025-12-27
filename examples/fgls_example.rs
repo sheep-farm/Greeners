@@ -1,4 +1,4 @@
-use greeners::{FGLS, OLS, CovarianceType};
+use greeners::{CovarianceType, FGLS, OLS};
 use ndarray::{Array1, Array2};
 use rand::prelude::*;
 use statrs::distribution::Normal;
@@ -13,13 +13,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rho_real = 0.8;
     let mut u = vec![0.0; n];
     let mut e_vec = Vec::new();
-    
+
     // Inicializar erro
     u[0] = normal.sample(&mut rng);
-    
+
     for i in 1..n {
         let e = normal.sample(&mut rng);
-        u[i] = rho_real * u[i-1] + e;
+        u[i] = rho_real * u[i - 1] + e;
         e_vec.push(e);
     }
 
@@ -32,10 +32,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for i in 0..n {
         let x_val = i as f64 * 0.1 + normal.sample(&mut rng); // Trend + Noise
         let y_val = 2.0 + 1.5 * x_val + u[i];
-        
+
         y_vec.push(y_val);
         x_vec.push(x_val);
-        
+
         x_flat.push(1.0); // Constant
         x_flat.push(x_val);
     }
@@ -51,7 +51,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ols = OLS::fit(&y, &x, CovarianceType::NonRobust)?;
     println!(">>> OLS:");
     println!("Beta: {:.4}", ols.params[1]);
-    println!("StdErr: {:.4} (Provavelmente subestimado/viesado)", ols.std_errors[1]);
+    println!(
+        "StdErr: {:.4} (Provavelmente subestimado/viesado)",
+        ols.std_errors[1]
+    );
 
     // 2. FGLS
     let fgls = FGLS::cochrane_orcutt(&y, &x)?;
@@ -60,6 +63,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Análise:");
     println!("Rho Estimado: {:.4} (Esperado 0.8)", fgls.rho.unwrap());
-    
+
     Ok(())
 }

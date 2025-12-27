@@ -1,4 +1,4 @@
-use greeners::{Logit, Probit, DataFrame, Formula};
+use greeners::{DataFrame, Formula, Logit, Probit};
 use ndarray::Array1;
 use std::collections::HashMap;
 
@@ -22,36 +22,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create realistic data with noise to avoid perfect separation
     // Pattern: Higher GPA + Higher SAT → Higher admission chance (but not perfect)
-    data.insert("admitted".to_string(), Array1::from(vec![
-        0.0, 0.0, 0.0, 1.0, 0.0,  // Low scores: mostly rejected, some luck
-        0.0, 1.0, 0.0, 1.0, 0.0,  // Medium-low: mixed
-        1.0, 0.0, 1.0, 1.0, 0.0,  // Medium-high: mixed (some unlucky rejections)
-        1.0, 1.0, 0.0, 1.0, 1.0,  // High: mostly admitted, occasional rejection
-    ]));
+    data.insert(
+        "admitted".to_string(),
+        Array1::from(vec![
+            0.0, 0.0, 0.0, 1.0, 0.0, // Low scores: mostly rejected, some luck
+            0.0, 1.0, 0.0, 1.0, 0.0, // Medium-low: mixed
+            1.0, 0.0, 1.0, 1.0, 0.0, // Medium-high: mixed (some unlucky rejections)
+            1.0, 1.0, 0.0, 1.0, 1.0, // High: mostly admitted, occasional rejection
+        ]),
+    );
 
     // GPA (0-4 scale) - with variation within groups
-    data.insert("gpa".to_string(), Array1::from(vec![
-        2.5, 2.7, 2.6, 2.9, 2.8,  // Low-medium
-        3.1, 3.0, 2.9, 3.2, 3.0,  // Medium
-        3.3, 3.2, 3.4, 3.5, 3.3,  // Medium-high
-        3.6, 3.7, 3.5, 3.8, 3.7,  // High
-    ]));
+    data.insert(
+        "gpa".to_string(),
+        Array1::from(vec![
+            2.5, 2.7, 2.6, 2.9, 2.8, // Low-medium
+            3.1, 3.0, 2.9, 3.2, 3.0, // Medium
+            3.3, 3.2, 3.4, 3.5, 3.3, // Medium-high
+            3.6, 3.7, 3.5, 3.8, 3.7, // High
+        ]),
+    );
 
     // SAT (standardized) - with variation
-    data.insert("sat".to_string(), Array1::from(vec![
-        -1.0, -0.8, -1.2, -0.5, -0.9,  // Below average
-        -0.3, -0.1, -0.4, 0.1, -0.2,   // Slightly below average
-        0.3, 0.0, 0.5, 0.6, 0.2,       // Above average
-        0.8, 1.0, 0.7, 1.2, 0.9,       // Well above average
-    ]));
+    data.insert(
+        "sat".to_string(),
+        Array1::from(vec![
+            -1.0, -0.8, -1.2, -0.5, -0.9, // Below average
+            -0.3, -0.1, -0.4, 0.1, -0.2, // Slightly below average
+            0.3, 0.0, 0.5, 0.6, 0.2, // Above average
+            0.8, 1.0, 0.7, 1.2, 0.9, // Well above average
+        ]),
+    );
 
     // Legacy status (binary) - mixed throughout
-    data.insert("legacy".to_string(), Array1::from(vec![
-        0.0, 1.0, 0.0, 0.0, 0.0,
-        1.0, 0.0, 0.0, 1.0, 0.0,
-        0.0, 0.0, 1.0, 0.0, 1.0,
-        0.0, 1.0, 0.0, 1.0, 0.0,
-    ]));
+    data.insert(
+        "legacy".to_string(),
+        Array1::from(vec![
+            0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
+            0.0, 1.0, 0.0,
+        ]),
+    );
 
     let df = DataFrame::new(data)?;
 
@@ -84,40 +94,77 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\nAME = (1/n) Σᵢ [∂P(yᵢ=1|xᵢ)/∂xⱼ]\n");
     println!("Interpretation: Average effect of 1-unit increase in X on Pr(admitted=1)\n");
     println!("{:-^78}", "");
-    println!("{:<15} | {:>12} | {:>12} | {:>15}", "Variable", "Coefficient", "AME", "Interpretation");
+    println!(
+        "{:<15} | {:>12} | {:>12} | {:>15}",
+        "Variable", "Coefficient", "AME", "Interpretation"
+    );
     println!("{:-^78}", "");
-    println!("{:<15} | {:>12.4} | {:>12} | {:>15}", "Intercept", logit_result.params[0], "-", "Baseline");
-    println!("{:<15} | {:>12.4} | {:>12.4} | {:>15}",
-        "gpa", logit_result.params[1], ame_logit[1], "+1 GPA point");
-    println!("{:<15} | {:>12.4} | {:>12.4} | {:>15}",
-        "sat", logit_result.params[2], ame_logit[2], "+1 SD in SAT");
-    println!("{:<15} | {:>12.4} | {:>12.4} | {:>15}",
-        "legacy", logit_result.params[3], ame_logit[3], "Legacy effect");
+    println!(
+        "{:<15} | {:>12.4} | {:>12} | {:>15}",
+        "Intercept", logit_result.params[0], "-", "Baseline"
+    );
+    println!(
+        "{:<15} | {:>12.4} | {:>12.4} | {:>15}",
+        "gpa", logit_result.params[1], ame_logit[1], "+1 GPA point"
+    );
+    println!(
+        "{:<15} | {:>12.4} | {:>12.4} | {:>15}",
+        "sat", logit_result.params[2], ame_logit[2], "+1 SD in SAT"
+    );
+    println!(
+        "{:<15} | {:>12.4} | {:>12.4} | {:>15}",
+        "legacy", logit_result.params[3], ame_logit[3], "Legacy effect"
+    );
     println!("{:-^78}", "");
 
     println!("\n📊 INTERPRETATION GUIDE:");
     println!("   • Coefficients show LOG-ODDS (hard to interpret directly)");
     println!("   • AME shows PROBABILITY change (easy to interpret!)");
     println!("\n   Example: If AME[gpa] = {:.4}:", ame_logit[1]);
-    println!("     → A 1-point increase in GPA increases admission probability by {:.1}%",
-        ame_logit[1] * 100.0);
-    println!("     → For a student with 50% admission chance, this raises it to {:.1}%",
-        (0.5 + ame_logit[1]) * 100.0);
+    println!(
+        "     → A 1-point increase in GPA increases admission probability by {:.1}%",
+        ame_logit[1] * 100.0
+    );
+    println!(
+        "     → For a student with 50% admission chance, this raises it to {:.1}%",
+        (0.5 + ame_logit[1]) * 100.0
+    );
 
     println!("\n─────────────────────────────────────────────────────────────────────────────");
     println!("Marginal Effects at Means (MEM)");
     println!("─────────────────────────────────────────────────────────────────────────────");
     println!("\nMEM = ∂P(y=1|x̄)/∂xⱼ evaluated at sample means\n");
     println!("{:-^78}", "");
-    println!("{:<15} | {:>12} | {:>12} | {:>20}", "Variable", "Coefficient", "MEM", "Difference vs AME");
+    println!(
+        "{:<15} | {:>12} | {:>12} | {:>20}",
+        "Variable", "Coefficient", "MEM", "Difference vs AME"
+    );
     println!("{:-^78}", "");
-    println!("{:<15} | {:>12.4} | {:>12} | {:>20}", "Intercept", logit_result.params[0], "-", "-");
-    println!("{:<15} | {:>12.4} | {:>12.4} | {:>20.4}",
-        "gpa", logit_result.params[1], mem_logit[1], mem_logit[1] - ame_logit[1]);
-    println!("{:<15} | {:>12.4} | {:>12.4} | {:>20.4}",
-        "sat", logit_result.params[2], mem_logit[2], mem_logit[2] - ame_logit[2]);
-    println!("{:<15} | {:>12.4} | {:>12.4} | {:>20.4}",
-        "legacy", logit_result.params[3], mem_logit[3], mem_logit[3] - ame_logit[3]);
+    println!(
+        "{:<15} | {:>12.4} | {:>12} | {:>20}",
+        "Intercept", logit_result.params[0], "-", "-"
+    );
+    println!(
+        "{:<15} | {:>12.4} | {:>12.4} | {:>20.4}",
+        "gpa",
+        logit_result.params[1],
+        mem_logit[1],
+        mem_logit[1] - ame_logit[1]
+    );
+    println!(
+        "{:<15} | {:>12.4} | {:>12.4} | {:>20.4}",
+        "sat",
+        logit_result.params[2],
+        mem_logit[2],
+        mem_logit[2] - ame_logit[2]
+    );
+    println!(
+        "{:<15} | {:>12.4} | {:>12.4} | {:>20.4}",
+        "legacy",
+        logit_result.params[3],
+        mem_logit[3],
+        mem_logit[3] - ame_logit[3]
+    );
     println!("{:-^78}", "");
 
     println!("\n⚠️  AME vs MEM:");
@@ -150,15 +197,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Average Marginal Effects (AME)");
     println!("─────────────────────────────────────────────────────────────────────────────\n");
     println!("{:-^78}", "");
-    println!("{:<15} | {:>12} | {:>12} | {:>15}", "Variable", "Coefficient", "AME", "Interpretation");
+    println!(
+        "{:<15} | {:>12} | {:>12} | {:>15}",
+        "Variable", "Coefficient", "AME", "Interpretation"
+    );
     println!("{:-^78}", "");
-    println!("{:<15} | {:>12.4} | {:>12} | {:>15}", "Intercept", probit_result.params[0], "-", "Baseline");
-    println!("{:<15} | {:>12.4} | {:>12.4} | {:>15}",
-        "gpa", probit_result.params[1], ame_probit[1], "+1 GPA point");
-    println!("{:<15} | {:>12.4} | {:>12.4} | {:>15}",
-        "sat", probit_result.params[2], ame_probit[2], "+1 SD in SAT");
-    println!("{:<15} | {:>12.4} | {:>12.4} | {:>15}",
-        "legacy", probit_result.params[3], ame_probit[3], "Legacy effect");
+    println!(
+        "{:<15} | {:>12.4} | {:>12} | {:>15}",
+        "Intercept", probit_result.params[0], "-", "Baseline"
+    );
+    println!(
+        "{:<15} | {:>12.4} | {:>12.4} | {:>15}",
+        "gpa", probit_result.params[1], ame_probit[1], "+1 GPA point"
+    );
+    println!(
+        "{:<15} | {:>12.4} | {:>12.4} | {:>15}",
+        "sat", probit_result.params[2], ame_probit[2], "+1 SD in SAT"
+    );
+    println!(
+        "{:<15} | {:>12.4} | {:>12.4} | {:>15}",
+        "legacy", probit_result.params[3], ame_probit[3], "Legacy effect"
+    );
     println!("{:-^78}", "");
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -174,25 +233,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("─────────────────────────────────────────────────────────────────────────────");
     println!("{:<25} | {:>20} | {:>20}", "Metric", "Logit", "Probit");
     println!("{:-^78}", "");
-    println!("{:<25} | {:>20.4} | {:>20.4}", "Log-Likelihood",
-        logit_result.log_likelihood, probit_result.log_likelihood);
-    println!("{:<25} | {:>20.4} | {:>20.4}", "Pseudo R²",
-        logit_result.pseudo_r2, probit_result.pseudo_r2);
-    println!("{:<25} | {:>20} | {:>20}", "Iterations",
-        logit_result.iterations, probit_result.iterations);
+    println!(
+        "{:<25} | {:>20.4} | {:>20.4}",
+        "Log-Likelihood", logit_result.log_likelihood, probit_result.log_likelihood
+    );
+    println!(
+        "{:<25} | {:>20.4} | {:>20.4}",
+        "Pseudo R²", logit_result.pseudo_r2, probit_result.pseudo_r2
+    );
+    println!(
+        "{:<25} | {:>20} | {:>20}",
+        "Iterations", logit_result.iterations, probit_result.iterations
+    );
     println!("{:-^78}", "");
 
     println!("\n─────────────────────────────────────────────────────────────────────────────");
     println!("Marginal Effects Comparison (AME)");
     println!("─────────────────────────────────────────────────────────────────────────────");
-    println!("{:<15} | {:>15} | {:>15} | {:>15}", "Variable", "Logit AME", "Probit AME", "Difference");
+    println!(
+        "{:<15} | {:>15} | {:>15} | {:>15}",
+        "Variable", "Logit AME", "Probit AME", "Difference"
+    );
     println!("{:-^78}", "");
-    println!("{:<15} | {:>15.4} | {:>15.4} | {:>15.4}",
-        "gpa", ame_logit[1], ame_probit[1], ame_logit[1] - ame_probit[1]);
-    println!("{:<15} | {:>15.4} | {:>15.4} | {:>15.4}",
-        "sat", ame_logit[2], ame_probit[2], ame_logit[2] - ame_probit[2]);
-    println!("{:<15} | {:>15.4} | {:>15.4} | {:>15.4}",
-        "legacy", ame_logit[3], ame_probit[3], ame_logit[3] - ame_probit[3]);
+    println!(
+        "{:<15} | {:>15.4} | {:>15.4} | {:>15.4}",
+        "gpa",
+        ame_logit[1],
+        ame_probit[1],
+        ame_logit[1] - ame_probit[1]
+    );
+    println!(
+        "{:<15} | {:>15.4} | {:>15.4} | {:>15.4}",
+        "sat",
+        ame_logit[2],
+        ame_probit[2],
+        ame_logit[2] - ame_probit[2]
+    );
+    println!(
+        "{:<15} | {:>15.4} | {:>15.4} | {:>15.4}",
+        "legacy",
+        ame_logit[3],
+        ame_probit[3],
+        ame_logit[3] - ame_probit[3]
+    );
     println!("{:-^78}", "");
 
     println!("\n📊 KEY INSIGHTS:");
@@ -218,25 +301,50 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Student 1: Low GPA, Low SAT, Non-legacy
     // Student 2: High GPA, High SAT, Non-legacy
     // Student 3: Medium GPA, Medium SAT, Legacy
-    let x_new = Array2::from_shape_vec((3, 4), vec![
-        1.0, 2.5, -1.5, 0.0,  // Intercept, GPA, SAT, Legacy
-        1.0, 3.9,  1.5, 0.0,
-        1.0, 3.2,  0.0, 1.0,
-    ])?;
+    let x_new = Array2::from_shape_vec(
+        (3, 4),
+        vec![
+            1.0, 2.5, -1.5, 0.0, // Intercept, GPA, SAT, Legacy
+            1.0, 3.9, 1.5, 0.0, 1.0, 3.2, 0.0, 1.0,
+        ],
+    )?;
 
     let probs_logit = logit_result.predict_proba(&x_new);
     let probs_probit = probit_result.predict_proba(&x_new);
 
     println!("{:-^78}", "");
-    println!("{:<10} | {:>8} | {:>8} | {:>8} | {:>15} | {:>15}",
-        "Student", "GPA", "SAT", "Legacy", "Logit P(admit)", "Probit P(admit)");
+    println!(
+        "{:<10} | {:>8} | {:>8} | {:>8} | {:>15} | {:>15}",
+        "Student", "GPA", "SAT", "Legacy", "Logit P(admit)", "Probit P(admit)"
+    );
     println!("{:-^78}", "");
-    println!("{:<10} | {:>8.1} | {:>8.1} | {:>8.0} | {:>15.1}% | {:>15.1}%",
-        "Low", 2.5, -1.5, 0.0, probs_logit[0] * 100.0, probs_probit[0] * 100.0);
-    println!("{:<10} | {:>8.1} | {:>8.1} | {:>8.0} | {:>15.1}% | {:>15.1}%",
-        "High", 3.9, 1.5, 0.0, probs_logit[1] * 100.0, probs_probit[1] * 100.0);
-    println!("{:<10} | {:>8.1} | {:>8.1} | {:>8.0} | {:>15.1}% | {:>15.1}%",
-        "Legacy", 3.2, 0.0, 1.0, probs_logit[2] * 100.0, probs_probit[2] * 100.0);
+    println!(
+        "{:<10} | {:>8.1} | {:>8.1} | {:>8.0} | {:>15.1}% | {:>15.1}%",
+        "Low",
+        2.5,
+        -1.5,
+        0.0,
+        probs_logit[0] * 100.0,
+        probs_probit[0] * 100.0
+    );
+    println!(
+        "{:<10} | {:>8.1} | {:>8.1} | {:>8.0} | {:>15.1}% | {:>15.1}%",
+        "High",
+        3.9,
+        1.5,
+        0.0,
+        probs_logit[1] * 100.0,
+        probs_probit[1] * 100.0
+    );
+    println!(
+        "{:<10} | {:>8.1} | {:>8.1} | {:>8.0} | {:>15.1}% | {:>15.1}%",
+        "Legacy",
+        3.2,
+        0.0,
+        1.0,
+        probs_logit[2] * 100.0,
+        probs_probit[2] * 100.0
+    );
     println!("{:-^78}", "");
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -263,8 +371,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n3. INTERPRETATION:");
     println!("   • AME[x] = {:.4} means:", ame_logit[1]);
-    println!("     \"A 1-unit increase in x increases P(y=1) by {:.1} percentage points\"",
-        ame_logit[1] * 100.0);
+    println!(
+        "     \"A 1-unit increase in x increases P(y=1) by {:.1} percentage points\"",
+        ame_logit[1] * 100.0
+    );
     println!("   • This holds ON AVERAGE across the sample");
 
     println!("\n4. REPORTING:");
