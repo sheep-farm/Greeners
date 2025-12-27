@@ -1,6 +1,5 @@
 name: CI Greeners
 
-# Quando isso deve rodar?
 on:
   push:
     branches: [ "main", "master" ]
@@ -20,29 +19,32 @@ jobs:
       - name: Checkout do código
         uses: actions/checkout@v4
 
-      # 2. Instala o Rust (versão estável mais recente)
+      # 2. Instala o Rust
       - name: Instalar Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      # 3. Cache inteligente (para não baixar todas as crates do zero toda vez)
+      # 3. Cache do Cargo (para acelerar builds futuros)
       - name: Cache do Cargo
         uses: swatinem/rust-cache@v2
 
-      # 4. Verifica formatação (se o código está "bonito" padrão Rust)
+      # 4. Formatação
       - name: Checar Formatação (cargo fmt)
         run: cargo fmt --all -- --check
 
-      # 5. Procura erros de boas práticas (Clippy)
+      # 5. Linter (Clippy)
       - name: Linter (cargo clippy)
         run: cargo clippy -- -D warnings
 
-      # 6. Roda os seus 76 testes unitários
+      # 6. Rodar Testes Padrão
       - name: Rodar Testes (cargo test)
         run: cargo test --verbose
 
-      # 7. (BÔNUS) Roda o Tarpaulin e mostra a cobertura no log do GitHub
-      - name: Checar Cobertura (Tarpaulin)
-        uses: xd009642/tarpaulin@v0.1
+      # 7. Instalar Tarpaulin (Correção: Usando install-action para baixar o binário rápido)
+      - name: Instalar Tarpaulin
+        uses: taiki-e/install-action@v2
         with:
-          version: 'latest'
-          args: '--ignore-tests'
+          tool: cargo-tarpaulin
+
+      # 8. Rodar Tarpaulin (Manualmente)
+      - name: Checar Cobertura (Tarpaulin)
+        run: cargo tarpaulin --ignore-tests --out Xml --verbose
