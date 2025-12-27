@@ -30,10 +30,14 @@ pub struct OlsResult {
 
 impl fmt::Display for OlsResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let cov_str = match self.cov_type {
+        let cov_str = match &self.cov_type {
             CovarianceType::NonRobust => "Non-Robust".to_string(),
             CovarianceType::HC1 => "Robust (HC1)".to_string(),
             CovarianceType::NeweyWest(lags) => format!("HAC (Newey-West, L={})", lags),
+            CovarianceType::Clustered(clusters) => {
+                let n_clusters = clusters.iter().collect::<std::collections::HashSet<_>>().len();
+                format!("Clustered ({} clusters)", n_clusters)
+            }
         };
 
         writeln!(f, "\n{:=^78}", " OLS Regression Results ")?;
@@ -167,7 +171,7 @@ impl OLS {
         // src/ols.rs (inside OLS::fit, replace the 'match cov_type' block)
 
         // 3. Covariance Matrix Selection
-        let cov_matrix = match cov_type {
+        let cov_matrix = match &cov_type {
             CovarianceType::NonRobust => &xt_x_inv * sigma2,
             CovarianceType::HC1 => {
                 let u_squared = residuals.mapv(|r| r.powi(2));
@@ -196,8 +200,8 @@ impl OLS {
 
                 // 2. Add Autocovariance terms (Omega_l)
                 // Bartlett Kernel weights: w(l) = 1 - l / (L + 1)
-                for l in 1..=lags {
-                    let weight = 1.0 - (l as f64) / ((lags + 1) as f64);
+                for l in 1..=*lags {
+                    let weight = 1.0 - (l as f64) / ((*lags + 1) as f64);
 
                     // Calculate Omega_l = sum( u_t * u_{t-l} * x_t * x_{t-l}' )
                     // Since specific lag logic is tricky in pure matrix algebra without huge memory,
@@ -241,6 +245,75 @@ impl OLS {
                 // Small sample correction (n / n-k)
                 let correction = (n as f64) / (df_resid as f64);
                 sandwich * correction
+            }
+            CovarianceType::Clustered(ref cluster_ids) => {
+                // Clustered Standard Errors
+                // Formula: V_cluster = (X'X)^-1 * [Σ_g (X_g' u_g u_g' X_g)] * (X'X)^-1
+                // Critical for panel data, experiments, and grouped observations
+
+                // Validate cluster IDs length
+                if cluster_ids.len() != n {
+                    return Err(GreenersError::ShapeMismatch(format!(
+                        "Cluster IDs length ({}) must match number of observations ({})",
+                        cluster_ids.len(),
+                        n
+                    )));
+                }
+
+                // Group observations by cluster
+                use std::collections::HashMap;
+                let mut clusters: HashMap<usize, Vec<usize>> = HashMap::new();
+                for (obs_idx, &cluster_id) in cluster_ids.iter().enumerate() {
+                    clusters.entry(cluster_id).or_insert_with(Vec::new).push(obs_idx);
+                }
+
+                let n_clusters = clusters.len();
+
+                // Initialize meat matrix (middle part of sandwich)
+                let mut meat = Array2::<f64>::zeros((k, k));
+
+                // For each cluster g: calculate X_g' u_g u_g' X_g
+                for (_cluster_id, obs_indices) in clusters.iter() {
+                    let cluster_size = obs_indices.len();
+
+                    // Extract X_g and u_g for this cluster
+                    let mut x_g = Array2::<f64>::zeros((cluster_size, k));
+                    let mut u_g = Array1::<f64>::zeros(cluster_size);
+
+                    for (i, &obs_idx) in obs_indices.iter().enumerate() {
+                        x_g.row_mut(i).assign(&x.row(obs_idx));
+                        u_g[i] = residuals[obs_idx];
+                    }
+
+                    // Calculate u_g * u_g' (outer product of residuals within cluster)
+                    // Then X_g' * (u_g * u_g') * X_g
+                    // More explicitly: Σ_i Σ_j (u_gi * u_gj * x_gi * x_gj')
+
+                    for i in 0..cluster_size {
+                        for j in 0..cluster_size {
+                            let scale = u_g[i] * u_g[j];
+                            let x_i = x_g.row(i);
+                            let x_j = x_g.row(j);
+
+                            // Add outer product: scale * (x_i ⊗ x_j)
+                            for p in 0..k {
+                                for q in 0..k {
+                                    meat[[p, q]] += scale * x_i[p] * x_j[q];
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Apply sandwich formula
+                let bread = &xt_x_inv;
+                let sandwich = bread.dot(&meat).dot(bread);
+
+                // Small sample correction: (G / (G-1)) * ((N-1) / (N-K))
+                // where G = number of clusters, N = observations, K = parameters
+                let g_correction = (n_clusters as f64) / ((n_clusters - 1) as f64);
+                let df_correction = ((n - 1) as f64) / (df_resid as f64);
+                sandwich * g_correction * df_correction
             }
         };
 

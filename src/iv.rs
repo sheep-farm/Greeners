@@ -24,10 +24,14 @@ pub struct IvResult {
 impl fmt::Display for IvResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // FIX 1: Added NeweyWest option in Display
-        let cov_str = match self.cov_type {
+        let cov_str = match &self.cov_type {
             CovarianceType::NonRobust => "Non-Robust".to_string(),
             CovarianceType::HC1 => "Robust (HC1)".to_string(),
             CovarianceType::NeweyWest(lags) => format!("HAC (Newey-West, L={})", lags),
+            CovarianceType::Clustered(clusters) => {
+                let n_clusters = clusters.iter().collect::<std::collections::HashSet<_>>().len();
+                format!("Clustered ({} clusters)", n_clusters)
+            }
         };
 
         writeln!(f, "\n{:=^78}", " IV (2SLS) Regression Results ")?;
@@ -246,6 +250,59 @@ impl IV {
 
                 let correction = (n as f64) / (df_resid as f64);
                 sandwich * correction
+            }
+            CovarianceType::Clustered(ref cluster_ids) => {
+                // Clustered Standard Errors for IV
+                // Same logic as OLS but using X_hat instead of X
+
+                if cluster_ids.len() != n {
+                    return Err(GreenersError::ShapeMismatch(format!(
+                        "Cluster IDs length ({}) must match number of observations ({})",
+                        cluster_ids.len(),
+                        n
+                    )));
+                }
+
+                use std::collections::HashMap;
+                let mut clusters: HashMap<usize, Vec<usize>> = HashMap::new();
+                for (obs_idx, &cluster_id) in cluster_ids.iter().enumerate() {
+                    clusters.entry(cluster_id).or_insert_with(Vec::new).push(obs_idx);
+                }
+
+                let n_clusters = clusters.len();
+                let mut meat = Array2::<f64>::zeros((k, k));
+
+                for (_cluster_id, obs_indices) in clusters.iter() {
+                    let cluster_size = obs_indices.len();
+                    let mut xhat_g = Array2::<f64>::zeros((cluster_size, k));
+                    let mut u_g = Array1::<f64>::zeros(cluster_size);
+
+                    for (i, &obs_idx) in obs_indices.iter().enumerate() {
+                        xhat_g.row_mut(i).assign(&x_hat.row(obs_idx));
+                        u_g[i] = residuals[obs_idx];
+                    }
+
+                    for i in 0..cluster_size {
+                        for j in 0..cluster_size {
+                            let scale = u_g[i] * u_g[j];
+                            let x_i = xhat_g.row(i);
+                            let x_j = xhat_g.row(j);
+
+                            for p in 0..k {
+                                for q in 0..k {
+                                    meat[[p, q]] += scale * x_i[p] * x_j[q];
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let bread = &xht_xh_inv;
+                let sandwich = bread.dot(&meat).dot(bread);
+
+                let g_correction = (n_clusters as f64) / ((n_clusters - 1) as f64);
+                let df_correction = ((n - 1) as f64) / (df_resid as f64);
+                sandwich * g_correction * df_correction
             }
         };
 

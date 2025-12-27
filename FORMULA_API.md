@@ -220,8 +220,45 @@ pub enum CovarianceType {
     /// Newey-West (HAC) - heteroscedasticity + autocorrelation
     /// The usize parameter is the number of lags
     NeweyWest(usize),
+
+    /// Clustered standard errors - for panel/grouped data
+    /// The Vec<usize> contains cluster IDs for each observation
+    /// Critical for panel data and hierarchical structures
+    Clustered(Vec<usize>),
 }
 ```
+
+### Using Clustered Standard Errors (NEW in v0.2.0)
+
+Clustered standard errors account for within-cluster correlation:
+
+```rust
+use greeners::{OLS, DataFrame, Formula, CovarianceType};
+
+// Panel data example: 3 firms × 5 time periods = 15 observations
+let cluster_ids = vec![
+    0,0,0,0,0,  // Firm 0 (5 time periods)
+    1,1,1,1,1,  // Firm 1 (5 time periods)
+    2,2,2,2,2,  // Firm 2 (5 time periods)
+];
+
+let formula = Formula::parse("profit ~ advertising + rd_spending")?;
+let result = OLS::from_formula(&formula, &df, CovarianceType::Clustered(cluster_ids))?;
+
+println!("{}", result);  // Shows "Clustered (3 clusters)" in output
+```
+
+**When to use clustered SE:**
+- Panel data (repeated observations per entity: firms, individuals, countries)
+- Hierarchical data (students in schools, patients in hospitals)
+- Experiments with cluster randomization (villages, classrooms)
+- Geographic clustering (cities, regions, countries)
+- Any situation where observations within groups are likely correlated
+
+**Why it matters:**
+- Standard OLS SE assume independence → underestimated standard errors
+- Clustered SE correct for within-cluster correlation → proper inference
+- Ignoring clustering leads to over-rejection of null hypotheses (false discoveries)
 
 ## Current Limitations
 

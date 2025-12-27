@@ -44,7 +44,7 @@ pub use vecm::VECM;
 pub use formula::Formula;
 pub use dataframe::DataFrame;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CovarianceType {
     /// Standard OLS (Homoscedastic)
     NonRobust,
@@ -54,4 +54,8 @@ pub enum CovarianceType {
     /// The 'usize' parameter is the number of lags (L).
     /// Common rule of thumb: L = n^0.25
     NeweyWest(usize),
+    /// Clustered Standard Errors
+    /// Critical for panel data, experiments, and grouped observations
+    /// The Vec<usize> contains cluster IDs for each observation
+    Clustered(Vec<usize>),
 }
