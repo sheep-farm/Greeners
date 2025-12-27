@@ -29,10 +29,16 @@ impl fmt::Display for IvResult {
             CovarianceType::HC1 => "Robust (HC1)".to_string(),
             CovarianceType::HC2 => "Robust (HC2)".to_string(),
             CovarianceType::HC3 => "Robust (HC3)".to_string(),
+            CovarianceType::HC4 => "Robust (HC4)".to_string(),
             CovarianceType::NeweyWest(lags) => format!("HAC (Newey-West, L={})", lags),
             CovarianceType::Clustered(clusters) => {
                 let n_clusters = clusters.iter().collect::<std::collections::HashSet<_>>().len();
                 format!("Clustered ({} clusters)", n_clusters)
+            }
+            CovarianceType::ClusteredTwoWay(clusters1, clusters2) => {
+                let n_clusters_1 = clusters1.iter().collect::<std::collections::HashSet<_>>().len();
+                let n_clusters_2 = clusters2.iter().collect::<std::collections::HashSet<_>>().len();
+                format!("Two-Way Clustered ({}×{})", n_clusters_1, n_clusters_2)
             }
         };
 
@@ -69,6 +75,50 @@ impl fmt::Display for IvResult {
             )?;
         }
         writeln!(f, "{:=^78}", "")
+    }
+}
+
+impl IvResult {
+    /// Predict out-of-sample values using estimated parameters
+    ///
+    /// # Arguments
+    /// * `x_new` - New design matrix (n_new × k)
+    ///
+    /// # Returns
+    /// Predicted values for new observations
+    ///
+    /// # Example
+    /// ```no_run
+    /// use ndarray::Array2;
+    /// let x_new = Array2::from_shape_vec((3, 2), vec![1.0, 5.0, 1.0, 6.0, 1.0, 7.0])?;
+    /// let predictions = result.predict(&x_new);
+    /// ```
+    pub fn predict(&self, x_new: &Array2<f64>) -> Array1<f64> {
+        x_new.dot(&self.params)
+    }
+
+    /// Calculate fitted values for in-sample observations
+    ///
+    /// # Arguments
+    /// * `x` - Original design matrix (n × k)
+    ///
+    /// # Returns
+    /// Fitted values (predictions for training data)
+    pub fn fitted_values(&self, x: &Array2<f64>) -> Array1<f64> {
+        x.dot(&self.params)
+    }
+
+    /// Calculate residuals for given observations
+    ///
+    /// # Arguments
+    /// * `y` - Actual values
+    /// * `x` - Design matrix
+    ///
+    /// # Returns
+    /// Residuals (y - ŷ)
+    pub fn residuals(&self, y: &Array1<f64>, x: &Array2<f64>) -> Array1<f64> {
+        let y_hat = x.dot(&self.params);
+        y - &y_hat
     }
 }
 
@@ -269,6 +319,35 @@ impl IV {
                 let bread = &xht_xh_inv;
                 bread.dot(&meat).dot(bread)
             }
+            CovarianceType::HC4 => {
+                // HC4 for IV: refined jackknife
+                let mut leverage = Array1::<f64>::zeros(n);
+                for i in 0..n {
+                    let xhat_i = x_hat.row(i);
+                    let temp = xht_xh_inv.dot(&xhat_i);
+                    leverage[i] = xhat_i.dot(&temp);
+                }
+
+                let mut u_adjusted = Array1::<f64>::zeros(n);
+                for i in 0..n {
+                    let h_i = leverage[i];
+                    if h_i >= 0.9999 {
+                        u_adjusted[i] = residuals[i].powi(2);
+                    } else {
+                        let delta_i = 4.0_f64.min((n as f64) * h_i / (k as f64));
+                        u_adjusted[i] = residuals[i].powi(2) / (1.0 - h_i).powf(delta_i);
+                    }
+                }
+
+                let mut xhat_weighted = x_hat.clone();
+                for (i, mut row) in xhat_weighted.axis_iter_mut(nd::Axis(0)).enumerate() {
+                    row *= u_adjusted[i];
+                }
+
+                let meat = x_hat_t.dot(&xhat_weighted);
+                let bread = &xht_xh_inv;
+                bread.dot(&meat).dot(bread)
+            }
             CovarianceType::NeweyWest(lags) => {
                 // HAC Implementation for IV
                 // We use X_hat in the "meat" calculation instead of X.
@@ -359,6 +438,80 @@ impl IV {
                 let sandwich = bread.dot(&meat).dot(bread);
 
                 let g_correction = (n_clusters as f64) / ((n_clusters - 1) as f64);
+                let df_correction = ((n - 1) as f64) / (df_resid as f64);
+                sandwich * g_correction * df_correction
+            }
+            CovarianceType::ClusteredTwoWay(ref cluster_ids_1, ref cluster_ids_2) => {
+                // Two-Way Clustered Standard Errors for IV (Cameron-Gelbach-Miller, 2011)
+                // Uses X_hat instead of X (same as one-way clustering for IV)
+
+                if cluster_ids_1.len() != n || cluster_ids_2.len() != n {
+                    return Err(GreenersError::ShapeMismatch(format!(
+                        "Both cluster ID vectors must match number of observations ({})",
+                        n
+                    )));
+                }
+
+                let compute_clustered_meat = |cluster_ids: &[usize]| -> Array2<f64> {
+                    use std::collections::HashMap;
+                    let mut clusters: HashMap<usize, Vec<usize>> = HashMap::new();
+                    for (obs_idx, &cluster_id) in cluster_ids.iter().enumerate() {
+                        clusters.entry(cluster_id).or_insert_with(Vec::new).push(obs_idx);
+                    }
+
+                    let mut meat = Array2::<f64>::zeros((k, k));
+
+                    for (_cluster_id, obs_indices) in clusters.iter() {
+                        let cluster_size = obs_indices.len();
+                        let mut xhat_g = Array2::<f64>::zeros((cluster_size, k));
+                        let mut u_g = Array1::<f64>::zeros(cluster_size);
+
+                        for (i, &obs_idx) in obs_indices.iter().enumerate() {
+                            xhat_g.row_mut(i).assign(&x_hat.row(obs_idx));
+                            u_g[i] = residuals[obs_idx];
+                        }
+
+                        for i in 0..cluster_size {
+                            for j in 0..cluster_size {
+                                let scale = u_g[i] * u_g[j];
+                                let x_i = xhat_g.row(i);
+                                let x_j = xhat_g.row(j);
+
+                                for p in 0..k {
+                                    for q in 0..k {
+                                        meat[[p, q]] += scale * x_i[p] * x_j[q];
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    meat
+                };
+
+                let meat_1 = compute_clustered_meat(cluster_ids_1);
+                let meat_2 = compute_clustered_meat(cluster_ids_2);
+
+                let max_cluster2 = cluster_ids_2.iter().max().unwrap_or(&0) + 1;
+                let intersection_ids: Vec<usize> = cluster_ids_1
+                    .iter()
+                    .zip(cluster_ids_2.iter())
+                    .map(|(&c1, &c2)| c1 * max_cluster2 + c2)
+                    .collect();
+
+                let meat_12 = compute_clustered_meat(&intersection_ids);
+
+                let meat = &meat_1 + &meat_2 - &meat_12;
+
+                let bread = &xht_xh_inv;
+                let sandwich = bread.dot(&meat).dot(bread);
+
+                use std::collections::HashSet;
+                let n_clusters_1: HashSet<_> = cluster_ids_1.iter().collect();
+                let n_clusters_2: HashSet<_> = cluster_ids_2.iter().collect();
+                let g = n_clusters_1.len().min(n_clusters_2.len());
+
+                let g_correction = (g as f64) / ((g - 1) as f64);
                 let df_correction = ((n - 1) as f64) / (df_resid as f64);
                 sandwich * g_correction * df_correction
             }

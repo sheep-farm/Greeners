@@ -1,7 +1,7 @@
 # Greeners: High-Performance Econometrics in Rust
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
-![Version](https://img.shields.io/badge/version-0.5.0-blue)
+![Version](https://img.shields.io/badge/version-0.6.0-blue)
 ![License](https://img.shields.io/badge/license-GPLv3-green)
 
 **Greeners** is a lightning-fast, type-safe econometrics library written in pure Rust. It provides a comprehensive suite of estimators for Cross-Sectional, Time-Series, and Panel Data analysis, leveraging linear algebra backends (LAPACK/BLAS) for maximum performance.
@@ -92,6 +92,36 @@ let ame_probit = probit_result.average_marginal_effects(&x)?;
 - **Python**: `statsmodels.discrete.discrete_model.Logit(...).get_margeff()`
 
 📖 See `examples/marginal_effects.rs` for comprehensive demonstration with college admission data.
+
+### Two-Way Clustered Standard Errors
+
+For **panel data** with clustering along **two dimensions** (e.g., firms × time):
+
+```rust
+// Panel data: 4 firms × 6 time periods
+let firm_ids = vec![0,0,0,0,0,0, 1,1,1,1,1,1, 2,2,2,2,2,2, 3,3,3,3,3,3];
+let time_ids = vec![0,1,2,3,4,5, 0,1,2,3,4,5, 0,1,2,3,4,5, 0,1,2,3,4,5];
+
+// Two-way clustering (Cameron-Gelbach-Miller, 2011)
+let result = OLS::from_formula(
+    &formula,
+    &df,
+    CovarianceType::ClusteredTwoWay(firm_ids, time_ids)
+)?;
+
+// Formula: V = V_firm + V_time - V_intersection
+// Accounts for BOTH within-firm AND within-time correlation
+```
+
+**When to use:**
+- ✅ Panel data (firms/countries over time)
+- ✅ Correlation within entities AND within time periods
+- ✅ More robust than one-way clustering
+- ✅ Standard in modern panel data econometrics
+
+**Stata equivalent:** `reghdfe y x, vce(cluster firm_id time_id)`
+
+📖 See `examples/two_way_clustering.rs` for complete comparison of non-robust vs one-way vs two-way clustering.
 
 ## 🎊 NEW in v0.4.0: Categorical Variables & Polynomial Terms
 

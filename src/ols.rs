@@ -86,10 +86,16 @@ impl fmt::Display for OlsResult {
             CovarianceType::HC1 => "Robust (HC1)".to_string(),
             CovarianceType::HC2 => "Robust (HC2)".to_string(),
             CovarianceType::HC3 => "Robust (HC3)".to_string(),
+            CovarianceType::HC4 => "Robust (HC4)".to_string(),
             CovarianceType::NeweyWest(lags) => format!("HAC (Newey-West, L={})", lags),
             CovarianceType::Clustered(clusters) => {
                 let n_clusters = clusters.iter().collect::<std::collections::HashSet<_>>().len();
                 format!("Clustered ({} clusters)", n_clusters)
+            }
+            CovarianceType::ClusteredTwoWay(clusters1, clusters2) => {
+                let n_clusters_1 = clusters1.iter().collect::<std::collections::HashSet<_>>().len();
+                let n_clusters_2 = clusters2.iter().collect::<std::collections::HashSet<_>>().len();
+                format!("Two-Way Clustered ({}×{})", n_clusters_1, n_clusters_2)
             }
         };
 
@@ -309,6 +315,43 @@ impl OLS {
                 let bread = &xt_x_inv;
                 bread.dot(&meat).dot(bread)
             }
+            CovarianceType::HC4 => {
+                // HC4: Refined jackknife (Cribari-Neto, 2004)
+                // V = (X'X)^-1 * X' diag(u² / (1 - h_i)^δᵢ) X * (X'X)^-1
+                // where δᵢ = min(4, n * h_i / k)
+                // Best performance with influential observations
+
+                // Calculate leverage values
+                let mut leverage = Array1::<f64>::zeros(n);
+                for i in 0..n {
+                    let x_i = x.row(i);
+                    let temp = xt_x_inv.dot(&x_i);
+                    leverage[i] = x_i.dot(&temp);
+                }
+
+                // Adjust residuals with power δᵢ
+                let mut u_adjusted = Array1::<f64>::zeros(n);
+                for i in 0..n {
+                    let h_i = leverage[i];
+                    if h_i >= 0.9999 {
+                        u_adjusted[i] = residuals[i].powi(2);
+                    } else {
+                        // δᵢ = min(4, n * h_i / k)
+                        let delta_i = 4.0_f64.min((n as f64) * h_i / (k as f64));
+                        u_adjusted[i] = residuals[i].powi(2) / (1.0 - h_i).powf(delta_i);
+                    }
+                }
+
+                // Build sandwich estimator
+                let mut x_weighted = x.clone();
+                for (i, mut row) in x_weighted.axis_iter_mut(nd::Axis(0)).enumerate() {
+                    row *= u_adjusted[i];
+                }
+
+                let meat = x_t.dot(&x_weighted);
+                let bread = &xt_x_inv;
+                bread.dot(&meat).dot(bread)
+            }
             CovarianceType::NeweyWest(lags) => {
                 // HAC Estimator (Newey-West)
                 // Formula: (X'X)^-1 * [ Omega_0 + sum(w_l * (Omega_l + Omega_l')) ] * (X'X)^-1
@@ -435,6 +478,98 @@ impl OLS {
                 // Small sample correction: (G / (G-1)) * ((N-1) / (N-K))
                 // where G = number of clusters, N = observations, K = parameters
                 let g_correction = (n_clusters as f64) / ((n_clusters - 1) as f64);
+                let df_correction = ((n - 1) as f64) / (df_resid as f64);
+                sandwich * g_correction * df_correction
+            }
+            CovarianceType::ClusteredTwoWay(ref cluster_ids_1, ref cluster_ids_2) => {
+                // Two-Way Clustered Standard Errors (Cameron-Gelbach-Miller, 2011)
+                // Formula: V = V₁ + V₂ - V₁₂
+                // Where:
+                //   V₁ = one-way clustering by dimension 1 (e.g., firm)
+                //   V₂ = one-way clustering by dimension 2 (e.g., time)
+                //   V₁₂ = clustering by intersection (firm × time pairs)
+                //
+                // This accounts for correlation both within dimension 1,
+                // within dimension 2, and avoids double-counting the intersection.
+
+                // Validate inputs
+                if cluster_ids_1.len() != n || cluster_ids_2.len() != n {
+                    return Err(GreenersError::ShapeMismatch(format!(
+                        "Both cluster ID vectors must match number of observations ({})",
+                        n
+                    )));
+                }
+
+                // Helper function to compute clustered meat matrix
+                let compute_clustered_meat = |cluster_ids: &[usize]| -> Array2<f64> {
+                    use std::collections::HashMap;
+                    let mut clusters: HashMap<usize, Vec<usize>> = HashMap::new();
+                    for (obs_idx, &cluster_id) in cluster_ids.iter().enumerate() {
+                        clusters.entry(cluster_id).or_insert_with(Vec::new).push(obs_idx);
+                    }
+
+                    let mut meat = Array2::<f64>::zeros((k, k));
+
+                    for (_cluster_id, obs_indices) in clusters.iter() {
+                        let cluster_size = obs_indices.len();
+                        let mut x_g = Array2::<f64>::zeros((cluster_size, k));
+                        let mut u_g = Array1::<f64>::zeros(cluster_size);
+
+                        for (i, &obs_idx) in obs_indices.iter().enumerate() {
+                            x_g.row_mut(i).assign(&x.row(obs_idx));
+                            u_g[i] = residuals[obs_idx];
+                        }
+
+                        for i in 0..cluster_size {
+                            for j in 0..cluster_size {
+                                let scale = u_g[i] * u_g[j];
+                                let x_i = x_g.row(i);
+                                let x_j = x_g.row(j);
+
+                                for p in 0..k {
+                                    for q in 0..k {
+                                        meat[[p, q]] += scale * x_i[p] * x_j[q];
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    meat
+                };
+
+                // 1. Compute V₁ (cluster by dimension 1)
+                let meat_1 = compute_clustered_meat(cluster_ids_1);
+
+                // 2. Compute V₂ (cluster by dimension 2)
+                let meat_2 = compute_clustered_meat(cluster_ids_2);
+
+                // 3. Compute V₁₂ (cluster by intersection)
+                // Create unique pair IDs: pair_id = cluster1_id * max_cluster2 + cluster2_id
+                let max_cluster2 = cluster_ids_2.iter().max().unwrap_or(&0) + 1;
+                let intersection_ids: Vec<usize> = cluster_ids_1
+                    .iter()
+                    .zip(cluster_ids_2.iter())
+                    .map(|(&c1, &c2)| c1 * max_cluster2 + c2)
+                    .collect();
+
+                let meat_12 = compute_clustered_meat(&intersection_ids);
+
+                // 4. Apply Cameron-Gelbach-Miller formula: V = V₁ + V₂ - V₁₂
+                let meat = &meat_1 + &meat_2 - &meat_12;
+
+                // Apply sandwich formula
+                let bread = &xt_x_inv;
+                let sandwich = bread.dot(&meat).dot(bread);
+
+                // Small sample correction
+                // Use minimum number of clusters for conservative inference
+                use std::collections::HashSet;
+                let n_clusters_1: HashSet<_> = cluster_ids_1.iter().collect();
+                let n_clusters_2: HashSet<_> = cluster_ids_2.iter().collect();
+                let g = n_clusters_1.len().min(n_clusters_2.len());
+
+                let g_correction = (g as f64) / ((g - 1) as f64);
                 let df_correction = ((n - 1) as f64) / (df_resid as f64);
                 sandwich * g_correction * df_correction
             }
