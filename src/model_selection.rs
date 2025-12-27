@@ -1,5 +1,7 @@
 use ndarray::Array1;
 
+type ModelStats = (f64, f64, f64, f64, f64, f64, f64, usize);
+
 /// Model selection and comparison utilities
 pub struct ModelSelection;
 
@@ -269,7 +271,8 @@ impl SummaryStats {
     ///
     /// # Arguments
     /// * `stats` - Vector of (variable_name, stats_tuple) pairs
-    pub fn print_summary(stats: &[(&str, (f64, f64, f64, f64, f64, f64, f64, usize))]) {
+    // pub fn print_summary(stats: &[(&str, (f64, f64, f64, f64, f64, f64, f64, usize))]) {
+    pub fn print_summary(stats: &[(&str, ModelStats)]) {
         println!("\n{:=^90}", " Descriptive Statistics ");
         println!("{:-^90}", "");
         println!(

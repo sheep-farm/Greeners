@@ -107,24 +107,31 @@ impl PanelThreshold {
                 let q_val = q[row_idx];
                 let x_row = x.row(row_idx);
 
+                // if q_val <= gamma {
+                //     // Regime 1 Ativo: [x, 0]
+                //     for val in x_row {
+                //         x_expanded_vec.push(*val);
+                //     }
+                //     for _ in 0..k {
+                //         x_expanded_vec.push(0.0);
+                //     }
+                //     // Regime 2 Ativo: [0, x]
+                //     for _ in 0..k {
+                //         x_expanded_vec.push(0.0);
+                //     }
+                //     for val in x_row {
+                //         x_expanded_vec.push(*val);
+                //     }
+                // }
                 if q_val <= gamma {
                     // Regime 1 Ativo: [x, 0]
-                    for val in x_row {
-                        x_expanded_vec.push(*val);
-                    }
-                    for _ in 0..k {
-                        x_expanded_vec.push(0.0);
-                    }
+                    x_expanded_vec.extend(x_row);
+                    x_expanded_vec.extend(std::iter::repeat_n(0.0, k));
                 } else {
                     // Regime 2 Ativo: [0, x]
-                    for _ in 0..k {
-                        x_expanded_vec.push(0.0);
-                    }
-                    for val in x_row {
-                        x_expanded_vec.push(*val);
-                    }
-                }
-            }
+                    x_expanded_vec.extend(std::iter::repeat_n(0.0, k));
+                    x_expanded_vec.extend(x_row);
+                }            }
 
             let x_expanded = Array2::from_shape_vec((n, 2 * k), x_expanded_vec)
                 .map_err(|e| GreenersError::ShapeMismatch(e.to_string()))?;
