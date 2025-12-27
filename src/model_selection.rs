@@ -203,13 +203,14 @@ impl PanelDiagnostics {
     ) -> Result<(f64, f64), String> {
         use statrs::distribution::{ContinuousCDF, FisherSnedecor};
 
+        // Check for sufficient degrees of freedom before calculating
+        if n <= n_entities + k {
+            return Err("Insufficient degrees of freedom".to_string());
+        }
+
         // Degrees of freedom
         let df_num = n_entities - 1; // Entity dummies
         let df_denom = n - n_entities - k;
-
-        if df_denom <= 0 {
-            return Err("Insufficient degrees of freedom".to_string());
-        }
 
         // F-statistic
         let f_stat = ((ssr_pooled - ssr_fe) / df_num as f64) / (ssr_fe / df_denom as f64);
