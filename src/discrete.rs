@@ -16,6 +16,8 @@ pub struct BinaryModelResult {
     pub iterations: usize,
     pub log_likelihood: f64,
     pub pseudo_r2: f64, // McFadden's R2
+    // Store X for marginal effects calculations
+    x_data: Option<Array2<f64>>,
 }
 
 impl fmt::Display for BinaryModelResult {
@@ -165,7 +167,124 @@ impl Logit {
             iterations: iter,
             log_likelihood,
             pseudo_r2,
+            x_data: Some(x.clone()),
         })
+    }
+}
+
+impl BinaryModelResult {
+    /// Calculate Average Marginal Effects (AME)
+    ///
+    /// AME = (1/n) Σ_i ∂P(y_i=1|x_i)/∂x_j
+    ///
+    /// For Logit: ∂P/∂x_j = β_j × φ(x'β) where φ(z) = exp(z)/(1+exp(z))²
+    /// For Probit: ∂P/∂x_j = β_j × φ(x'β) where φ(z) = (1/√2π)exp(-z²/2)
+    ///
+    /// # Arguments
+    /// * `x` - Design matrix (same as used in estimation)
+    ///
+    /// # Returns
+    /// Array of average marginal effects (one per coefficient)
+    ///
+    /// # Interpretation
+    /// AME_j = average effect of 1-unit increase in x_j on Pr(y=1)
+    pub fn average_marginal_effects(&self, x: &Array2<f64>) -> Result<Array1<f64>, GreenersError> {
+        let n = x.nrows();
+        let k = x.ncols();
+
+        let mut ame = Array1::<f64>::zeros(k);
+
+        // For each observation, calculate marginal effect and average
+        for i in 0..n {
+            let x_i = x.row(i);
+            let xb = x_i.dot(&self.params);
+
+            // Calculate density at x'β
+            let density = if self.model_name == "Logit" {
+                // Logistic density: exp(z)/(1+exp(z))²
+                let exp_xb = xb.exp();
+                exp_xb / (1.0 + exp_xb).powi(2)
+            } else {
+                // Normal density: (1/√2π)exp(-z²/2)
+                let normal = Normal::new(0.0, 1.0).unwrap();
+                normal.pdf(xb)
+            };
+
+            // Marginal effect for observation i: β_j × density
+            for j in 0..k {
+                ame[j] += self.params[j] * density;
+            }
+        }
+
+        // Average across observations
+        ame /= n as f64;
+
+        Ok(ame)
+    }
+
+    /// Calculate Marginal Effects at Means (MEM)
+    ///
+    /// MEM = ∂P(y=1|x̄)/∂x_j evaluated at sample means x̄
+    ///
+    /// # Arguments
+    /// * `x` - Design matrix (same as used in estimation)
+    ///
+    /// # Returns
+    /// Array of marginal effects at means (one per coefficient)
+    ///
+    /// # Interpretation
+    /// MEM_j = effect of 1-unit increase in x_j on Pr(y=1) for average individual
+    ///
+    /// # Note
+    /// AME is generally preferred over MEM because:
+    /// - AME accounts for heterogeneity across observations
+    /// - MEM may evaluate at impossible combinations (average of dummies)
+    /// - AME is more robust to non-linearities
+    pub fn marginal_effects_at_means(&self, x: &Array2<f64>) -> Result<Array1<f64>, GreenersError> {
+        let k = x.ncols();
+
+        // Calculate means of X (excluding intercept if present)
+        let x_means = x.mean_axis(Axis(0)).unwrap();
+
+        // Linear prediction at means
+        let xb_mean = x_means.dot(&self.params);
+
+        // Calculate density at x̄'β
+        let density = if self.model_name == "Logit" {
+            let exp_xb = xb_mean.exp();
+            exp_xb / (1.0 + exp_xb).powi(2)
+        } else {
+            let normal = Normal::new(0.0, 1.0).unwrap();
+            normal.pdf(xb_mean)
+        };
+
+        // Marginal effects: β_j × density
+        let mut mem = Array1::<f64>::zeros(k);
+        for j in 0..k {
+            mem[j] = self.params[j] * density;
+        }
+
+        Ok(mem)
+    }
+
+    /// Calculate predicted probabilities
+    ///
+    /// # Arguments
+    /// * `x` - Design matrix
+    ///
+    /// # Returns
+    /// Array of predicted probabilities Pr(y=1|x)
+    pub fn predict_proba(&self, x: &Array2<f64>) -> Array1<f64> {
+        let xb = x.dot(&self.params);
+
+        if self.model_name == "Logit" {
+            // Logistic CDF: 1/(1+exp(-x'β))
+            xb.mapv(|val| 1.0 / (1.0 + (-val).exp()))
+        } else {
+            // Normal CDF: Φ(x'β)
+            let normal = Normal::new(0.0, 1.0).unwrap();
+            xb.mapv(|val| normal.cdf(val))
+        }
     }
 }
 
@@ -289,6 +408,7 @@ impl Probit {
             iterations: iter,
             log_likelihood,
             pseudo_r2,
+            x_data: Some(x.clone()),
         })
     }
 }
