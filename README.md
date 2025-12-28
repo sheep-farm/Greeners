@@ -74,7 +74,7 @@ cargo test --lib        # Library tests only
 cargo test quantile     # Specific module tests
 ```
 
-### Quality & Competitive Analysis
+<!-- ### Quality & Competitive Analysis
 
 Independent analysis positions Greeners in the **TOP 5 worldwide** among econometrics libraries:
 
@@ -87,7 +87,7 @@ Independent analysis positions Greeners in the **TOP 5 worldwide** among econome
 - 🏆 Panel Methods (9/10): FE, RE, Between, Arellano-Bond
 - 🏆 Formula API (9/10): R/Python syntax with interactions, polynomials, categoricals
 
-**See [QUALITY_ANALYSIS.md](QUALITY_ANALYSIS.md)** for complete competitive comparison with statsmodels, plm, fixest, linearmodels, Stata, and Julia packages.
+**See [QUALITY_ANALYSIS.md](QUALITY_ANALYSIS.md)** for complete competitive comparison with statsmodels, plm, fixest, linearmodels, Stata, and Julia packages. -->
 
 ### Code Quality Improvements
 
