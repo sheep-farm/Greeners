@@ -1,3 +1,4 @@
+
 # Greeners: High-Performance Econometrics in Rust
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
@@ -11,7 +12,7 @@ Designed for academic research, heavy simulations, and production-grade economic
 
 ## 🎊 v1.0.2 STABLE RELEASE: Named Variables & Enhanced Quality
 
-Greeners v1.0.2 brings **human-readable variable names** in regression output and achieves **TOP 5 worldwide** competitive positioning among econometrics libraries!
+Greeners v1.0.2 brings **human-readable variable names** in regression output.
 
 ### Named Variables in Results (NEW in v1.0.2)
 
@@ -68,7 +69,7 @@ v1.0.2 includes **143 unit tests** covering all major functionality:
 - Model selection and information criteria
 
 Run tests locally:
-```bash
+```sh
 cargo test              # Run all 143 tests
 cargo test --lib        # Library tests only
 cargo test quantile     # Specific module tests
@@ -540,7 +541,7 @@ let resid = result.residuals(&y, &x);
 
 ### Debian / Ubuntu / Pop!_OS:
 
-```bash
+```sh
 sudo apt-get update
 
 sudo apt-get install gfortran libopenblas-dev liblapack-dev pkg-config build-essential
@@ -548,19 +549,19 @@ sudo apt-get install gfortran libopenblas-dev liblapack-dev pkg-config build-ess
 
 ### Fedora / RHEL / CentOS:
 
-```bash
+```sh
 sudo dnf install gcc-gfortran openblas-devel lapack-devel pkg-config
 ```
 
 ### Arch Linux / Manjaro:
 
-```bash
+```sh
 sudo pacman -S gcc-fortran openblas lapack base-devel
 ```
 
 ### macOS:
 
-```bash
+```sh
 brew install openblas lapack
 ```
 
@@ -719,7 +720,7 @@ All formulas follow R/Python syntax for familiarity and ease of use.
   - `quickstart_formula.rs` - Quick start example
 
 Run examples:
-```bash
+```sh
 cargo run --example csv_formula_example
 cargo run --example formula_example
 cargo run --example did_formula_example
