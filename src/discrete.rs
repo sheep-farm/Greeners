@@ -18,6 +18,7 @@ pub struct BinaryModelResult {
     pub pseudo_r2: f64, // McFadden's R2
     // Store X for marginal effects calculations
     _x_data: Option<Array2<f64>>,
+    pub variable_names: Option<Vec<String>>,
 }
 
 impl fmt::Display for BinaryModelResult {
@@ -52,10 +53,20 @@ impl fmt::Display for BinaryModelResult {
         writeln!(f, "{:-^78}", "")?;
 
         for i in 0..self.params.len() {
+            let var_name = if let Some(ref names) = self.variable_names {
+                if i < names.len() {
+                    names[i].clone()
+                } else {
+                    format!("x{}", i)
+                }
+            } else {
+                format!("x{}", i)
+            };
+
             writeln!(
                 f,
-                "x{:<9} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
-                i, self.params[i], self.std_errors[i], self.z_values[i], self.p_values[i]
+                "{:<10} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
+                var_name, self.params[i], self.std_errors[i], self.z_values[i], self.p_values[i]
             )?;
         }
         writeln!(f, "{:=^78}", "")
@@ -72,10 +83,28 @@ impl Logit {
         data: &DataFrame,
     ) -> Result<BinaryModelResult, GreenersError> {
         let (y, x) = data.to_design_matrix(formula)?;
-        Self::fit(&y, &x)
+
+        // Build variable names from formula
+        let mut var_names = Vec::new();
+        if formula.intercept {
+            var_names.push("const".to_string());
+        }
+        for var in &formula.independents {
+            var_names.push(var.clone());
+        }
+
+        Self::fit_with_names(&y, &x, Some(var_names))
     }
 
     pub fn fit(y: &Array1<f64>, x: &Array2<f64>) -> Result<BinaryModelResult, GreenersError> {
+        Self::fit_with_names(y, x, None)
+    }
+
+    pub fn fit_with_names(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        variable_names: Option<Vec<String>>,
+    ) -> Result<BinaryModelResult, GreenersError> {
         let n = x.nrows();
         let k = x.ncols();
 
@@ -168,6 +197,7 @@ impl Logit {
             log_likelihood,
             pseudo_r2,
             _x_data: Some(x.clone()),
+            variable_names,
         })
     }
 }
@@ -366,10 +396,28 @@ impl Probit {
         data: &DataFrame,
     ) -> Result<BinaryModelResult, GreenersError> {
         let (y, x) = data.to_design_matrix(formula)?;
-        Self::fit(&y, &x)
+
+        // Build variable names from formula
+        let mut var_names = Vec::new();
+        if formula.intercept {
+            var_names.push("const".to_string());
+        }
+        for var in &formula.independents {
+            var_names.push(var.clone());
+        }
+
+        Self::fit_with_names(&y, &x, Some(var_names))
     }
 
     pub fn fit(y: &Array1<f64>, x: &Array2<f64>) -> Result<BinaryModelResult, GreenersError> {
+        Self::fit_with_names(y, x, None)
+    }
+
+    pub fn fit_with_names(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        variable_names: Option<Vec<String>>,
+    ) -> Result<BinaryModelResult, GreenersError> {
         let n = x.nrows();
         let k = x.ncols();
 
@@ -477,6 +525,7 @@ impl Probit {
             log_likelihood,
             pseudo_r2,
             _x_data: Some(x.clone()),
+            variable_names,
         })
     }
 }
