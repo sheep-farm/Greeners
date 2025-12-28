@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{:<20} | {:>15} | {:<20}", "Variable", "VIF", "Assessment");
     println!("{:-<60}", "");
 
-    let var_names = vec!["Intercept", "x1", "x2"];
+    let var_names = ["Intercept", "x1", "x2"];
     for (i, &vif) in vif_values.iter().enumerate() {
         let assessment = if vif.is_nan() {
             "Undefined (constant)"

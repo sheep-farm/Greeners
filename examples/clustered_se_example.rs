@@ -50,7 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Define cluster IDs (firm identifiers)
     // 0,0,0,...,0 (10 times), 1,1,1,...,1 (10 times), etc.
     let cluster_ids: Vec<usize> = (0..5)
-        .flat_map(|firm_id| std::iter::repeat(firm_id).take(10))
+        .flat_map(|firm_id| std::iter::repeat_n(firm_id, 10))
         .collect();
 
     // Specify the model

@@ -116,7 +116,7 @@ fn test_cochrane_orcutt_rho_bounds() {
 
     let rho = result.rho.unwrap();
     // Rho should be between -1 and 1
-    assert!(rho >= -1.0 && rho <= 1.0);
+    assert!((-1.0..=1.0).contains(&rho));
 }
 
 #[test]

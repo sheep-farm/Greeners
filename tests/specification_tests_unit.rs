@@ -22,7 +22,7 @@ fn test_white_test_basic() {
     assert!(lm_stat >= 0.0);
 
     // P-value should be between 0 and 1
-    assert!(p_value >= 0.0 && p_value <= 1.0);
+    assert!((0.0..=1.0).contains(&p_value));
 
     // Degrees of freedom should be reasonable
     assert!(df > 0);
@@ -75,7 +75,7 @@ fn test_reset_test_basic() {
     assert!(f_stat >= 0.0);
 
     // P-value should be valid
-    assert!(p_value >= 0.0 && p_value <= 1.0);
+    assert!((0.0..=1.0).contains(&p_value));
 
     // Check degrees of freedom
     assert_eq!(df_num, 1); // power - 1 = 2 - 1
@@ -104,7 +104,7 @@ fn test_reset_test_power_3() {
     let (f_stat, p_value, df_num, _) = result.unwrap();
 
     assert!(f_stat >= 0.0);
-    assert!(p_value >= 0.0 && p_value <= 1.0);
+    assert!((0.0..=1.0).contains(&p_value));
     assert_eq!(df_num, 2); // power - 1 = 3 - 1
 }
 
@@ -143,7 +143,7 @@ fn test_breusch_godfrey_basic() {
     assert!(lm_stat >= 0.0);
 
     // P-value should be valid
-    assert!(p_value >= 0.0 && p_value <= 1.0);
+    assert!((0.0..=1.0).contains(&p_value));
 
     // Degrees of freedom should equal number of lags
     assert_eq!(df, 1);
@@ -192,7 +192,7 @@ fn test_breusch_godfrey_multiple_lags() {
     let (lm_stat, p_value, df) = result.unwrap();
 
     assert!(lm_stat >= 0.0);
-    assert!(p_value >= 0.0 && p_value <= 1.0);
+    assert!((0.0..=1.0).contains(&p_value));
     assert_eq!(df, 2); // Testing 2 lags
 }
 
@@ -213,7 +213,7 @@ fn test_goldfeld_quandt_basic() {
     assert!(f_stat > 0.0);
 
     // P-value should be valid
-    assert!(p_value >= 0.0 && p_value <= 1.0);
+    assert!((0.0..=1.0).contains(&p_value));
 
     // Degrees of freedom should be equal
     assert_eq!(df1, df2);
@@ -268,7 +268,7 @@ fn test_white_test_with_multiple_regressors() {
     let (lm_stat, p_value, df) = result.unwrap();
 
     assert!(lm_stat >= 0.0);
-    assert!(p_value >= 0.0 && p_value <= 1.0);
+    assert!((0.0..=1.0).contains(&p_value));
     assert!(df > 0);
 }
 

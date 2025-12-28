@@ -87,12 +87,7 @@ impl FixedEffects {
         let (y, x) = data.to_design_matrix(formula)?;
 
         // Build variable names from formula (no intercept in FE)
-        let var_names: Vec<String> = formula
-            .independents
-            .iter()
-            .cloned()
-            // .map(|s| s.clone())
-            .collect();
+        let var_names: Vec<String> = formula.independents.to_vec();
 
         Self::fit_with_names(&y, &x, entity_ids, Some(var_names))
     }
