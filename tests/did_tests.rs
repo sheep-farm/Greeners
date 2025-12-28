@@ -76,9 +76,7 @@ fn test_did_no_effect() {
     let mut data = HashMap::new();
     data.insert(
         "y".to_string(),
-        Array1::from(vec![
-            10.0, 10.1, 12.0, 11.9, 20.0, 20.1, 22.0, 21.9,
-        ]),
+        Array1::from(vec![10.0, 10.1, 12.0, 11.9, 20.0, 20.1, 22.0, 21.9]),
     );
     data.insert(
         "treated".to_string(),
@@ -205,8 +203,8 @@ fn test_did_statistical_significance() {
     data.insert(
         "y".to_string(),
         Array1::from(vec![
-            10.0, 10.1, 9.9, 10.2, 11.0, 11.1, 10.9, 11.2, 10.0, 10.1, 9.9, 10.2, 20.0, 20.1,
-            19.9, 20.2,
+            10.0, 10.1, 9.9, 10.2, 11.0, 11.1, 10.9, 11.2, 10.0, 10.1, 9.9, 10.2, 20.0, 20.1, 19.9,
+            20.2,
         ]),
     );
     data.insert(

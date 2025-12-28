@@ -24,16 +24,27 @@ fn test_iv_basic_estimation() {
 fn test_iv_from_formula() {
     let mut data = HashMap::new();
     data.insert("y".to_string(), Array1::from(vec![1.2, 2.3, 2.9, 4.1, 5.2]));
-    data.insert("x1".to_string(), Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]));
-    data.insert("z1".to_string(), Array1::from(vec![1.0, 2.5, 3.0, 3.5, 5.0]));
+    data.insert(
+        "x1".to_string(),
+        Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]),
+    );
+    data.insert(
+        "z1".to_string(),
+        Array1::from(vec![1.0, 2.5, 3.0, 3.5, 5.0]),
+    );
 
     let df = DataFrame::new(data).unwrap();
     let endog_formula = Formula::parse("y ~ x1").unwrap();
     // Use a dummy LHS for instrument formula since parser requires it
     let instrument_formula = Formula::parse("z1 ~ z1").unwrap();
 
-    let result =
-        IV::from_formula(&endog_formula, &instrument_formula, &df, CovarianceType::HC1).unwrap();
+    let result = IV::from_formula(
+        &endog_formula,
+        &instrument_formula,
+        &df,
+        CovarianceType::HC1,
+    )
+    .unwrap();
 
     assert_eq!(result.params.len(), 2); // intercept + x1
     assert!(result.variable_names.is_some());
@@ -45,8 +56,8 @@ fn test_iv_from_formula() {
 fn test_iv_order_condition() {
     // Should fail: more endogenous vars than instruments
     let y = Array1::from(vec![1.0, 2.0, 3.0]);
-    let x = Array2::from_shape_vec((3, 3), vec![1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 1.0, 3.0, 3.0])
-        .unwrap();
+    let x =
+        Array2::from_shape_vec((3, 3), vec![1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 1.0, 3.0, 3.0]).unwrap();
     let z = Array2::from_shape_vec((3, 2), vec![1.0, 1.0, 1.0, 2.0, 1.0, 3.0]).unwrap();
 
     let result = IV::fit(&y, &x, &z, CovarianceType::NonRobust);

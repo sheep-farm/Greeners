@@ -6,11 +6,7 @@ use std::collections::HashMap;
 fn test_fixed_effects_basic() {
     // Panel data: 3 entities, 2 time periods each
     let y = Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
-    let x = ndarray::Array2::from_shape_vec(
-        (6, 1),
-        vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
-    )
-    .unwrap();
+    let x = ndarray::Array2::from_shape_vec((6, 1), vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
     let entity_ids = vec![1, 1, 2, 2, 3, 3];
 
     let result = FixedEffects::fit(&y, &x, &entity_ids).unwrap();
@@ -24,7 +20,10 @@ fn test_fixed_effects_basic() {
 #[test]
 fn test_fixed_effects_from_formula() {
     let mut data = HashMap::new();
-    data.insert("y".to_string(), Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]));
+    data.insert(
+        "y".to_string(),
+        Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+    );
     data.insert(
         "x1".to_string(),
         Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
@@ -125,7 +124,10 @@ fn test_between_estimator_basic() {
 #[test]
 fn test_between_estimator_from_formula() {
     let mut data = HashMap::new();
-    data.insert("y".to_string(), Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]));
+    data.insert(
+        "y".to_string(),
+        Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+    );
     data.insert(
         "x1".to_string(),
         Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),

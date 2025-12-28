@@ -1,4 +1,4 @@
-use greeners::{DataFrame, FGLS, Formula};
+use greeners::{DataFrame, Formula, FGLS};
 use ndarray::Array1;
 use std::collections::HashMap;
 
@@ -171,7 +171,9 @@ fn test_wls_heteroscedasticity_correction() {
     let y = Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
     let x = ndarray::Array2::from_shape_vec(
         (8, 2),
-        vec![1.0, 1.0, 1.0, 2.0, 1.0, 3.0, 1.0, 4.0, 1.0, 5.0, 1.0, 6.0, 1.0, 7.0, 1.0, 8.0],
+        vec![
+            1.0, 1.0, 1.0, 2.0, 1.0, 3.0, 1.0, 4.0, 1.0, 5.0, 1.0, 6.0, 1.0, 7.0, 1.0, 8.0,
+        ],
     )
     .unwrap();
 
