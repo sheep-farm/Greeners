@@ -25,7 +25,8 @@ pub struct OlsResult {
     pub df_resid: usize,
     pub df_model: usize,
     pub sigma: f64,
-    pub cov_type: CovarianceType, // Store which type was used
+    pub cov_type: CovarianceType,            // Store which type was used
+    pub variable_names: Option<Vec<String>>, // Names of variables (from Formula)
 }
 
 impl OlsResult {
@@ -231,10 +232,20 @@ impl fmt::Display for OlsResult {
         writeln!(f, "{:-^78}", "")?;
 
         for i in 0..self.params.len() {
+            let var_name = if let Some(ref names) = self.variable_names {
+                if i < names.len() {
+                    names[i].clone()
+                } else {
+                    format!("x{}", i)
+                }
+            } else {
+                format!("x{}", i)
+            };
+
             writeln!(
                 f,
-                "x{:<9} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3} | {:>8.4}  {:>8.4}",
-                i,
+                "{:<10} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3} | {:>8.4}  {:>8.4}",
+                var_name,
                 self.params[i],
                 self.std_errors[i],
                 self.t_values[i],
@@ -275,14 +286,34 @@ impl OLS {
         cov_type: CovarianceType,
     ) -> Result<OlsResult, GreenersError> {
         let (y, x) = data.to_design_matrix(formula)?;
-        Self::fit(&y, &x, cov_type)
+
+        // Build variable names from formula
+        let mut var_names = Vec::new();
+        if formula.intercept {
+            var_names.push("const".to_string());
+        }
+        for var in &formula.independents {
+            var_names.push(var.clone());
+        }
+
+        Self::fit_with_names(&y, &x, cov_type, Some(var_names))
     }
 
-    /// Fits the model. Now accepts `cov_type`.
+    /// Fits the model. Now accepts `cov_type` and optional variable names.
     pub fn fit(
         y: &Array1<f64>,
         x: &Array2<f64>,
         cov_type: CovarianceType,
+    ) -> Result<OlsResult, GreenersError> {
+        Self::fit_with_names(y, x, cov_type, None)
+    }
+
+    /// Fits the model with custom variable names.
+    pub fn fit_with_names(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        cov_type: CovarianceType,
+        variable_names: Option<Vec<String>>,
     ) -> Result<OlsResult, GreenersError> {
         let n = x.nrows();
         let k = x.ncols();
@@ -725,6 +756,7 @@ impl OLS {
             df_model,
             sigma,
             cov_type,
+            variable_names,
         })
     }
 }

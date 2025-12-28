@@ -20,6 +20,7 @@ pub struct PanelResult {
     pub n_entities: usize, // Number of unique groups (N)
     pub df_resid: usize,   // Corrected degrees of freedom
     pub sigma: f64,
+    pub variable_names: Option<Vec<String>>,
 }
 
 impl fmt::Display for PanelResult {
@@ -50,10 +51,20 @@ impl fmt::Display for PanelResult {
         writeln!(f, "{:-^78}", "")?;
 
         for i in 0..self.params.len() {
+            let var_name = if let Some(ref names) = self.variable_names {
+                if i < names.len() {
+                    names[i].clone()
+                } else {
+                    format!("x{}", i)
+                }
+            } else {
+                format!("x{}", i)
+            };
+
             writeln!(
                 f,
-                "x{:<9} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
-                i, self.params[i], self.std_errors[i], self.t_values[i], self.p_values[i]
+                "{:<10} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
+                var_name, self.params[i], self.std_errors[i], self.t_values[i], self.p_values[i]
             )?;
         }
         writeln!(f, "{:=^78}", "")
@@ -74,7 +85,11 @@ impl FixedEffects {
         T: Eq + Hash + Clone,
     {
         let (y, x) = data.to_design_matrix(formula)?;
-        Self::fit(&y, &x, entity_ids)
+
+        // Build variable names from formula (no intercept in FE)
+        let var_names: Vec<String> = formula.independents.iter().map(|s| s.clone()).collect();
+
+        Self::fit_with_names(&y, &x, entity_ids, Some(var_names))
     }
 
     /// Performs the "Within Transformation" (Demeaning) on a matrix/vector.
@@ -138,6 +153,18 @@ impl FixedEffects {
     where
         T: Eq + Hash + Clone,
     {
+        Self::fit_with_names(y, x, groups, None)
+    }
+
+    pub fn fit_with_names<T>(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        groups: &[T],
+        variable_names: Option<Vec<String>>,
+    ) -> Result<PanelResult, GreenersError>
+    where
+        T: Eq + Hash + Clone,
+    {
         let n = x.nrows();
 
         // 1. Convert y to Array2 for the generic transform function
@@ -195,6 +222,7 @@ impl FixedEffects {
             n_entities,
             df_resid: df_resid_correct,
             sigma,
+            variable_names,
         })
     }
 }

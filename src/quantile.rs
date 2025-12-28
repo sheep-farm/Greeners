@@ -13,6 +13,7 @@ pub struct QuantileResult {
     pub p_values: Array1<f64>,
     pub r_squared: f64, // Pseudo-R2 (Koenker & Machado)
     pub iterations: usize,
+    pub variable_names: Option<Vec<String>>,
 }
 
 impl fmt::Display for QuantileResult {
@@ -34,10 +35,20 @@ impl fmt::Display for QuantileResult {
         writeln!(f, "{:-^78}", "")?;
 
         for i in 0..self.params.len() {
+            let var_name = if let Some(ref names) = self.variable_names {
+                if i < names.len() {
+                    names[i].clone()
+                } else {
+                    format!("x{}", i)
+                }
+            } else {
+                format!("x{}", i)
+            };
+
             writeln!(
                 f,
-                "x{:<9} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
-                i, self.params[i], self.std_errors[i], self.t_values[i], self.p_values[i]
+                "{:<10} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
+                var_name, self.params[i], self.std_errors[i], self.t_values[i], self.p_values[i]
             )?;
         }
         writeln!(f, "{:=^78}", "")
@@ -55,7 +66,17 @@ impl QuantileReg {
         n_boot: usize,
     ) -> Result<QuantileResult, GreenersError> {
         let (y, x) = data.to_design_matrix(formula)?;
-        Self::fit(&y, &x, tau, n_boot)
+
+        // Build variable names from formula
+        let mut var_names = Vec::new();
+        if formula.intercept {
+            var_names.push("const".to_string());
+        }
+        for var in &formula.independents {
+            var_names.push(var.clone());
+        }
+
+        Self::fit_with_names(&y, &x, tau, n_boot, Some(var_names))
     }
 
     /// Estima a Regressão Quantílica via IRLS.
@@ -68,6 +89,16 @@ impl QuantileReg {
         x: &Array2<f64>,
         tau: f64,
         n_boot: usize,
+    ) -> Result<QuantileResult, GreenersError> {
+        Self::fit_with_names(y, x, tau, n_boot, None)
+    }
+
+    pub fn fit_with_names(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        tau: f64,
+        n_boot: usize,
+        variable_names: Option<Vec<String>>,
     ) -> Result<QuantileResult, GreenersError> {
         if tau <= 0.0 || tau >= 1.0 {
             return Err(GreenersError::OptimizationFailed); // "Tau must be in (0, 1)"
@@ -106,6 +137,7 @@ impl QuantileReg {
             p_values,
             r_squared: pseudo_r2,
             iterations: iter,
+            variable_names,
         })
     }
 
