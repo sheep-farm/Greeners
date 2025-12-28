@@ -91,7 +91,7 @@ impl FixedEffects {
             .independents
             .iter()
             .cloned()
-            .map(|s| s.clone())
+            // .map(|s| s.clone())
             .collect();
 
         Self::fit_with_names(&y, &x, entity_ids, Some(var_names))
