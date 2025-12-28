@@ -2,7 +2,7 @@
 name = "greeners"
 version = "1.0.2"
 edition = "2021"
-authors = ["Flávio de Vasconcellos Corrêa <flavio.vcorrea@ufpel.edu.br>"]
+authors = ["Flávio de Vasconcellos Corrêa <contact@greeners.io>"]
 description = "High-performance econometrics with R/Python formulas. Two-Way Clustering, Marginal Effects (AME/MEM), HC1-4, IV Predictions, Categorical C(var), Polynomial I(x^2), Interactions, Diagnostics. OLS, IV/2SLS, DiD, Logit/Probit, Panel (FE/RE), Time Series (VAR/VECM), Quantile!"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/sheep-farm/Greeners" # Link OBRIGATÓRIO para o GitHub
