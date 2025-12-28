@@ -86,7 +86,7 @@ fn test_jarque_bera_normal() {
     let (jb_stat, p_value) = Diagnostics::jarque_bera(&residuals).unwrap();
 
     assert!(jb_stat >= 0.0);
-    assert!(p_value >= 0.0 && p_value <= 1.0);
+    assert!((0.0..=1.0).contains(&p_value));
 }
 
 #[test]
@@ -97,7 +97,7 @@ fn test_durbin_watson() {
     let dw = Diagnostics::durbin_watson(&residuals);
 
     // DW should be between 0 and 4
-    assert!(dw >= 0.0 && dw <= 4.0);
+    assert!((0.0..=4.0).contains(&dw));
 }
 
 #[test]
@@ -124,7 +124,7 @@ fn test_breusch_pagan() {
     let (lm_stat, p_value) = Diagnostics::breusch_pagan(&residuals, &x).unwrap();
 
     assert!(lm_stat >= 0.0);
-    assert!(p_value >= 0.0 && p_value <= 1.0);
+    assert!((0.0..=1.0).contains(&p_value));
 }
 
 #[test]

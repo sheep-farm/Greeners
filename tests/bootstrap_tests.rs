@@ -118,7 +118,7 @@ fn test_wald_test_basic() {
     assert!(wald_stat > 0.0);
 
     // P-value should be between 0 and 1
-    assert!(p_value >= 0.0 && p_value <= 1.0);
+    assert!((0.0..=1.0).contains(&p_value));
 
     // For β₁ = 3.5 with SE = 0.4, should reject H0: β₁ = 0
     // Wald = (3.5 - 0)² / 0.16 = 76.5625
@@ -142,7 +142,7 @@ fn test_wald_test_joint_hypothesis() {
 
     assert_eq!(df, 2); // Testing 2 restrictions
     assert!(wald_stat > 0.0);
-    assert!(p_value >= 0.0 && p_value <= 1.0);
+    assert!((0.0..=1.0).contains(&p_value));
 }
 
 #[test]
@@ -158,7 +158,7 @@ fn test_joint_significance_test() {
     // Testing 2 slopes (excluding intercept)
     assert_eq!(df, 2);
     assert!(wald_stat > 0.0);
-    assert!(p_value >= 0.0 && p_value <= 1.0);
+    assert!((0.0..=1.0).contains(&p_value));
 
     // With large coefficients and small SEs, should strongly reject
     assert!(p_value < 0.01);
@@ -187,7 +187,7 @@ fn test_f_test_nested_models() {
     assert!(f_stat > 0.0);
 
     // P-value should be valid
-    assert!(p_value >= 0.0 && p_value <= 1.0);
+    assert!((0.0..=1.0).contains(&p_value));
 
     // Manual calculation: F = ((150-100)/2) / (100/46) = 25 / 2.174 ≈ 11.5
     let expected_f = ((ssr_r - ssr_f) / (k_f - k_r) as f64) / (ssr_f / (n - k_f) as f64);

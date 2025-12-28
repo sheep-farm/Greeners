@@ -155,7 +155,7 @@ fn test_gmm_p_values() {
 
     // P-values should be between 0 and 1
     for p in result.p_values.iter() {
-        assert!(p >= &0.0 && p <= &1.0);
+        assert!((&0.0..=&1.0).contains(&p));
     }
 }
 

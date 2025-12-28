@@ -213,7 +213,7 @@ fn test_ols_model_stats() {
     assert!(adj_r2.is_finite());
 
     // Adjusted R² should be between 0 and 1
-    assert!(adj_r2 >= 0.0 && adj_r2 <= 1.0);
+    assert!((0.0..=1.0).contains(&adj_r2));
 }
 
 #[test]

@@ -83,7 +83,7 @@ fn test_akaike_weights_basic() {
 
     // All weights should be between 0 and 1
     for &w in &weights {
-        assert!(w >= 0.0 && w <= 1.0);
+        assert!((0.0..=1.0).contains(&w));
     }
 
     // Best model (lowest AIC) should have highest weight
@@ -132,7 +132,7 @@ fn test_panel_diagnostics_breusch_pagan_basic() {
     assert!(lm_stat >= 0.0);
 
     // P-value should be between 0 and 1
-    assert!(p_value >= 0.0 && p_value <= 1.0);
+    assert!((0.0..=1.0).contains(&p_value));
 }
 
 #[test]
@@ -170,7 +170,7 @@ fn test_panel_diagnostics_f_test_basic() {
     assert!(f_stat > 0.0);
 
     // P-value should be valid
-    assert!(p_value >= 0.0 && p_value <= 1.0);
+    assert!((0.0..=1.0).contains(&p_value));
 
     // With substantial reduction in SSR, should reject H0
     assert!(p_value < 0.05);
@@ -211,7 +211,7 @@ fn test_summary_stats_basic() {
     assert_eq!(max, 10.0);
 
     // Check median (should be between 5 and 6)
-    assert!(median >= 5.0 && median <= 6.0);
+    assert!((5.0..=6.0).contains(&median));
 
     // Check std is positive
     assert!(std > 0.0);

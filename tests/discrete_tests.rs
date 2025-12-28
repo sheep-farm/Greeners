@@ -125,7 +125,7 @@ fn test_logit_predict_proba() {
     assert_eq!(probs.len(), x.nrows());
 
     for &p in probs.iter() {
-        assert!(p >= 0.0 && p <= 1.0);
+        assert!((0.0..=1.0).contains(&p));
     }
 
     // With positive slope, probabilities should generally increase
@@ -174,7 +174,7 @@ fn test_logit_model_stats() {
     assert!(bic.is_finite());
     assert!(loglik.is_finite());
     assert!(pseudo_r2.is_finite());
-    assert!(pseudo_r2 >= 0.0 && pseudo_r2 <= 1.0);
+    assert!((0.0..=1.0).contains(&pseudo_r2));
     assert!(aic > 0.0);
     assert!(bic > 0.0);
 }
