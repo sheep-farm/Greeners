@@ -6,9 +6,27 @@ fn main() {
     // Create DataFrame with missing values (NaN)
     let df = DataFrame::builder()
         .add_column("id", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])
-        .add_column("age", vec![25.0, f64::NAN, 35.0, 40.0, f64::NAN, 50.0, 55.0, 60.0])
-        .add_column("income", vec![30000.0, 45000.0, f64::NAN, 75000.0, 90000.0, f64::NAN, 120000.0, 135000.0])
-        .add_column("score", vec![65.0, 70.0, 75.0, f64::NAN, 85.0, 90.0, f64::NAN, 100.0])
+        .add_column(
+            "age",
+            vec![25.0, f64::NAN, 35.0, 40.0, f64::NAN, 50.0, 55.0, 60.0],
+        )
+        .add_column(
+            "income",
+            vec![
+                30000.0,
+                45000.0,
+                f64::NAN,
+                75000.0,
+                90000.0,
+                f64::NAN,
+                120000.0,
+                135000.0,
+            ],
+        )
+        .add_column(
+            "score",
+            vec![65.0, 70.0, 75.0, f64::NAN, 85.0, 90.0, f64::NAN, 100.0],
+        )
         .build()
         .unwrap();
 
@@ -28,8 +46,11 @@ fn main() {
     // 2. DROP rows with NaN
     println!("=== 2. DROPNA - Remove rows with missing values ===");
     let cleaned = df.dropna().unwrap();
-    println!("After dropna() - {} rows remain (from {} original):",
-             cleaned.n_rows(), df.n_rows());
+    println!(
+        "After dropna() - {} rows remain (from {} original):",
+        cleaned.n_rows(),
+        df.n_rows()
+    );
     println!("{}\n", cleaned);
 
     // 3. FILL with constant value
@@ -49,7 +70,8 @@ fn main() {
     println!("{}", filled_mean);
 
     // Show what the means were
-    let means = df.select(&["age", "income", "score"])
+    let means = df
+        .select(&["age", "income", "score"])
         .unwrap()
         .dropna()
         .unwrap()
@@ -66,7 +88,8 @@ fn main() {
     println!("NaN values replaced with column medians:");
     println!("{}", filled_median);
 
-    let medians = df.select(&["age", "income", "score"])
+    let medians = df
+        .select(&["age", "income", "score"])
         .unwrap()
         .dropna()
         .unwrap()
@@ -90,9 +113,10 @@ fn main() {
 
     // Custom strategy
     let processed = df
-        .fillna_median()  // Fill all with median first
+        .fillna_median() // Fill all with median first
         .unwrap()
-        .filter(|row| {   // Then remove rows where critical columns still problematic
+        .filter(|row| {
+            // Then remove rows where critical columns still problematic
             row.get("id").map(|&v| !v.is_nan()).unwrap_or(false)
         })
         .unwrap();
@@ -108,16 +132,30 @@ fn main() {
     let stats_median = df.fillna_median().unwrap();
 
     println!("Mean income:");
-    println!("  After dropna: {:.2}", stats_original.mean().get("income").unwrap());
-    println!("  After fillna_mean: {:.2}", stats_mean.mean().get("income").unwrap());
-    println!("  After fillna_median: {:.2}", stats_median.mean().get("income").unwrap());
+    println!(
+        "  After dropna: {:.2}",
+        stats_original.mean().get("income").unwrap()
+    );
+    println!(
+        "  After fillna_mean: {:.2}",
+        stats_mean.mean().get("income").unwrap()
+    );
+    println!(
+        "  After fillna_median: {:.2}",
+        stats_median.mean().get("income").unwrap()
+    );
 
     println!("\nDataFrame sizes:");
     println!("  Original: {} rows", df.n_rows());
-    println!("  After dropna: {} rows ({:.1}% data loss)",
-             stats_original.n_rows(),
-             (1.0 - stats_original.n_rows() as f64 / df.n_rows() as f64) * 100.0);
-    println!("  After fillna: {} rows (no data loss)", stats_mean.n_rows());
+    println!(
+        "  After dropna: {} rows ({:.1}% data loss)",
+        stats_original.n_rows(),
+        (1.0 - stats_original.n_rows() as f64 / df.n_rows() as f64) * 100.0
+    );
+    println!(
+        "  After fillna: {} rows (no data loss)",
+        stats_mean.n_rows()
+    );
 
     println!("\n=== BEST PRACTICES ===");
     println!("1. Always check for missing values first: has_na(), count_na()");

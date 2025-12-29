@@ -2,15 +2,30 @@ use greeners::DataFrame;
 
 fn main() {
     println!("=== TIME SERIES & ADVANCED FEATURES ===\n");
-    println!("Demonstrating: rolling, cumulative, shift, quantile, rank, drop_duplicates, interpolate\n");
+    println!(
+        "Demonstrating: rolling, cumulative, shift, quantile, rank, drop_duplicates, interpolate\n"
+    );
 
     // ========== 1. ROLLING WINDOW FUNCTIONS ==========
     println!("=== 1. ROLLING - Moving Averages & Window Aggregations ===\n");
 
     let stock_prices = DataFrame::builder()
-        .add_column("day", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0])
-        .add_column("price", vec![100.0, 102.0, 98.0, 105.0, 110.0, 108.0, 115.0, 112.0, 118.0, 120.0])
-        .add_column("volume", vec![1000.0, 1200.0, 900.0, 1500.0, 1800.0, 1600.0, 2000.0, 1700.0, 2100.0, 2200.0])
+        .add_column(
+            "day",
+            vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
+        )
+        .add_column(
+            "price",
+            vec![
+                100.0, 102.0, 98.0, 105.0, 110.0, 108.0, 115.0, 112.0, 118.0, 120.0,
+            ],
+        )
+        .add_column(
+            "volume",
+            vec![
+                1000.0, 1200.0, 900.0, 1500.0, 1800.0, 1600.0, 2000.0, 1700.0, 2100.0, 2200.0,
+            ],
+        )
         .build()
         .unwrap();
 
@@ -20,34 +35,58 @@ fn main() {
     // Rolling mean (3-day moving average)
     println!("--- 3-Day Moving Average (price) ---");
     let ma3 = stock_prices.rolling("price", 3, "mean").unwrap();
-    println!("{}\n", ma3.select(&["day", "price", "price_rolling_mean"]).unwrap());
+    println!(
+        "{}\n",
+        ma3.select(&["day", "price", "price_rolling_mean"]).unwrap()
+    );
 
     // Rolling sum (3-day volume)
     println!("--- 3-Day Rolling Volume Sum ---");
     let vol_sum = stock_prices.rolling("volume", 3, "sum").unwrap();
-    println!("{}\n", vol_sum.select(&["day", "volume", "volume_rolling_sum"]).unwrap());
+    println!(
+        "{}\n",
+        vol_sum
+            .select(&["day", "volume", "volume_rolling_sum"])
+            .unwrap()
+    );
 
     // Rolling max (5-day high)
     println!("--- 5-Day High Price ---");
     let high5 = stock_prices.rolling("price", 5, "max").unwrap();
-    println!("{}\n", high5.select(&["day", "price", "price_rolling_max"]).unwrap());
+    println!(
+        "{}\n",
+        high5
+            .select(&["day", "price", "price_rolling_max"])
+            .unwrap()
+    );
 
     // Rolling min (5-day low)
     println!("--- 5-Day Low Price ---");
     let low5 = stock_prices.rolling("price", 5, "min").unwrap();
-    println!("{}\n", low5.select(&["day", "price", "price_rolling_min"]).unwrap());
+    println!(
+        "{}\n",
+        low5.select(&["day", "price", "price_rolling_min"]).unwrap()
+    );
 
     // Rolling std (volatility)
     println!("--- 3-Day Price Volatility (std) ---");
     let volatility = stock_prices.rolling("price", 3, "std").unwrap();
-    println!("{}\n", volatility.select(&["day", "price", "price_rolling_std"]).unwrap());
+    println!(
+        "{}\n",
+        volatility
+            .select(&["day", "price", "price_rolling_std"])
+            .unwrap()
+    );
 
     // ========== 2. CUMULATIVE OPERATIONS ==========
     println!("\n=== 2. CUMULATIVE OPERATIONS - Running Totals ===\n");
 
     let sales = DataFrame::builder()
         .add_column("month", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
-        .add_column("revenue", vec![1000.0, 1200.0, 1500.0, 1300.0, 1800.0, 2000.0])
+        .add_column(
+            "revenue",
+            vec![1000.0, 1200.0, 1500.0, 1300.0, 1800.0, 2000.0],
+        )
         .add_column("growth", vec![1.0, 1.2, 1.15, 1.1, 1.25, 1.3])
         .build()
         .unwrap();
@@ -106,8 +145,14 @@ fn main() {
     println!("\n=== 4. QUANTILE - Percentile Analysis ===\n");
 
     let scores = DataFrame::builder()
-        .add_column("student", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0])
-        .add_column("score", vec![45.0, 67.0, 78.0, 82.0, 88.0, 91.0, 93.0, 95.0, 98.0, 100.0])
+        .add_column(
+            "student",
+            vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
+        )
+        .add_column(
+            "score",
+            vec![45.0, 67.0, 78.0, 82.0, 88.0, 91.0, 93.0, 95.0, 98.0, 100.0],
+        )
         .build()
         .unwrap();
 
@@ -115,11 +160,26 @@ fn main() {
     println!("{}\n", scores);
 
     println!("Percentile analysis:");
-    println!("  25th percentile (Q1): {:.1}", scores.quantile("score", 0.25).unwrap());
-    println!("  50th percentile (median): {:.1}", scores.quantile("score", 0.50).unwrap());
-    println!("  75th percentile (Q3): {:.1}", scores.quantile("score", 0.75).unwrap());
-    println!("  90th percentile: {:.1}", scores.quantile("score", 0.90).unwrap());
-    println!("  95th percentile: {:.1}\n", scores.quantile("score", 0.95).unwrap());
+    println!(
+        "  25th percentile (Q1): {:.1}",
+        scores.quantile("score", 0.25).unwrap()
+    );
+    println!(
+        "  50th percentile (median): {:.1}",
+        scores.quantile("score", 0.50).unwrap()
+    );
+    println!(
+        "  75th percentile (Q3): {:.1}",
+        scores.quantile("score", 0.75).unwrap()
+    );
+    println!(
+        "  90th percentile: {:.1}",
+        scores.quantile("score", 0.90).unwrap()
+    );
+    println!(
+        "  95th percentile: {:.1}\n",
+        scores.quantile("score", 0.95).unwrap()
+    );
 
     // ========== 5. RANK - VALUE RANKING ==========
     println!("=== 5. RANK - Ranking Values ===\n");
@@ -148,7 +208,10 @@ fn main() {
 
     let transactions = DataFrame::builder()
         .add_column("transaction_id", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0])
-        .add_column("customer", vec![101.0, 102.0, 101.0, 103.0, 102.0, 104.0, 103.0])
+        .add_column(
+            "customer",
+            vec![101.0, 102.0, 101.0, 103.0, 102.0, 104.0, 103.0],
+        )
         .add_column("amount", vec![50.0, 75.0, 60.0, 100.0, 80.0, 90.0, 110.0])
         .build()
         .unwrap();
@@ -158,7 +221,11 @@ fn main() {
 
     println!("--- After dropping duplicate customers (keeps first) ---");
     let unique_customers = transactions.drop_duplicates("customer").unwrap();
-    println!("Unique customers: {} (from {} transactions)\n", unique_customers.n_rows(), transactions.n_rows());
+    println!(
+        "Unique customers: {} (from {} transactions)\n",
+        unique_customers.n_rows(),
+        transactions.n_rows()
+    );
     println!("{}\n", unique_customers);
 
     // ========== 7. INTERPOLATE - FILL MISSING VALUES ==========
@@ -166,7 +233,10 @@ fn main() {
 
     let sensor_data = DataFrame::builder()
         .add_column("time", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])
-        .add_column("temperature", vec![20.0, 22.0, f64::NAN, f64::NAN, 28.0, f64::NAN, 32.0, 34.0])
+        .add_column(
+            "temperature",
+            vec![20.0, 22.0, f64::NAN, f64::NAN, 28.0, f64::NAN, 32.0, 34.0],
+        )
         .build()
         .unwrap();
 
@@ -181,8 +251,16 @@ fn main() {
     println!("\n=== 8. REAL-WORLD EXAMPLE - Stock Analysis ===\n");
 
     let stock = DataFrame::builder()
-        .add_column("day", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0])
-        .add_column("close", vec![100.0, 102.0, 98.0, 105.0, 110.0, 108.0, 115.0, 112.0, 118.0, 120.0])
+        .add_column(
+            "day",
+            vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
+        )
+        .add_column(
+            "close",
+            vec![
+                100.0, 102.0, 98.0, 105.0, 110.0, 108.0, 115.0, 112.0, 118.0, 120.0,
+            ],
+        )
         .build()
         .unwrap();
 
@@ -192,17 +270,30 @@ fn main() {
     // Calculate 3-day moving average
     let with_ma = stock.rolling("close", 3, "mean").unwrap();
     println!("Step 2: Add 3-day moving average");
-    println!("{}\n", with_ma.select(&["day", "close", "close_rolling_mean"]).unwrap());
+    println!(
+        "{}\n",
+        with_ma
+            .select(&["day", "close", "close_rolling_mean"])
+            .unwrap()
+    );
 
     // Calculate daily change (lag)
     let with_prev = stock.shift("close", 1).unwrap();
     println!("Step 3: Add previous day's close");
-    println!("{}\n", with_prev.select(&["day", "close", "close_shift_1"]).unwrap());
+    println!(
+        "{}\n",
+        with_prev
+            .select(&["day", "close", "close_shift_1"])
+            .unwrap()
+    );
 
     // Calculate all-time high
     let with_ath = stock.cummax("close").unwrap();
     println!("Step 4: Add all-time high");
-    println!("{}\n", with_ath.select(&["day", "close", "close_cummax"]).unwrap());
+    println!(
+        "{}\n",
+        with_ath.select(&["day", "close", "close_cummax"]).unwrap()
+    );
 
     // Rank by price
     let with_rank = stock.rank("close", false).unwrap();
@@ -214,7 +305,10 @@ fn main() {
 
     let timeseries = DataFrame::builder()
         .add_column("t", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])
-        .add_column("value", vec![10.0, f64::NAN, 14.0, 16.0, f64::NAN, 22.0, 25.0, 28.0])
+        .add_column(
+            "value",
+            vec![10.0, f64::NAN, 14.0, 16.0, f64::NAN, 22.0, 25.0, 28.0],
+        )
         .build()
         .unwrap();
 
@@ -229,12 +323,20 @@ fn main() {
     // Step 2: Add 3-period moving average
     let with_ma = filled.rolling("value", 3, "mean").unwrap();
     println!("After adding rolling mean:");
-    println!("{}\n", with_ma.select(&["t", "value", "value_rolling_mean"]).unwrap());
+    println!(
+        "{}\n",
+        with_ma
+            .select(&["t", "value", "value_rolling_mean"])
+            .unwrap()
+    );
 
     // Step 3: Add cumulative sum
     let with_cumsum = with_ma.cumsum("value").unwrap();
     println!("After adding cumulative sum:");
-    println!("{}\n", with_cumsum.select(&["t", "value", "value_cumsum"]).unwrap());
+    println!(
+        "{}\n",
+        with_cumsum.select(&["t", "value", "value_cumsum"]).unwrap()
+    );
 
     // ========== SUMMARY ==========
     println!("\n=== FEATURE SUMMARY ===\n");

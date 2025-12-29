@@ -11,7 +11,12 @@ fn main() {
         .add_column("date", vec![1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0])
         .add_column("product", vec![1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 1.0, 2.0, 3.0])
         .add_column("region", vec![1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0])
-        .add_column("sales", vec![100.0, 150.0, 200.0, 120.0, 180.0, 220.0, 110.0, 160.0, 210.0])
+        .add_column(
+            "sales",
+            vec![
+                100.0, 150.0, 200.0, 120.0, 180.0, 220.0, 110.0, 160.0, 210.0,
+            ],
+        )
         .build()
         .unwrap();
 
@@ -85,9 +90,20 @@ fn main() {
     // Daily sales by store and department
     let store_sales = DataFrame::builder()
         .add_column("store", vec![1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0])
-        .add_column("department", vec![1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 1.0, 2.0, 3.0])
-        .add_column("revenue", vec![1000.0, 1500.0, 2000.0, 1200.0, 1600.0, 2200.0, 900.0, 1400.0, 1900.0])
-        .add_column("customers", vec![50.0, 75.0, 100.0, 60.0, 80.0, 110.0, 45.0, 70.0, 95.0])
+        .add_column(
+            "department",
+            vec![1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 1.0, 2.0, 3.0],
+        )
+        .add_column(
+            "revenue",
+            vec![
+                1000.0, 1500.0, 2000.0, 1200.0, 1600.0, 2200.0, 900.0, 1400.0, 1900.0,
+            ],
+        )
+        .add_column(
+            "customers",
+            vec![50.0, 75.0, 100.0, 60.0, 80.0, 110.0, 45.0, 70.0, 95.0],
+        )
         .build()
         .unwrap();
 

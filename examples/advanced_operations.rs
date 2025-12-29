@@ -82,8 +82,14 @@ fn main() {
     let transactions = DataFrame::builder()
         .add_column("category", vec![1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0])
         .add_column("region", vec![1.0, 1.0, 2.0, 1.0, 2.0, 2.0, 1.0, 2.0])
-        .add_column("revenue", vec![100.0, 150.0, 200.0, 300.0, 250.0, 400.0, 500.0, 350.0])
-        .add_column("quantity", vec![5.0, 7.0, 10.0, 15.0, 12.0, 20.0, 25.0, 18.0])
+        .add_column(
+            "revenue",
+            vec![100.0, 150.0, 200.0, 300.0, 250.0, 400.0, 500.0, 350.0],
+        )
+        .add_column(
+            "quantity",
+            vec![5.0, 7.0, 10.0, 15.0, 12.0, 20.0, 25.0, 18.0],
+        )
         .build()
         .unwrap();
 
@@ -92,17 +98,23 @@ fn main() {
 
     // Group by category and sum revenue
     println!("--- Total revenue by category ---");
-    let by_category = transactions.groupby(&["category"], "revenue", "sum").unwrap();
+    let by_category = transactions
+        .groupby(&["category"], "revenue", "sum")
+        .unwrap();
     println!("{}\n", by_category);
 
     // Group by category and count transactions
     println!("--- Transaction count by category ---");
-    let count_by_cat = transactions.groupby(&["category"], "revenue", "count").unwrap();
+    let count_by_cat = transactions
+        .groupby(&["category"], "revenue", "count")
+        .unwrap();
     println!("{}\n", count_by_cat);
 
     // Group by category and calculate mean
     println!("--- Average revenue by category ---");
-    let avg_by_cat = transactions.groupby(&["category"], "revenue", "mean").unwrap();
+    let avg_by_cat = transactions
+        .groupby(&["category"], "revenue", "mean")
+        .unwrap();
     println!("{}\n", avg_by_cat);
 
     // Group by region
@@ -112,20 +124,28 @@ fn main() {
 
     // Group by multiple columns
     println!("--- Total revenue by category AND region ---");
-    let by_both = transactions.groupby(&["category", "region"], "revenue", "sum").unwrap();
+    let by_both = transactions
+        .groupby(&["category", "region"], "revenue", "sum")
+        .unwrap();
     println!("{}\n", by_both);
 
     // Other aggregations
     println!("--- Maximum revenue by category ---");
-    let max_by_cat = transactions.groupby(&["category"], "revenue", "max").unwrap();
+    let max_by_cat = transactions
+        .groupby(&["category"], "revenue", "max")
+        .unwrap();
     println!("{}\n", max_by_cat);
 
     println!("--- Minimum revenue by category ---");
-    let min_by_cat = transactions.groupby(&["category"], "revenue", "min").unwrap();
+    let min_by_cat = transactions
+        .groupby(&["category"], "revenue", "min")
+        .unwrap();
     println!("{}\n", min_by_cat);
 
     println!("--- Median revenue by category ---");
-    let median_by_cat = transactions.groupby(&["category"], "revenue", "median").unwrap();
+    let median_by_cat = transactions
+        .groupby(&["category"], "revenue", "median")
+        .unwrap();
     println!("{}\n", median_by_cat);
 
     // ========== 4. COMBINED WORKFLOW ==========
@@ -139,15 +159,21 @@ fn main() {
     println!("{}\n", customer_orders);
 
     // Step 2: Group by region and calculate metrics
-    let region_analysis = customer_orders.groupby(&["region"], "order_value", "sum").unwrap();
+    let region_analysis = customer_orders
+        .groupby(&["region"], "order_value", "sum")
+        .unwrap();
     println!("Step 2: Total order value by region");
     println!("{}\n", region_analysis);
 
-    let region_count = customer_orders.groupby(&["region"], "order_value", "count").unwrap();
+    let region_count = customer_orders
+        .groupby(&["region"], "order_value", "count")
+        .unwrap();
     println!("Step 3: Number of orders by region");
     println!("{}\n", region_count);
 
-    let region_avg = customer_orders.groupby(&["region"], "order_value", "mean").unwrap();
+    let region_avg = customer_orders
+        .groupby(&["region"], "order_value", "mean")
+        .unwrap();
     println!("Step 4: Average order value by region");
     println!("{}\n", region_avg);
 
