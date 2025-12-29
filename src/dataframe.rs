@@ -141,6 +141,10 @@ impl DataFrame {
                 "Column '{}' is boolean. Use get_bool() or get_column()",
                 name
             ))),
+            Column::Int(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is integer. Use get_int() or get_column()",
+                name
+            ))),
         }
     }
 
@@ -164,6 +168,10 @@ impl DataFrame {
             ))),
             Column::Bool(_) => Err(GreenersError::VariableNotFound(format!(
                 "Column '{}' is boolean. Cannot get mutable reference",
+                name
+            ))),
+            Column::Int(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is integer. Cannot get mutable reference",
                 name
             ))),
         }
@@ -216,6 +224,10 @@ impl DataFrame {
                 "Column '{}' is boolean, not categorical",
                 name
             ))),
+            Column::Int(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is integer, not categorical",
+                name
+            ))),
         }
     }
 
@@ -243,6 +255,43 @@ impl DataFrame {
             ))),
             Column::Categorical(_) => Err(GreenersError::VariableNotFound(format!(
                 "Column '{}' is categorical, not boolean",
+                name
+            ))),
+            Column::Int(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is integer, not boolean",
+                name
+            ))),
+        }
+    }
+
+    /// Get an integer column by name.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    /// use ndarray::Array1;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_int("user_id", vec![1, 2, 3])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let int_col = df.get_int("user_id").unwrap();
+    /// assert_eq!(int_col[0], 1);
+    /// ```
+    pub fn get_int(&self, name: &str) -> Result<&Array1<i64>, GreenersError> {
+        match self.get_column(name)? {
+            Column::Int(arr) => Ok(arr),
+            Column::Float(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is float, not integer",
+                name
+            ))),
+            Column::Categorical(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is categorical, not integer",
+                name
+            ))),
+            Column::Bool(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is boolean, not integer",
                 name
             ))),
         }
@@ -1352,6 +1401,7 @@ impl DataFrame {
                         Column::Float(arr) => arr[i].to_string(),
                         Column::Categorical(cat) => cat.get_string(i).unwrap_or("NA").to_string(),
                         Column::Bool(arr) => arr[i].to_string(),
+                        Column::Int(arr) => arr[i].to_string(),
                     }
                 })
                 .collect();
@@ -1398,6 +1448,7 @@ impl DataFrame {
                 Column::Float(arr) => serde_json::to_value(arr.to_vec()).unwrap(),
                 Column::Categorical(cat) => serde_json::to_value(cat.to_strings()).unwrap(),
                 Column::Bool(arr) => serde_json::to_value(arr.to_vec()).unwrap(),
+                Column::Int(arr) => serde_json::to_value(arr.to_vec()).unwrap(),
             };
             data.insert(name.clone(), value);
         }
@@ -1632,6 +1683,12 @@ impl DataFrame {
                     let mut combined_vec = arr1.to_vec();
                     combined_vec.extend_from_slice(arr2.as_slice().unwrap());
                     Column::Bool(Array1::from(combined_vec))
+                }
+                (Column::Int(arr1), Column::Int(arr2)) => {
+                    // Concatenate Int columns
+                    let mut combined_vec = arr1.to_vec();
+                    combined_vec.extend_from_slice(arr2.as_slice().unwrap());
+                    Column::Int(Array1::from(combined_vec))
                 }
                 _ => {
                     return Err(GreenersError::ShapeMismatch(format!(
@@ -1956,13 +2013,14 @@ impl DataFrame {
         let mut new_columns = HashMap::new();
 
         for (col_name, col_data) in &self.columns {
-            // Only fill NaN in Float columns (Categorical and Bool have no NaN concept)
+            // Only fill NaN in Float columns (Categorical, Bool, and Int have no NaN concept)
             let filled = match col_data {
                 Column::Float(arr) => {
                     Column::Float(arr.mapv(|v| if v.is_nan() { value } else { v }))
                 }
                 Column::Categorical(_) => col_data.clone(), // Categorical unchanged
                 Column::Bool(_) => col_data.clone(),        // Bool unchanged
+                Column::Int(_) => col_data.clone(),         // Int unchanged
             };
             new_columns.insert(col_name.clone(), filled);
         }
@@ -2000,6 +2058,7 @@ impl DataFrame {
             Column::Float(arr) => Column::Float(arr.mapv(|v| if v.is_nan() { value } else { v })),
             Column::Categorical(_) => col_data.clone(), // Categorical unchanged
             Column::Bool(_) => col_data.clone(),        // Bool unchanged
+            Column::Int(_) => col_data.clone(),         // Int unchanged
         };
         new_columns.insert(column.to_string(), filled);
 
@@ -2045,6 +2104,7 @@ impl DataFrame {
                 }
                 Column::Categorical(_) => col_data.clone(), // Categorical unchanged
                 Column::Bool(_) => col_data.clone(),        // Bool unchanged
+                Column::Int(_) => col_data.clone(),         // Int unchanged
             };
             new_columns.insert(col_name.clone(), filled);
         }
@@ -2097,6 +2157,7 @@ impl DataFrame {
                 }
                 Column::Categorical(_) => col_data.clone(), // Categorical unchanged
                 Column::Bool(_) => col_data.clone(),        // Bool unchanged
+                Column::Int(_) => col_data.clone(),         // Int unchanged
             };
             new_columns.insert(col_name.clone(), filled);
         }
@@ -2128,6 +2189,7 @@ impl DataFrame {
                     Column::Float(arr) => arr.iter().filter(|v| v.is_nan()).count(),
                     Column::Categorical(_) => 0, // Categorical has no NaN
                     Column::Bool(_) => 0,        // Bool has no NaN
+                    Column::Int(_) => 0,         // Int has no NaN
                 };
                 (name.clone(), count)
             })
@@ -2157,6 +2219,7 @@ impl DataFrame {
             Column::Float(arr) => arr.iter().any(|v| v.is_nan()),
             Column::Categorical(_) => false, // Categorical has no NaN
             Column::Bool(_) => false,        // Bool has no NaN
+            Column::Int(_) => false,         // Int has no NaN
         })
     }
 
@@ -3261,6 +3324,7 @@ impl std::fmt::Display for DataFrame {
                     cat.to_strings().iter().map(|s| s.len()).max().unwrap_or(0)
                 }
                 Column::Bool(_) => 5, // "true" or "false" - max is 5
+                Column::Int(arr) => arr.iter().map(|v| v.to_string().len()).max().unwrap_or(0),
             };
             widths.insert(name.clone(), name.len().max(max_value_width));
         }
@@ -3303,6 +3367,9 @@ impl std::fmt::Display for DataFrame {
                         write!(f, "{:>width$}", value_str, width = widths[name])?;
                     }
                     Column::Bool(arr) => {
+                        write!(f, "{:>width$}", arr[row_idx], width = widths[name])?;
+                    }
+                    Column::Int(arr) => {
                         write!(f, "{:>width$}", arr[row_idx], width = widths[name])?;
                     }
                 }
@@ -3386,6 +3453,23 @@ impl DataFrameBuilder {
     pub fn add_bool(mut self, name: &str, values: Vec<bool>) -> Self {
         self.columns
             .insert(name.to_string(), Column::from_bool(Array1::from(values)));
+        self
+    }
+
+    /// Add an Int column from integer values
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_int("user_id", vec![1, 2, 3, 4])
+    ///     .build()
+    ///     .unwrap();
+    /// ```
+    pub fn add_int(mut self, name: &str, values: Vec<i64>) -> Self {
+        self.columns
+            .insert(name.to_string(), Column::from_int(Array1::from(values)));
         self
     }
 
