@@ -31,6 +31,7 @@ reqwest = { version = "0.12", features = ["blocking", "json"] }
 rand = "0.8"
 ndarray-rand = "0.14"
 num-complex = "0.4.6"
+chrono = { version = "0.4", features = ["serde"] }
 
 [dev-dependencies]
 ndarray-rand = "0.14" # Para gerar matrizes aleatórias nos exemplos
