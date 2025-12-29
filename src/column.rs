@@ -1,5 +1,6 @@
 use ndarray::Array1;
 use std::collections::HashMap;
+use chrono::NaiveDateTime;
 
 /// Data type of a column
 #[derive(Debug, Clone, PartialEq)]
@@ -8,6 +9,7 @@ pub enum DataType {
     Categorical,
     Bool,
     Int,
+    DateTime,
 }
 
 /// Categorical column with string levels and integer codes
@@ -157,6 +159,8 @@ pub enum Column {
     Bool(Array1<bool>),
     /// Integer column (signed 64-bit)
     Int(Array1<i64>),
+    /// DateTime column (without timezone)
+    DateTime(Array1<NaiveDateTime>),
 }
 
 impl Column {
@@ -167,6 +171,7 @@ impl Column {
             Column::Categorical(_) => DataType::Categorical,
             Column::Bool(_) => DataType::Bool,
             Column::Int(_) => DataType::Int,
+            Column::DateTime(_) => DataType::DateTime,
         }
     }
 
@@ -177,6 +182,7 @@ impl Column {
             Column::Categorical(cat) => cat.len(),
             Column::Bool(arr) => arr.len(),
             Column::Int(arr) => arr.len(),
+            Column::DateTime(arr) => arr.len(),
         }
     }
 
@@ -192,6 +198,7 @@ impl Column {
             Column::Categorical(_) => None,
             Column::Bool(_) => None,
             Column::Int(_) => None,
+            Column::DateTime(_) => None,
         }
     }
 
@@ -202,6 +209,7 @@ impl Column {
             Column::Categorical(cat) => Some(cat),
             Column::Bool(_) => None,
             Column::Int(_) => None,
+            Column::DateTime(_) => None,
         }
     }
 
@@ -212,6 +220,7 @@ impl Column {
             Column::Categorical(_) => None,
             Column::Bool(arr) => Some(arr),
             Column::Int(_) => None,
+            Column::DateTime(_) => None,
         }
     }
 
@@ -222,10 +231,22 @@ impl Column {
             Column::Categorical(_) => None,
             Column::Bool(_) => None,
             Column::Int(arr) => Some(arr),
+            Column::DateTime(_) => None,
         }
     }
 
-    /// Convert to float array (categorical -> codes as f64, bool -> 1.0/0.0, int -> f64)
+    /// Try to get as datetime array
+    pub fn as_datetime(&self) -> Option<&Array1<NaiveDateTime>> {
+        match self {
+            Column::Float(_) => None,
+            Column::Categorical(_) => None,
+            Column::Bool(_) => None,
+            Column::Int(_) => None,
+            Column::DateTime(arr) => Some(arr),
+        }
+    }
+
+    /// Convert to float array (categorical -> codes as f64, bool -> 1.0/0.0, int -> f64, datetime -> timestamp)
     pub fn to_float(&self) -> Array1<f64> {
         match self {
             Column::Float(arr) => arr.clone(),
@@ -236,6 +257,11 @@ impl Column {
                     .collect::<Vec<_>>(),
             ),
             Column::Int(arr) => Array1::from(arr.iter().map(|&i| i as f64).collect::<Vec<_>>()),
+            Column::DateTime(arr) => Array1::from(
+                arr.iter()
+                    .map(|dt| dt.and_utc().timestamp() as f64)
+                    .collect::<Vec<_>>(),
+            ),
         }
     }
 
@@ -254,6 +280,10 @@ impl Column {
             Column::Int(arr) => {
                 let filtered: Vec<i64> = indices.iter().map(|&i| arr[i]).collect();
                 Column::Int(Array1::from(filtered))
+            }
+            Column::DateTime(arr) => {
+                let filtered: Vec<NaiveDateTime> = indices.iter().map(|&i| arr[i]).collect();
+                Column::DateTime(Array1::from(filtered))
             }
         }
     }
@@ -276,6 +306,11 @@ impl Column {
     /// Create from int array
     pub fn from_int(arr: Array1<i64>) -> Self {
         Column::Int(arr)
+    }
+
+    /// Create from datetime array
+    pub fn from_datetime(arr: Array1<NaiveDateTime>) -> Self {
+        Column::DateTime(arr)
     }
 }
 
@@ -545,5 +580,97 @@ mod tests {
         let float_arr = int_col.to_float();
         assert_eq!(float_arr[0], -10.0);
         assert_eq!(float_arr[4], 10.0);
+    }
+
+    #[test]
+    fn test_datetime_column_creation() {
+        use chrono::NaiveDate;
+
+        let dates = vec![
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap(),
+            NaiveDate::from_ymd_opt(2024, 1, 2).unwrap().and_hms_opt(12, 30, 45).unwrap(),
+            NaiveDate::from_ymd_opt(2024, 1, 3).unwrap().and_hms_opt(23, 59, 59).unwrap(),
+        ];
+
+        let dt_col = Column::from_datetime(Array1::from(dates.clone()));
+        assert_eq!(dt_col.dtype(), DataType::DateTime);
+        assert_eq!(dt_col.len(), 3);
+
+        let arr = dt_col.as_datetime().unwrap();
+        assert_eq!(arr[0], dates[0]);
+        assert_eq!(arr[1], dates[1]);
+        assert_eq!(arr[2], dates[2]);
+    }
+
+    #[test]
+    fn test_datetime_column_as_datetime() {
+        use chrono::NaiveDate;
+
+        let dt_col = Column::from_datetime(Array1::from(vec![
+            NaiveDate::from_ymd_opt(2024, 6, 15).unwrap().and_hms_opt(10, 30, 0).unwrap(),
+        ]));
+
+        if let Some(arr) = dt_col.as_datetime() {
+            assert_eq!(arr.len(), 1);
+            assert_eq!(arr[0].format("%Y-%m-%d %H:%M:%S").to_string(), "2024-06-15 10:30:00");
+        } else {
+            panic!("Expected DateTime column");
+        }
+    }
+
+    #[test]
+    fn test_datetime_column_to_float() {
+        use chrono::NaiveDate;
+
+        let dt = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap();
+        let dt_col = Column::from_datetime(Array1::from(vec![dt]));
+
+        let float_arr = dt_col.to_float();
+        assert_eq!(float_arr.len(), 1);
+        // Should convert to Unix timestamp
+        assert_eq!(float_arr[0], dt.and_utc().timestamp() as f64);
+    }
+
+    #[test]
+    fn test_datetime_column_filter_indices() {
+        use chrono::NaiveDate;
+
+        let dates = vec![
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap(),
+            NaiveDate::from_ymd_opt(2024, 1, 2).unwrap().and_hms_opt(0, 0, 0).unwrap(),
+            NaiveDate::from_ymd_opt(2024, 1, 3).unwrap().and_hms_opt(0, 0, 0).unwrap(),
+            NaiveDate::from_ymd_opt(2024, 1, 4).unwrap().and_hms_opt(0, 0, 0).unwrap(),
+        ];
+
+        let dt_col = Column::from_datetime(Array1::from(dates.clone()));
+        let filtered = dt_col.filter_indices(&[0, 2, 3]);
+
+        if let Some(arr) = filtered.as_datetime() {
+            assert_eq!(arr.len(), 3);
+            assert_eq!(arr[0], dates[0]);
+            assert_eq!(arr[1], dates[2]);
+            assert_eq!(arr[2], dates[3]);
+        } else {
+            panic!("Expected DateTime column");
+        }
+    }
+
+    #[test]
+    fn test_datetime_column_timestamp_conversion() {
+        use chrono::NaiveDate;
+
+        let dates = vec![
+            NaiveDate::from_ymd_opt(2020, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap(),
+            NaiveDate::from_ymd_opt(2021, 6, 15).unwrap().and_hms_opt(12, 0, 0).unwrap(),
+            NaiveDate::from_ymd_opt(2024, 12, 31).unwrap().and_hms_opt(23, 59, 59).unwrap(),
+        ];
+
+        let dt_col = Column::from_datetime(Array1::from(dates.clone()));
+        let float_arr = dt_col.to_float();
+
+        // Verify each conversion
+        for (i, dt) in dates.iter().enumerate() {
+            assert_eq!(float_arr[i], dt.and_utc().timestamp() as f64);
+        }
     }
 }
