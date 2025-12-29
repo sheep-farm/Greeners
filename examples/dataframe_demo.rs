@@ -8,8 +8,16 @@ fn main() {
     let df = DataFrame::builder()
         .add_column("id", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])
         .add_column("age", vec![25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0])
-        .add_column("salary", vec![50000.0, 60000.0, 75000.0, 80000.0, 90000.0, 95000.0, 100000.0, 110000.0])
-        .add_column("experience", vec![2.0, 5.0, 8.0, 12.0, 15.0, 20.0, 25.0, 30.0])
+        .add_column(
+            "salary",
+            vec![
+                50000.0, 60000.0, 75000.0, 80000.0, 90000.0, 95000.0, 100000.0, 110000.0,
+            ],
+        )
+        .add_column(
+            "experience",
+            vec![2.0, 5.0, 8.0, 12.0, 15.0, 20.0, 25.0, 30.0],
+        )
         .build()
         .unwrap();
 
@@ -56,9 +64,9 @@ fn main() {
 
     // Test filter()
     println!("=== Filter (salary > 80000) ===");
-    let filtered = df.filter(|row| {
-        row.get("salary").map(|&v| v > 80000.0).unwrap_or(false)
-    }).unwrap();
+    let filtered = df
+        .filter(|row| row.get("salary").map(|&v| v > 80000.0).unwrap_or(false))
+        .unwrap();
     println!("{}\n", filtered);
 
     // Test sort_by()

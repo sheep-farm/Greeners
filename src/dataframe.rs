@@ -800,8 +800,8 @@ impl DataFrame {
             .iter()
             .map(|(name, col)| {
                 let mean = col.sum() / col.len() as f64;
-                let variance = col.iter().map(|&x| (x - mean).powi(2)).sum::<f64>()
-                    / col.len() as f64;
+                let variance =
+                    col.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / col.len() as f64;
                 (name.clone(), variance.sqrt())
             })
             .collect()
@@ -826,8 +826,8 @@ impl DataFrame {
             .iter()
             .map(|(name, col)| {
                 let mean = col.sum() / col.len() as f64;
-                let variance = col.iter().map(|&x| (x - mean).powi(2)).sum::<f64>()
-                    / col.len() as f64;
+                let variance =
+                    col.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / col.len() as f64;
                 (name.clone(), variance)
             })
             .collect()
@@ -1113,8 +1113,9 @@ impl DataFrame {
         use csv::Writer;
         use std::fs::File;
 
-        let file = File::create(path)
-            .map_err(|e| GreenersError::FormulaError(format!("Failed to create CSV file: {}", e)))?;
+        let file = File::create(path).map_err(|e| {
+            GreenersError::FormulaError(format!("Failed to create CSV file: {}", e))
+        })?;
 
         let mut writer = Writer::from_writer(file);
 
@@ -1202,7 +1203,11 @@ impl DataFrame {
     /// ```
     pub fn info(&self) -> String {
         let mut output = String::new();
-        output.push_str(&format!("DataFrame: {} rows, {} columns\n", self.n_rows, self.n_cols()));
+        output.push_str(&format!(
+            "DataFrame: {} rows, {} columns\n",
+            self.n_rows,
+            self.n_cols()
+        ));
         output.push_str("\nColumns:\n");
 
         let mut column_names: Vec<String> = self.columns.keys().cloned().collect();
@@ -1783,7 +1788,8 @@ impl DataFrame {
 
         for (col_name, col_data) in &self.columns {
             // Calculate median excluding NaN values
-            let mut valid_values: Vec<f64> = col_data.iter().filter(|v| !v.is_nan()).copied().collect();
+            let mut valid_values: Vec<f64> =
+                col_data.iter().filter(|v| !v.is_nan()).copied().collect();
 
             if valid_values.is_empty() {
                 // If all values are NaN, keep them as NaN
@@ -1851,7 +1857,9 @@ impl DataFrame {
     /// assert!(df2.has_na());
     /// ```
     pub fn has_na(&self) -> bool {
-        self.columns.values().any(|col| col.iter().any(|v| v.is_nan()))
+        self.columns
+            .values()
+            .any(|col| col.iter().any(|v| v.is_nan()))
     }
 
     /// Append a single row to the DataFrame.
@@ -1932,12 +1940,7 @@ impl DataFrame {
     /// let merged = df1.merge(&df2, "id", "inner").unwrap();
     /// assert_eq!(merged.n_rows(), 2); // Only rows with id 2 and 3
     /// ```
-    pub fn merge(
-        &self,
-        other: &DataFrame,
-        on: &str,
-        how: &str,
-    ) -> Result<Self, GreenersError> {
+    pub fn merge(&self, other: &DataFrame, on: &str, how: &str) -> Result<Self, GreenersError> {
         // Validate join column exists in both DataFrames
         if !self.has_column(on) {
             return Err(GreenersError::VariableNotFound(format!(
@@ -2147,12 +2150,7 @@ impl DataFrame {
     /// let grouped = df.groupby(&["category"], "value", "sum").unwrap();
     /// assert_eq!(grouped.n_rows(), 3); // 3 unique categories
     /// ```
-    pub fn groupby(
-        &self,
-        by: &[&str],
-        value_col: &str,
-        agg: &str,
-    ) -> Result<Self, GreenersError> {
+    pub fn groupby(&self, by: &[&str], value_col: &str, agg: &str) -> Result<Self, GreenersError> {
         // Validate columns exist
         for col in by {
             if !self.has_column(col) {
@@ -2230,7 +2228,10 @@ impl DataFrame {
         for (i, col_name) in by.iter().enumerate() {
             result_columns.insert(col_name.to_string(), Array1::from(result_keys[i].clone()));
         }
-        result_columns.insert(format!("{}_{}", value_col, agg), Array1::from(result_values));
+        result_columns.insert(
+            format!("{}_{}", value_col, agg),
+            Array1::from(result_values),
+        );
 
         DataFrame::new(result_columns)
     }
@@ -2293,7 +2294,8 @@ impl DataFrame {
         let values_data = self.get(values)?;
 
         let unique_indices: BTreeSet<i64> = index_data.iter().map(|&v| v.round() as i64).collect();
-        let unique_columns: BTreeSet<i64> = columns_data.iter().map(|&v| v.round() as i64).collect();
+        let unique_columns: BTreeSet<i64> =
+            columns_data.iter().map(|&v| v.round() as i64).collect();
 
         // Build pivot table structure
         use std::collections::HashMap as StdHashMap;
@@ -2405,9 +2407,8 @@ impl DataFrame {
                 // Not enough data yet
                 result[i] = f64::NAN;
             } else {
-                let window_data: Vec<f64> = col_data
-                    .slice(ndarray::s![i + 1 - window..=i])
-                    .to_vec();
+                let window_data: Vec<f64> =
+                    col_data.slice(ndarray::s![i + 1 - window..=i]).to_vec();
 
                 result[i] = match func {
                     "mean" => window_data.iter().sum::<f64>() / window_data.len() as f64,
@@ -2416,10 +2417,7 @@ impl DataFrame {
                     "max" => window_data.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b)),
                     "std" => {
                         let mean = window_data.iter().sum::<f64>() / window_data.len() as f64;
-                        let variance = window_data
-                            .iter()
-                            .map(|&x| (x - mean).powi(2))
-                            .sum::<f64>()
+                        let variance = window_data.iter().map(|&x| (x - mean).powi(2)).sum::<f64>()
                             / window_data.len() as f64;
                         variance.sqrt()
                     }
@@ -2591,7 +2589,10 @@ impl DataFrame {
         }
 
         let mut new_df = self.clone();
-        new_df.insert(format!("{}_shift_{}", column, periods), Array1::from(shifted))?;
+        new_df.insert(
+            format!("{}_shift_{}", column, periods),
+            Array1::from(shifted),
+        )?;
         Ok(new_df)
     }
 
@@ -2801,7 +2802,9 @@ impl DataFrame {
         }
 
         let mut new_df = self.clone();
-        new_df.columns.insert(column.to_string(), Array1::from(result));
+        new_df
+            .columns
+            .insert(column.to_string(), Array1::from(result));
         Ok(new_df)
     }
 
@@ -3115,9 +3118,9 @@ mod tests {
         let col = result.get("x_rolling_sum").unwrap();
 
         assert!(col[0].is_nan());
-        assert_eq!(col[1], 3.0);  // 1+2
-        assert_eq!(col[2], 5.0);  // 2+3
-        assert_eq!(col[3], 7.0);  // 3+4
+        assert_eq!(col[1], 3.0); // 1+2
+        assert_eq!(col[2], 5.0); // 2+3
+        assert_eq!(col[3], 7.0); // 3+4
     }
 
     #[test]
@@ -3165,8 +3168,8 @@ mod tests {
         let col = result.get("x_cumsum").unwrap();
 
         assert_eq!(col[0], 1.0);
-        assert_eq!(col[1], 3.0);  // 1+2
-        assert_eq!(col[2], 6.0);  // 1+2+3
+        assert_eq!(col[1], 3.0); // 1+2
+        assert_eq!(col[2], 6.0); // 1+2+3
         assert_eq!(col[3], 10.0); // 1+2+3+4
     }
 
@@ -3181,8 +3184,8 @@ mod tests {
         let col = result.get("x_cumprod").unwrap();
 
         assert_eq!(col[0], 2.0);
-        assert_eq!(col[1], 6.0);   // 2*3
-        assert_eq!(col[2], 24.0);  // 2*3*4
+        assert_eq!(col[1], 6.0); // 2*3
+        assert_eq!(col[2], 24.0); // 2*3*4
     }
 
     #[test]
@@ -3439,7 +3442,7 @@ mod tests {
 
         assert!(col[0].is_nan()); // Leading NaN unchanged
         assert_eq!(col[1], 2.0);
-        assert_eq!(col[2], 3.0);  // Interpolated between 2 and 4
+        assert_eq!(col[2], 3.0); // Interpolated between 2 and 4
         assert_eq!(col[3], 4.0);
         assert!(col[4].is_nan()); // Trailing NaN unchanged
     }
@@ -3476,7 +3479,7 @@ mod tests {
         let q0 = df.quantile("x", 0.0).unwrap();
         let q100 = df.quantile("x", 1.0).unwrap();
 
-        assert_eq!(q0, 1.0);  // Minimum
+        assert_eq!(q0, 1.0); // Minimum
         assert_eq!(q100, 5.0); // Maximum
     }
 }
