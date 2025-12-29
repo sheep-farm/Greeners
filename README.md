@@ -10,9 +10,44 @@
 
 Designed for academic research, heavy simulations, and production-grade economic modeling.
 
-## 🎊 v1.0.2 STABLE RELEASE: Named Variables & Enhanced Quality
+## 🎊 v1.0.2 STABLE RELEASE: Named Variables & Enhanced Data Loading
 
-Greeners v1.0.2 brings **human-readable variable names** in regression output.
+Greeners v1.0.2 brings **human-readable variable names** in regression output and **flexible data loading** from multiple sources!
+
+### 🆕 Multiple Data Loading Options (NEW in v1.0.2)
+
+Load data from **CSV, JSON, URLs, or use the Builder pattern** - just like pandas/polars!
+
+```rust
+// 1. CSV from URL (reproducible research!)
+let df = DataFrame::from_csv_url(
+    "https://raw.githubusercontent.com/datasets/gdp/master/data/gdp.csv"
+)?;
+
+// 2. JSON from local file (column or record oriented)
+let df = DataFrame::from_json("data.json")?;
+
+// 3. JSON from URL (API integration)
+let df = DataFrame::from_json_url("https://api.example.com/data.json")?;
+
+// 4. Builder pattern (most convenient!)
+let df = DataFrame::builder()
+    .add_column("wage", vec![30000.0, 40000.0, 50000.0])
+    .add_column("education", vec![12.0, 16.0, 18.0])
+    .build()?;
+
+// 5. CSV from local file (classic)
+let df = DataFrame::from_csv("data.csv")?;
+```
+
+**Why this matters:**
+- ✅ **Reproducible research** - Load datasets directly from GitHub/URLs
+- ✅ **API integration** - Fetch data from web services
+- ✅ **Flexible formats** - CSV, JSON (column/record oriented)
+- ✅ **Pandas-like** - Familiar syntax for data scientists
+- ✅ **Type-safe** - All data loading is checked at compile time
+
+📖 See `examples/dataframe_loading.rs` for all loading methods.
 
 ### Named Variables in Results (NEW in v1.0.2)
 
@@ -579,7 +614,11 @@ ndarray-linalg = { version = "0.14", features = ["openblas"] }
 
 ## 🎯 Quick Start
 
-### Loading Data from CSV (NEW!)
+### Loading Data (Multiple Options!)
+
+Greeners provides **flexible data loading** similar to pandas/polars - from local files, URLs, or manual construction:
+
+#### 1. CSV from Local File
 
 ```rust
 use greeners::{DataFrame, Formula, OLS, CovarianceType};
@@ -598,6 +637,60 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+#### 2. CSV from URL (NEW!)
+
+```rust
+// Load data directly from GitHub or any URL
+let df = DataFrame::from_csv_url(
+    "https://raw.githubusercontent.com/datasets/gdp/master/data/gdp.csv"
+)?;
+
+// Perfect for reproducible research and shared datasets!
+```
+
+#### 3. JSON from Local File (NEW!)
+
+```rust
+// Column-oriented JSON (like pandas.to_json(orient='columns'))
+// { "x": [1.0, 2.0, 3.0], "y": [2.0, 4.0, 6.0] }
+let df = DataFrame::from_json("data_columns.json")?;
+
+// Or record-oriented JSON (like pandas.to_json(orient='records'))
+// [{"x": 1.0, "y": 2.0}, {"x": 2.0, "y": 4.0}]
+let df = DataFrame::from_json("data_records.json")?;
+```
+
+#### 4. JSON from URL (NEW!)
+
+```rust
+// Load JSON directly from APIs or URLs
+let df = DataFrame::from_json_url("https://api.example.com/data.json")?;
+```
+
+#### 5. Builder Pattern (NEW!)
+
+```rust
+// Most convenient for manual data construction
+let df = DataFrame::builder()
+    .add_column("wage", vec![30000.0, 40000.0, 50000.0])
+    .add_column("education", vec![12.0, 16.0, 18.0])
+    .add_column("experience", vec![5.0, 7.0, 10.0])
+    .build()?;
+
+let formula = Formula::parse("wage ~ education + experience")?;
+let result = OLS::from_formula(&formula, &df, CovarianceType::HC3)?;
+```
+
+**Supported formats:**
+- ✅ CSV (local files)
+- ✅ CSV (URLs) - requires internet connection
+- ✅ JSON (local files) - both column and record oriented
+- ✅ JSON (URLs) - perfect for API integration
+- ✅ Builder pattern - convenient manual construction
+- ✅ HashMap - traditional programmatic construction
+
+📖 See `examples/dataframe_loading.rs` for comprehensive demonstration of all loading methods.
 
 ### Using Formula API (R/Python Style)
 
@@ -714,16 +807,22 @@ All formulas follow R/Python syntax for familiarity and ease of use.
 
 - **[FORMULA_API.md](FORMULA_API.md)** - Complete formula API guide with Python/R equivalents
 - **[examples/](examples/)** - Working examples for all estimators
-  - `csv_formula_example.rs` - **Load CSV files and run regressions**
+  - `dataframe_loading.rs` - **Load data from CSV, JSON, URLs, or Builder pattern** (NEW!)
+  - `csv_formula_example.rs` - Load CSV files and run regressions
   - `formula_example.rs` - General formula API demonstration
   - `did_formula_example.rs` - Difference-in-Differences with formulas
   - `quickstart_formula.rs` - Quick start example
+  - `marginal_effects.rs` - Logit/Probit marginal effects (AME/MEM)
+  - `specification_tests.rs` - White, RESET, Breusch-Godfrey, Goldfeld-Quandt tests
+  - `panel_model_selection.rs` - Panel diagnostics and model comparison
 
 Run examples:
 ```sh
+cargo run --example dataframe_loading    # NEW: Multiple data loading methods
 cargo run --example csv_formula_example
 cargo run --example formula_example
-cargo run --example did_formula_example
+cargo run --example marginal_effects
+cargo run --example specification_tests
 ```
 
 ## 🎯 Why Greeners?
