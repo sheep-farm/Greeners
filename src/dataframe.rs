@@ -3084,4 +3084,399 @@ mod tests {
         assert_eq!(y.len(), 3);
         assert_eq!(x.shape(), &[3, 1]); // only x1, no intercept
     }
+
+    // ========== TESTS FOR NEW TIME SERIES FEATURES ==========
+
+    #[test]
+    fn test_rolling_mean() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0, 4.0, 5.0])
+            .build()
+            .unwrap();
+
+        let result = df.rolling("x", 3, "mean").unwrap();
+        let col = result.get("x_rolling_mean").unwrap();
+
+        assert!(col[0].is_nan());
+        assert!(col[1].is_nan());
+        assert_eq!(col[2], 2.0); // (1+2+3)/3
+        assert_eq!(col[3], 3.0); // (2+3+4)/3
+        assert_eq!(col[4], 4.0); // (3+4+5)/3
+    }
+
+    #[test]
+    fn test_rolling_sum() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0, 4.0])
+            .build()
+            .unwrap();
+
+        let result = df.rolling("x", 2, "sum").unwrap();
+        let col = result.get("x_rolling_sum").unwrap();
+
+        assert!(col[0].is_nan());
+        assert_eq!(col[1], 3.0);  // 1+2
+        assert_eq!(col[2], 5.0);  // 2+3
+        assert_eq!(col[3], 7.0);  // 3+4
+    }
+
+    #[test]
+    fn test_rolling_min_max() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![5.0, 2.0, 8.0, 1.0, 9.0])
+            .build()
+            .unwrap();
+
+        let result_min = df.rolling("x", 3, "min").unwrap();
+        let col_min = result_min.get("x_rolling_min").unwrap();
+        assert_eq!(col_min[2], 2.0);
+        assert_eq!(col_min[3], 1.0);
+
+        let result_max = df.rolling("x", 3, "max").unwrap();
+        let col_max = result_max.get("x_rolling_max").unwrap();
+        assert_eq!(col_max[2], 8.0);
+        assert_eq!(col_max[3], 8.0);
+        assert_eq!(col_max[4], 9.0);
+    }
+
+    #[test]
+    fn test_rolling_std() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0])
+            .build()
+            .unwrap();
+
+        let result = df.rolling("x", 3, "std").unwrap();
+        let col = result.get("x_rolling_std").unwrap();
+
+        assert!(col[0].is_nan());
+        assert!(col[1].is_nan());
+        assert!(col[2] > 0.0); // Has some variation
+    }
+
+    #[test]
+    fn test_cumsum() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0, 4.0])
+            .build()
+            .unwrap();
+
+        let result = df.cumsum("x").unwrap();
+        let col = result.get("x_cumsum").unwrap();
+
+        assert_eq!(col[0], 1.0);
+        assert_eq!(col[1], 3.0);  // 1+2
+        assert_eq!(col[2], 6.0);  // 1+2+3
+        assert_eq!(col[3], 10.0); // 1+2+3+4
+    }
+
+    #[test]
+    fn test_cumprod() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![2.0, 3.0, 4.0])
+            .build()
+            .unwrap();
+
+        let result = df.cumprod("x").unwrap();
+        let col = result.get("x_cumprod").unwrap();
+
+        assert_eq!(col[0], 2.0);
+        assert_eq!(col[1], 6.0);   // 2*3
+        assert_eq!(col[2], 24.0);  // 2*3*4
+    }
+
+    #[test]
+    fn test_cummax() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 5.0, 3.0, 7.0, 2.0])
+            .build()
+            .unwrap();
+
+        let result = df.cummax("x").unwrap();
+        let col = result.get("x_cummax").unwrap();
+
+        assert_eq!(col[0], 1.0);
+        assert_eq!(col[1], 5.0);
+        assert_eq!(col[2], 5.0); // Still 5
+        assert_eq!(col[3], 7.0); // New max
+        assert_eq!(col[4], 7.0); // Still 7
+    }
+
+    #[test]
+    fn test_cummin() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![5.0, 2.0, 8.0, 1.0, 9.0])
+            .build()
+            .unwrap();
+
+        let result = df.cummin("x").unwrap();
+        let col = result.get("x_cummin").unwrap();
+
+        assert_eq!(col[0], 5.0);
+        assert_eq!(col[1], 2.0);
+        assert_eq!(col[2], 2.0); // Still 2
+        assert_eq!(col[3], 1.0); // New min
+        assert_eq!(col[4], 1.0); // Still 1
+    }
+
+    #[test]
+    fn test_shift_positive() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0, 4.0, 5.0])
+            .build()
+            .unwrap();
+
+        let result = df.shift("x", 1).unwrap();
+        let col = result.get("x_shift_1").unwrap();
+
+        assert!(col[0].is_nan()); // First value is NaN
+        assert_eq!(col[1], 1.0);
+        assert_eq!(col[2], 2.0);
+        assert_eq!(col[3], 3.0);
+        assert_eq!(col[4], 4.0);
+    }
+
+    #[test]
+    fn test_shift_negative() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0, 4.0, 5.0])
+            .build()
+            .unwrap();
+
+        let result = df.shift("x", -1).unwrap();
+        let col = result.get("x_shift_-1").unwrap();
+
+        assert_eq!(col[0], 2.0);
+        assert_eq!(col[1], 3.0);
+        assert_eq!(col[2], 4.0);
+        assert_eq!(col[3], 5.0);
+        assert!(col[4].is_nan()); // Last value is NaN
+    }
+
+    #[test]
+    fn test_shift_multiple() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0, 4.0, 5.0])
+            .build()
+            .unwrap();
+
+        let result = df.shift("x", 2).unwrap();
+        let col = result.get("x_shift_2").unwrap();
+
+        assert!(col[0].is_nan());
+        assert!(col[1].is_nan());
+        assert_eq!(col[2], 1.0);
+        assert_eq!(col[3], 2.0);
+        assert_eq!(col[4], 3.0);
+    }
+
+    #[test]
+    fn test_quantile() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0])
+            .build()
+            .unwrap();
+
+        let q25 = df.quantile("x", 0.25).unwrap();
+        let q50 = df.quantile("x", 0.50).unwrap();
+        let q75 = df.quantile("x", 0.75).unwrap();
+
+        assert_eq!(q25, 3.25);
+        assert_eq!(q50, 5.5);
+        assert_eq!(q75, 7.75);
+    }
+
+    #[test]
+    fn test_quantile_median() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0, 4.0, 5.0])
+            .build()
+            .unwrap();
+
+        let median = df.quantile("x", 0.5).unwrap();
+        assert_eq!(median, 3.0);
+    }
+
+    #[test]
+    fn test_rank_descending() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![5.0, 2.0, 8.0, 2.0, 1.0])
+            .build()
+            .unwrap();
+
+        let result = df.rank("x", false).unwrap();
+        let col = result.get("x_rank").unwrap();
+
+        assert_eq!(col[0], 2.0); // 5 is 2nd highest
+        assert_eq!(col[1], 3.0); // 2 (first occurrence)
+        assert_eq!(col[2], 1.0); // 8 is highest
+        assert_eq!(col[3], 4.0); // 2 (second occurrence)
+        assert_eq!(col[4], 5.0); // 1 is lowest
+    }
+
+    #[test]
+    fn test_rank_ascending() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![5.0, 2.0, 8.0, 1.0])
+            .build()
+            .unwrap();
+
+        let result = df.rank("x", true).unwrap();
+        let col = result.get("x_rank").unwrap();
+
+        assert_eq!(col[0], 3.0); // 5 is 3rd lowest
+        assert_eq!(col[1], 2.0); // 2 is 2nd lowest
+        assert_eq!(col[2], 4.0); // 8 is highest
+        assert_eq!(col[3], 1.0); // 1 is lowest
+    }
+
+    #[test]
+    fn test_drop_duplicates() {
+        let df = DataFrame::builder()
+            .add_column("id", vec![1.0, 2.0, 3.0, 4.0])
+            .add_column("category", vec![1.0, 2.0, 1.0, 3.0])
+            .add_column("value", vec![10.0, 20.0, 30.0, 40.0])
+            .build()
+            .unwrap();
+
+        let result = df.drop_duplicates("category").unwrap();
+
+        assert_eq!(result.n_rows(), 3); // 4 rows -> 3 rows (one duplicate removed)
+
+        let cat = result.get("category").unwrap();
+        let val = result.get("value").unwrap();
+
+        assert_eq!(cat[0], 1.0);
+        assert_eq!(cat[1], 2.0);
+        assert_eq!(cat[2], 3.0);
+
+        // Should keep first occurrence (value 10.0, not 30.0)
+        assert_eq!(val[0], 10.0);
+        assert_eq!(val[1], 20.0);
+        assert_eq!(val[2], 40.0);
+    }
+
+    #[test]
+    fn test_drop_duplicates_all_unique() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0])
+            .build()
+            .unwrap();
+
+        let result = df.drop_duplicates("x").unwrap();
+        assert_eq!(result.n_rows(), 3); // No change
+    }
+
+    #[test]
+    fn test_drop_duplicates_all_same() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![5.0, 5.0, 5.0, 5.0])
+            .add_column("y", vec![1.0, 2.0, 3.0, 4.0])
+            .build()
+            .unwrap();
+
+        let result = df.drop_duplicates("x").unwrap();
+        assert_eq!(result.n_rows(), 1); // Only first occurrence kept
+    }
+
+    #[test]
+    fn test_interpolate_simple() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, f64::NAN, 3.0])
+            .build()
+            .unwrap();
+
+        let result = df.interpolate("x").unwrap();
+        let col = result.get("x").unwrap();
+
+        assert_eq!(col[0], 1.0);
+        assert_eq!(col[1], 2.0); // Interpolated
+        assert_eq!(col[2], 3.0);
+    }
+
+    #[test]
+    fn test_interpolate_multiple_gaps() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![10.0, f64::NAN, f64::NAN, 40.0])
+            .build()
+            .unwrap();
+
+        let result = df.interpolate("x").unwrap();
+        let col = result.get("x").unwrap();
+
+        assert_eq!(col[0], 10.0);
+        assert_eq!(col[1], 20.0); // (10+40)/2 - first third
+        assert_eq!(col[2], 30.0); // (10+40)/2 - second third
+        assert_eq!(col[3], 40.0);
+    }
+
+    #[test]
+    fn test_interpolate_no_gaps() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0, 4.0])
+            .build()
+            .unwrap();
+
+        let result = df.interpolate("x").unwrap();
+        let col = result.get("x").unwrap();
+
+        // Should remain unchanged
+        assert_eq!(col[0], 1.0);
+        assert_eq!(col[1], 2.0);
+        assert_eq!(col[2], 3.0);
+        assert_eq!(col[3], 4.0);
+    }
+
+    #[test]
+    fn test_interpolate_leading_trailing_nan() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![f64::NAN, 2.0, f64::NAN, 4.0, f64::NAN])
+            .build()
+            .unwrap();
+
+        let result = df.interpolate("x").unwrap();
+        let col = result.get("x").unwrap();
+
+        assert!(col[0].is_nan()); // Leading NaN unchanged
+        assert_eq!(col[1], 2.0);
+        assert_eq!(col[2], 3.0);  // Interpolated between 2 and 4
+        assert_eq!(col[3], 4.0);
+        assert!(col[4].is_nan()); // Trailing NaN unchanged
+    }
+
+    #[test]
+    fn test_rolling_invalid_column() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0])
+            .build()
+            .unwrap();
+
+        let result = df.rolling("nonexistent", 3, "mean");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_shift_invalid_column() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0])
+            .build()
+            .unwrap();
+
+        let result = df.shift("nonexistent", 1);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_quantile_bounds() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0, 4.0, 5.0])
+            .build()
+            .unwrap();
+
+        let q0 = df.quantile("x", 0.0).unwrap();
+        let q100 = df.quantile("x", 1.0).unwrap();
+
+        assert_eq!(q0, 1.0);  // Minimum
+        assert_eq!(q100, 5.0); // Maximum
+    }
 }
