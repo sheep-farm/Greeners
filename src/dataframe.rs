@@ -793,7 +793,7 @@ impl DataFrame {
     ///     .unwrap();
     ///
     /// let stds = df.std();
-    /// assert!(stds.get("x").unwrap() > 0.0);
+    /// assert!(*stds.get("x").unwrap() > 0.0);
     /// ```
     pub fn std(&self) -> HashMap<String, f64> {
         self.columns
@@ -819,7 +819,7 @@ impl DataFrame {
     ///     .unwrap();
     ///
     /// let vars = df.var();
-    /// assert!(vars.get("x").unwrap() > 0.0);
+    /// assert!(*vars.get("x").unwrap() > 0.0);
     /// ```
     pub fn var(&self) -> HashMap<String, f64> {
         self.columns
