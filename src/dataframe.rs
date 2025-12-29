@@ -2308,10 +2308,7 @@ impl DataFrame {
             let col = columns_data[i].round() as i64;
             let val = values_data[i];
 
-            pivot_data
-                .entry((idx, col))
-                .or_default()
-                .push(val);
+            pivot_data.entry((idx, col)).or_default().push(val);
         }
 
         // Apply aggregation function
