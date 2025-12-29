@@ -2234,6 +2234,243 @@ impl DataFrame {
 
         DataFrame::new(result_columns)
     }
+
+    /// Create a pivot table - reshape data from long to wide format.
+    ///
+    /// # Arguments
+    /// * `index` - Column to use as row index
+    /// * `columns` - Column to use as column headers
+    /// * `values` - Column to aggregate
+    /// * `aggfunc` - Aggregation function: "sum", "mean", "count", "min", "max", "median"
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// // Sales data in long format
+    /// let df = DataFrame::builder()
+    ///     .add_column("product", vec![1.0, 1.0, 2.0, 2.0])
+    ///     .add_column("region", vec![1.0, 2.0, 1.0, 2.0])
+    ///     .add_column("sales", vec![100.0, 150.0, 200.0, 250.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// // Pivot: products as rows, regions as columns
+    /// let pivoted = df.pivot_table("product", "region", "sales", "sum").unwrap();
+    /// // Result: 2 rows (products), 2 columns (regions) + index column
+    /// ```
+    pub fn pivot_table(
+        &self,
+        index: &str,
+        columns: &str,
+        values: &str,
+        aggfunc: &str,
+    ) -> Result<Self, GreenersError> {
+        // Validate columns exist
+        if !self.has_column(index) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Index column '{}' not found",
+                index
+            )));
+        }
+        if !self.has_column(columns) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Columns column '{}' not found",
+                columns
+            )));
+        }
+        if !self.has_column(values) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Values column '{}' not found",
+                values
+            )));
+        }
+
+        // Get unique values for index and columns
+        use std::collections::BTreeSet;
+        let index_data = self.get(index)?;
+        let columns_data = self.get(columns)?;
+        let values_data = self.get(values)?;
+
+        let unique_indices: BTreeSet<i64> = index_data.iter().map(|&v| v.round() as i64).collect();
+        let unique_columns: BTreeSet<i64> = columns_data.iter().map(|&v| v.round() as i64).collect();
+
+        // Build pivot table structure
+        use std::collections::HashMap as StdHashMap;
+
+        // Map (index_val, column_val) -> list of values
+        let mut pivot_data: StdHashMap<(i64, i64), Vec<f64>> = StdHashMap::new();
+
+        for i in 0..self.n_rows {
+            let idx = index_data[i].round() as i64;
+            let col = columns_data[i].round() as i64;
+            let val = values_data[i];
+
+            pivot_data
+                .entry((idx, col))
+                .or_insert_with(Vec::new)
+                .push(val);
+        }
+
+        // Apply aggregation function
+        let agg_fn = |vals: &[f64]| -> f64 {
+            match aggfunc {
+                "sum" => vals.iter().sum(),
+                "mean" => vals.iter().sum::<f64>() / vals.len() as f64,
+                "count" => vals.len() as f64,
+                "min" => vals.iter().fold(f64::INFINITY, |a, &b| a.min(b)),
+                "max" => vals.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b)),
+                "median" => {
+                    let mut sorted = vals.to_vec();
+                    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                    let mid = sorted.len() / 2;
+                    if sorted.len() % 2 == 0 {
+                        (sorted[mid - 1] + sorted[mid]) / 2.0
+                    } else {
+                        sorted[mid]
+                    }
+                }
+                _ => f64::NAN,
+            }
+        };
+
+        // Build result DataFrame
+        let mut result_columns = HashMap::new();
+
+        // Add index column
+        let index_vec: Vec<f64> = unique_indices.iter().map(|&v| v as f64).collect();
+        result_columns.insert(index.to_string(), Array1::from(index_vec.clone()));
+
+        // Add a column for each unique column value
+        for &col_val in &unique_columns {
+            let mut col_data = Vec::new();
+
+            for &idx_val in &unique_indices {
+                let key = (idx_val, col_val);
+                let agg_value = if let Some(vals) = pivot_data.get(&key) {
+                    agg_fn(vals)
+                } else {
+                    f64::NAN // No data for this combination
+                };
+                col_data.push(agg_value);
+            }
+
+            // Column name: original_column_name + "_" + column_value
+            let col_name = format!("{}_{}", columns, col_val);
+            result_columns.insert(col_name, Array1::from(col_data));
+        }
+
+        DataFrame::new(result_columns)
+    }
+
+    /// Melt a DataFrame from wide to long format (opposite of pivot).
+    ///
+    /// # Arguments
+    /// * `id_vars` - Columns to keep as identifiers
+    /// * `value_vars` - Columns to unpivot (if None, use all except id_vars)
+    /// * `var_name` - Name for the variable column (default: "variable")
+    /// * `value_name` - Name for the value column (default: "value")
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// // Wide format
+    /// let df = DataFrame::builder()
+    ///     .add_column("id", vec![1.0, 2.0])
+    ///     .add_column("Jan", vec![100.0, 200.0])
+    ///     .add_column("Feb", vec![150.0, 250.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// // Melt to long format
+    /// let melted = df.melt(&["id"], None, "month", "sales").unwrap();
+    /// // Result has columns: id, month, sales
+    /// assert_eq!(melted.n_rows(), 4); // 2 ids * 2 months
+    /// ```
+    pub fn melt(
+        &self,
+        id_vars: &[&str],
+        value_vars: Option<&[&str]>,
+        var_name: &str,
+        value_name: &str,
+    ) -> Result<Self, GreenersError> {
+        // Validate id_vars exist
+        for &var in id_vars {
+            if !self.has_column(var) {
+                return Err(GreenersError::VariableNotFound(format!(
+                    "ID variable '{}' not found",
+                    var
+                )));
+            }
+        }
+
+        // Determine which columns to melt
+        let cols_to_melt: Vec<String> = if let Some(vars) = value_vars {
+            // Use specified columns
+            for &var in vars {
+                if !self.has_column(var) {
+                    return Err(GreenersError::VariableNotFound(format!(
+                        "Value variable '{}' not found",
+                        var
+                    )));
+                }
+            }
+            vars.iter().map(|&s| s.to_string()).collect()
+        } else {
+            // Use all columns except id_vars
+            let id_set: std::collections::HashSet<&str> = id_vars.iter().copied().collect();
+            self.column_names()
+                .into_iter()
+                .filter(|name| !id_set.contains(name.as_str()))
+                .collect()
+        };
+
+        if cols_to_melt.is_empty() {
+            return Err(GreenersError::FormulaError(
+                "No columns to melt".to_string(),
+            ));
+        }
+
+        // Build melted data
+        let mut result_data: HashMap<String, Vec<f64>> = HashMap::new();
+
+        // Initialize columns
+        for &id_var in id_vars {
+            result_data.insert(id_var.to_string(), Vec::new());
+        }
+        result_data.insert(var_name.to_string(), Vec::new());
+        result_data.insert(value_name.to_string(), Vec::new());
+
+        // For each row in original DataFrame
+        for i in 0..self.n_rows {
+            // For each column to melt
+            for col_name in &cols_to_melt {
+                // Add id variable values
+                for &id_var in id_vars {
+                    let val = self.get(id_var)?[i];
+                    result_data.get_mut(id_var).unwrap().push(val);
+                }
+
+                // Add variable name (encoded as number for simplicity)
+                // In a real implementation, you might want to support string columns
+                let var_idx = cols_to_melt.iter().position(|n| n == col_name).unwrap() as f64;
+                result_data.get_mut(var_name).unwrap().push(var_idx);
+
+                // Add value
+                let val = self.get(col_name)?[i];
+                result_data.get_mut(value_name).unwrap().push(val);
+            }
+        }
+
+        // Convert to Array1
+        let mut final_columns = HashMap::new();
+        for (name, values) in result_data {
+            final_columns.insert(name, Array1::from(values));
+        }
+
+        DataFrame::new(final_columns)
+    }
 }
 
 impl std::fmt::Display for DataFrame {
