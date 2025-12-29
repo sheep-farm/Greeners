@@ -1620,6 +1620,239 @@ impl DataFrame {
         // Use iloc to select the sampled rows
         self.iloc(Some(sample_indices), None)
     }
+
+    /// Drop rows that contain any NaN (Not a Number) values.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("x", vec![1.0, 2.0, f64::NAN, 4.0])
+    ///     .add_column("y", vec![5.0, f64::NAN, 7.0, 8.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let cleaned = df.dropna().unwrap();
+    /// assert_eq!(cleaned.n_rows(), 2); // Only rows 0 and 3 remain
+    /// ```
+    pub fn dropna(&self) -> Result<Self, GreenersError> {
+        let mut keep_indices = Vec::new();
+
+        for i in 0..self.n_rows {
+            let mut has_nan = false;
+            for col in self.columns.values() {
+                if col[i].is_nan() {
+                    has_nan = true;
+                    break;
+                }
+            }
+            if !has_nan {
+                keep_indices.push(i);
+            }
+        }
+
+        if keep_indices.is_empty() {
+            return Ok(DataFrame {
+                columns: HashMap::new(),
+                n_rows: 0,
+            });
+        }
+
+        self.iloc(Some(&keep_indices), None)
+    }
+
+    /// Fill all NaN values with a specified value.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("x", vec![1.0, f64::NAN, 3.0])
+    ///     .add_column("y", vec![4.0, 5.0, f64::NAN])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let filled = df.fillna(0.0).unwrap();
+    /// assert_eq!(filled.get("x").unwrap()[1], 0.0);
+    /// assert_eq!(filled.get("y").unwrap()[2], 0.0);
+    /// ```
+    pub fn fillna(&self, value: f64) -> Result<Self, GreenersError> {
+        let mut new_columns = HashMap::new();
+
+        for (col_name, col_data) in &self.columns {
+            let filled = col_data.mapv(|v| if v.is_nan() { value } else { v });
+            new_columns.insert(col_name.clone(), filled);
+        }
+
+        DataFrame::new(new_columns)
+    }
+
+    /// Fill NaN values in a specific column with a specified value.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("x", vec![1.0, f64::NAN, 3.0])
+    ///     .add_column("y", vec![4.0, 5.0, f64::NAN])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let filled = df.fillna_column("x", 999.0).unwrap();
+    /// assert_eq!(filled.get("x").unwrap()[1], 999.0);
+    /// assert!(filled.get("y").unwrap()[2].is_nan()); // y unchanged
+    /// ```
+    pub fn fillna_column(&self, column: &str, value: f64) -> Result<Self, GreenersError> {
+        if !self.columns.contains_key(column) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' not found",
+                column
+            )));
+        }
+
+        let mut new_columns = self.columns.clone();
+        let col_data = &self.columns[column];
+        let filled = col_data.mapv(|v| if v.is_nan() { value } else { v });
+        new_columns.insert(column.to_string(), filled);
+
+        DataFrame::new(new_columns)
+    }
+
+    /// Fill NaN values in each column with the mean of that column.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("x", vec![1.0, f64::NAN, 3.0, 4.0])
+    ///     .add_column("y", vec![10.0, 20.0, f64::NAN, 40.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let filled = df.fillna_mean().unwrap();
+    /// // x: mean of [1, 3, 4] = 2.67
+    /// assert!((filled.get("x").unwrap()[1] - 2.666666).abs() < 0.001);
+    /// // y: mean of [10, 20, 40] = 23.33
+    /// assert!((filled.get("y").unwrap()[2] - 23.333333).abs() < 0.001);
+    /// ```
+    pub fn fillna_mean(&self) -> Result<Self, GreenersError> {
+        let mut new_columns = HashMap::new();
+
+        for (col_name, col_data) in &self.columns {
+            // Calculate mean excluding NaN values
+            let valid_values: Vec<f64> = col_data.iter().filter(|v| !v.is_nan()).copied().collect();
+
+            if valid_values.is_empty() {
+                // If all values are NaN, keep them as NaN
+                new_columns.insert(col_name.clone(), col_data.clone());
+                continue;
+            }
+
+            let mean: f64 = valid_values.iter().sum::<f64>() / valid_values.len() as f64;
+            let filled = col_data.mapv(|v| if v.is_nan() { mean } else { v });
+            new_columns.insert(col_name.clone(), filled);
+        }
+
+        DataFrame::new(new_columns)
+    }
+
+    /// Fill NaN values in each column with the median of that column.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("x", vec![1.0, f64::NAN, 3.0, 4.0, 5.0])
+    ///     .add_column("y", vec![10.0, 20.0, f64::NAN, 40.0, 50.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let filled = df.fillna_median().unwrap();
+    /// // x: median of [1, 3, 4, 5] = 3.5
+    /// assert_eq!(filled.get("x").unwrap()[1], 3.5);
+    /// // y: median of [10, 20, 40, 50] = 30.0
+    /// assert_eq!(filled.get("y").unwrap()[2], 30.0);
+    /// ```
+    pub fn fillna_median(&self) -> Result<Self, GreenersError> {
+        let mut new_columns = HashMap::new();
+
+        for (col_name, col_data) in &self.columns {
+            // Calculate median excluding NaN values
+            let mut valid_values: Vec<f64> = col_data.iter().filter(|v| !v.is_nan()).copied().collect();
+
+            if valid_values.is_empty() {
+                // If all values are NaN, keep them as NaN
+                new_columns.insert(col_name.clone(), col_data.clone());
+                continue;
+            }
+
+            valid_values.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let mid = valid_values.len() / 2;
+            let median = if valid_values.len() % 2 == 0 {
+                (valid_values[mid - 1] + valid_values[mid]) / 2.0
+            } else {
+                valid_values[mid]
+            };
+
+            let filled = col_data.mapv(|v| if v.is_nan() { median } else { v });
+            new_columns.insert(col_name.clone(), filled);
+        }
+
+        DataFrame::new(new_columns)
+    }
+
+    /// Count the number of NaN values in each column.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("x", vec![1.0, f64::NAN, 3.0, f64::NAN])
+    ///     .add_column("y", vec![4.0, 5.0, f64::NAN, 7.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let na_counts = df.count_na();
+    /// assert_eq!(na_counts.get("x"), Some(&2));
+    /// assert_eq!(na_counts.get("y"), Some(&1));
+    /// ```
+    pub fn count_na(&self) -> HashMap<String, usize> {
+        self.columns
+            .iter()
+            .map(|(name, col)| {
+                let count = col.iter().filter(|v| v.is_nan()).count();
+                (name.clone(), count)
+            })
+            .collect()
+    }
+
+    /// Check if any value in the DataFrame is NaN.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df1 = DataFrame::builder()
+    ///     .add_column("x", vec![1.0, 2.0, 3.0])
+    ///     .build()
+    ///     .unwrap();
+    /// assert!(!df1.has_na());
+    ///
+    /// let df2 = DataFrame::builder()
+    ///     .add_column("x", vec![1.0, f64::NAN, 3.0])
+    ///     .build()
+    ///     .unwrap();
+    /// assert!(df2.has_na());
+    /// ```
+    pub fn has_na(&self) -> bool {
+        self.columns.values().any(|col| col.iter().any(|v| v.is_nan()))
+    }
 }
 
 impl std::fmt::Display for DataFrame {
