@@ -2363,6 +2363,448 @@ impl DataFrame {
         DataFrame::new(result_columns)
     }
 
+    /// Apply a rolling window function to a column.
+    ///
+    /// # Arguments
+    /// * `column` - Column to apply rolling window to
+    /// * `window` - Window size
+    /// * `func` - Function: "mean", "sum", "min", "max", "std"
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("value", vec![1.0, 2.0, 3.0, 4.0, 5.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// // 3-period rolling mean
+    /// let rolled = df.rolling("value", 3, "mean").unwrap();
+    /// // First 2 values will be NaN (not enough data)
+    /// ```
+    pub fn rolling(&self, column: &str, window: usize, func: &str) -> Result<Self, GreenersError> {
+        if !self.has_column(column) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' not found",
+                column
+            )));
+        }
+
+        if window == 0 {
+            return Err(GreenersError::FormulaError(
+                "Window size must be > 0".to_string(),
+            ));
+        }
+
+        let col_data = self.get(column)?;
+        let mut result = vec![f64::NAN; col_data.len()];
+
+        for i in 0..col_data.len() {
+            if i + 1 < window {
+                // Not enough data yet
+                result[i] = f64::NAN;
+            } else {
+                let window_data: Vec<f64> = col_data
+                    .slice(ndarray::s![i + 1 - window..=i])
+                    .to_vec();
+
+                result[i] = match func {
+                    "mean" => window_data.iter().sum::<f64>() / window_data.len() as f64,
+                    "sum" => window_data.iter().sum(),
+                    "min" => window_data.iter().fold(f64::INFINITY, |a, &b| a.min(b)),
+                    "max" => window_data.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b)),
+                    "std" => {
+                        let mean = window_data.iter().sum::<f64>() / window_data.len() as f64;
+                        let variance = window_data
+                            .iter()
+                            .map(|&x| (x - mean).powi(2))
+                            .sum::<f64>()
+                            / window_data.len() as f64;
+                        variance.sqrt()
+                    }
+                    _ => {
+                        return Err(GreenersError::FormulaError(format!(
+                            "Unknown function '{}'. Use 'mean', 'sum', 'min', 'max', or 'std'",
+                            func
+                        )));
+                    }
+                };
+            }
+        }
+
+        let mut new_df = self.clone();
+        new_df.insert(format!("{}_rolling_{}", column, func), Array1::from(result))?;
+        Ok(new_df)
+    }
+
+    /// Calculate cumulative sum for a column.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("value", vec![1.0, 2.0, 3.0, 4.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let cumsum = df.cumsum("value").unwrap();
+    /// // Result: [1.0, 3.0, 6.0, 10.0]
+    /// ```
+    pub fn cumsum(&self, column: &str) -> Result<Self, GreenersError> {
+        if !self.has_column(column) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' not found",
+                column
+            )));
+        }
+
+        let col_data = self.get(column)?;
+        let mut cumsum = Vec::with_capacity(col_data.len());
+        let mut sum = 0.0;
+
+        for &val in col_data.iter() {
+            sum += val;
+            cumsum.push(sum);
+        }
+
+        let mut new_df = self.clone();
+        new_df.insert(format!("{}_cumsum", column), Array1::from(cumsum))?;
+        Ok(new_df)
+    }
+
+    /// Calculate cumulative product for a column.
+    pub fn cumprod(&self, column: &str) -> Result<Self, GreenersError> {
+        if !self.has_column(column) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' not found",
+                column
+            )));
+        }
+
+        let col_data = self.get(column)?;
+        let mut cumprod = Vec::with_capacity(col_data.len());
+        let mut prod = 1.0;
+
+        for &val in col_data.iter() {
+            prod *= val;
+            cumprod.push(prod);
+        }
+
+        let mut new_df = self.clone();
+        new_df.insert(format!("{}_cumprod", column), Array1::from(cumprod))?;
+        Ok(new_df)
+    }
+
+    /// Calculate cumulative maximum for a column.
+    pub fn cummax(&self, column: &str) -> Result<Self, GreenersError> {
+        if !self.has_column(column) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' not found",
+                column
+            )));
+        }
+
+        let col_data = self.get(column)?;
+        let mut cummax = Vec::with_capacity(col_data.len());
+        let mut max_val = f64::NEG_INFINITY;
+
+        for &val in col_data.iter() {
+            max_val = max_val.max(val);
+            cummax.push(max_val);
+        }
+
+        let mut new_df = self.clone();
+        new_df.insert(format!("{}_cummax", column), Array1::from(cummax))?;
+        Ok(new_df)
+    }
+
+    /// Calculate cumulative minimum for a column.
+    pub fn cummin(&self, column: &str) -> Result<Self, GreenersError> {
+        if !self.has_column(column) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' not found",
+                column
+            )));
+        }
+
+        let col_data = self.get(column)?;
+        let mut cummin = Vec::with_capacity(col_data.len());
+        let mut min_val = f64::INFINITY;
+
+        for &val in col_data.iter() {
+            min_val = min_val.min(val);
+            cummin.push(min_val);
+        }
+
+        let mut new_df = self.clone();
+        new_df.insert(format!("{}_cummin", column), Array1::from(cummin))?;
+        Ok(new_df)
+    }
+
+    /// Shift column values by a number of periods.
+    ///
+    /// # Arguments
+    /// * `column` - Column to shift
+    /// * `periods` - Number of periods to shift (positive = down, negative = up)
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("value", vec![1.0, 2.0, 3.0, 4.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let shifted = df.shift("value", 1).unwrap();
+    /// // Result: [NaN, 1.0, 2.0, 3.0]
+    /// ```
+    pub fn shift(&self, column: &str, periods: i32) -> Result<Self, GreenersError> {
+        if !self.has_column(column) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' not found",
+                column
+            )));
+        }
+
+        let col_data = self.get(column)?;
+        let n = col_data.len();
+        let mut shifted = vec![f64::NAN; n];
+
+        if periods > 0 {
+            // Shift down
+            let p = periods as usize;
+            for i in p..n {
+                shifted[i] = col_data[i - p];
+            }
+        } else if periods < 0 {
+            // Shift up
+            let p = (-periods) as usize;
+            for i in 0..(n.saturating_sub(p)) {
+                shifted[i] = col_data[i + p];
+            }
+        } else {
+            // No shift
+            shifted = col_data.to_vec();
+        }
+
+        let mut new_df = self.clone();
+        new_df.insert(format!("{}_shift_{}", column, periods), Array1::from(shifted))?;
+        Ok(new_df)
+    }
+
+    /// Calculate quantile (percentile) for a column.
+    ///
+    /// # Arguments
+    /// * `column` - Column to calculate quantile for
+    /// * `q` - Quantile to compute (0.0 to 1.0, e.g., 0.5 = median)
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("value", vec![1.0, 2.0, 3.0, 4.0, 5.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let q75 = df.quantile("value", 0.75).unwrap();
+    /// // 75th percentile
+    /// ```
+    pub fn quantile(&self, column: &str, q: f64) -> Result<f64, GreenersError> {
+        if !self.has_column(column) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' not found",
+                column
+            )));
+        }
+
+        if !(0.0..=1.0).contains(&q) {
+            return Err(GreenersError::FormulaError(
+                "Quantile must be between 0 and 1".to_string(),
+            ));
+        }
+
+        let col_data = self.get(column)?;
+        let mut sorted: Vec<f64> = col_data.iter().filter(|v| !v.is_nan()).copied().collect();
+
+        if sorted.is_empty() {
+            return Ok(f64::NAN);
+        }
+
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        let index = q * (sorted.len() - 1) as f64;
+        let lower = index.floor() as usize;
+        let upper = index.ceil() as usize;
+
+        if lower == upper {
+            Ok(sorted[lower])
+        } else {
+            let weight = index - lower as f64;
+            Ok(sorted[lower] * (1.0 - weight) + sorted[upper] * weight)
+        }
+    }
+
+    /// Rank values in a column.
+    ///
+    /// # Arguments
+    /// * `column` - Column to rank
+    /// * `ascending` - If true, smallest value gets rank 1
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("value", vec![30.0, 10.0, 20.0, 40.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let ranked = df.rank("value", true).unwrap();
+    /// // Result: [3.0, 1.0, 2.0, 4.0]
+    /// ```
+    pub fn rank(&self, column: &str, ascending: bool) -> Result<Self, GreenersError> {
+        if !self.has_column(column) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' not found",
+                column
+            )));
+        }
+
+        let col_data = self.get(column)?;
+        let mut indexed: Vec<(usize, f64)> = col_data.iter().copied().enumerate().collect();
+
+        if ascending {
+            indexed.sort_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap());
+        } else {
+            indexed.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
+        }
+
+        let mut ranks = vec![0.0; col_data.len()];
+        for (rank, (original_idx, _)) in indexed.iter().enumerate() {
+            ranks[*original_idx] = (rank + 1) as f64;
+        }
+
+        let mut new_df = self.clone();
+        new_df.insert(format!("{}_rank", column), Array1::from(ranks))?;
+        Ok(new_df)
+    }
+
+    /// Drop duplicate rows based on a column.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("id", vec![1.0, 2.0, 1.0, 3.0])
+    ///     .add_column("value", vec![10.0, 20.0, 30.0, 40.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let unique = df.drop_duplicates("id").unwrap();
+    /// assert_eq!(unique.n_rows(), 3); // Only first occurrence kept
+    /// ```
+    pub fn drop_duplicates(&self, column: &str) -> Result<Self, GreenersError> {
+        if !self.has_column(column) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' not found",
+                column
+            )));
+        }
+
+        let col_data = self.get(column)?;
+        let mut seen = std::collections::HashSet::new();
+        let mut keep_indices = Vec::new();
+
+        for (i, &val) in col_data.iter().enumerate() {
+            let key = val.to_bits(); // Use bit pattern as key (handles NaN)
+            if seen.insert(key) {
+                keep_indices.push(i);
+            }
+        }
+
+        self.iloc(Some(&keep_indices), None)
+    }
+
+    /// Interpolate NaN values linearly in a column.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("value", vec![1.0, f64::NAN, f64::NAN, 4.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let interpolated = df.interpolate("value").unwrap();
+    /// // Result: [1.0, 2.0, 3.0, 4.0]
+    /// ```
+    pub fn interpolate(&self, column: &str) -> Result<Self, GreenersError> {
+        if !self.has_column(column) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' not found",
+                column
+            )));
+        }
+
+        let col_data = self.get(column)?;
+        let mut result = col_data.to_vec();
+
+        // Find first non-NaN
+        let mut last_valid_idx = None;
+        for (i, &val) in result.iter().enumerate() {
+            if !val.is_nan() {
+                last_valid_idx = Some(i);
+                break;
+            }
+        }
+
+        if last_valid_idx.is_none() {
+            // All NaN
+            return Ok(self.clone());
+        }
+
+        let mut last_valid_idx = last_valid_idx.unwrap();
+        let mut last_valid_val = result[last_valid_idx];
+
+        for i in (last_valid_idx + 1)..result.len() {
+            if result[i].is_nan() {
+                // Find next valid value
+                let mut next_valid_idx = None;
+                let mut next_valid_val = f64::NAN;
+
+                for j in (i + 1)..result.len() {
+                    if !result[j].is_nan() {
+                        next_valid_idx = Some(j);
+                        next_valid_val = result[j];
+                        break;
+                    }
+                }
+
+                if let Some(next_idx) = next_valid_idx {
+                    // Linear interpolation
+                    let gap = (next_idx - last_valid_idx) as f64;
+                    let step = (next_valid_val - last_valid_val) / gap;
+                    let offset = (i - last_valid_idx) as f64;
+                    result[i] = last_valid_val + step * offset;
+                }
+                // else: leave as NaN (no next valid value)
+            } else {
+                last_valid_idx = i;
+                last_valid_val = result[i];
+            }
+        }
+
+        let mut new_df = self.clone();
+        new_df.columns.insert(column.to_string(), Array1::from(result));
+        Ok(new_df)
+    }
+
     /// Melt a DataFrame from wide to long format (opposite of pivot).
     ///
     /// # Arguments
