@@ -1799,7 +1799,7 @@ impl DataFrame {
 
             valid_values.sort_by(|a, b| a.partial_cmp(b).unwrap());
             let mid = valid_values.len() / 2;
-            let median = if valid_values.len() % 2 == 0 {
+            let median = if valid_values.len().is_multiple_of(2) {
                 (valid_values[mid - 1] + valid_values[mid]) / 2.0
             } else {
                 valid_values[mid]
@@ -2177,7 +2177,7 @@ impl DataFrame {
                 let val = self.get(col_name)?[i];
                 key.push(val.round() as i64);
             }
-            groups.entry(key).or_insert_with(Vec::new).push(i);
+            groups.entry(key).or_default().push(i);
         }
 
         // Apply aggregation
@@ -2207,7 +2207,7 @@ impl DataFrame {
                     let mut sorted = group_values.clone();
                     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
                     let mid = sorted.len() / 2;
-                    if sorted.len() % 2 == 0 {
+                    if sorted.len().is_multiple_of(2) {
                         (sorted[mid - 1] + sorted[mid]) / 2.0
                     } else {
                         sorted[mid]
@@ -2310,7 +2310,7 @@ impl DataFrame {
 
             pivot_data
                 .entry((idx, col))
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(val);
         }
 
@@ -2326,7 +2326,7 @@ impl DataFrame {
                     let mut sorted = vals.to_vec();
                     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
                     let mid = sorted.len() / 2;
-                    if sorted.len() % 2 == 0 {
+                    if sorted.len().is_multiple_of(2) {
                         (sorted[mid - 1] + sorted[mid]) / 2.0
                     } else {
                         sorted[mid]
@@ -2402,6 +2402,7 @@ impl DataFrame {
         let col_data = self.get(column)?;
         let mut result = vec![f64::NAN; col_data.len()];
 
+        #[allow(clippy::needless_range_loop)]
         for i in 0..col_data.len() {
             if i + 1 < window {
                 // Not enough data yet
@@ -2779,6 +2780,7 @@ impl DataFrame {
                 let mut next_valid_idx = None;
                 let mut next_valid_val = f64::NAN;
 
+                #[allow(clippy::needless_range_loop)]
                 for j in (i + 1)..result.len() {
                     if !result[j].is_nan() {
                         next_valid_idx = Some(j);
