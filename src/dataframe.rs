@@ -374,6 +374,298 @@ impl DataFrame {
 
         DataFrame::new(data)
     }
+
+    /// Read a DataFrame from a CSV file via URL.
+    ///
+    /// # Arguments
+    /// * `url` - URL to the CSV file
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::from_csv_url("https://example.com/data.csv").unwrap();
+    /// println!("Loaded {} rows and {} columns", df.n_rows(), df.n_cols());
+    /// ```
+    pub fn from_csv_url(url: &str) -> Result<Self, GreenersError> {
+        use csv::ReaderBuilder;
+
+        // Fetch CSV content from URL
+        let response = reqwest::blocking::get(url)
+            .map_err(|e| GreenersError::FormulaError(format!("Failed to fetch URL: {}", e)))?;
+
+        if !response.status().is_success() {
+            return Err(GreenersError::FormulaError(format!(
+                "HTTP error {}: failed to fetch CSV from URL",
+                response.status()
+            )));
+        }
+
+        let csv_content = response
+            .text()
+            .map_err(|e| GreenersError::FormulaError(format!("Failed to read response: {}", e)))?;
+
+        // Parse CSV from string
+        let mut reader = ReaderBuilder::new()
+            .has_headers(true)
+            .from_reader(csv_content.as_bytes());
+
+        // Get headers
+        let headers = reader
+            .headers()
+            .map_err(|e| GreenersError::FormulaError(format!("Failed to read headers: {}", e)))?
+            .clone();
+
+        // Initialize column vectors
+        let mut columns: HashMap<String, Vec<f64>> = HashMap::new();
+        for header in headers.iter() {
+            columns.insert(header.to_string(), Vec::new());
+        }
+
+        // Read all records
+        for result in reader.records() {
+            let record = result.map_err(|e| {
+                GreenersError::FormulaError(format!("Failed to read record: {}", e))
+            })?;
+
+            for (i, field) in record.iter().enumerate() {
+                let header = &headers[i];
+                let value: f64 = field.trim().parse().map_err(|_| {
+                    GreenersError::FormulaError(format!(
+                        "Failed to parse '{}' as f64 in column '{}'",
+                        field, header
+                    ))
+                })?;
+
+                columns.get_mut(header).unwrap().push(value);
+            }
+        }
+
+        // Convert Vec<f64> to Array1<f64>
+        let mut data = HashMap::new();
+        for (name, values) in columns {
+            data.insert(name, Array1::from(values));
+        }
+
+        DataFrame::new(data)
+    }
+
+    /// Read a DataFrame from a JSON file.
+    ///
+    /// Expected JSON format (records orientation):
+    /// ```json
+    /// [
+    ///   {"x": 1.0, "y": 2.0},
+    ///   {"x": 2.0, "y": 4.0},
+    ///   {"x": 3.0, "y": 6.0}
+    /// ]
+    /// ```
+    ///
+    /// Or column orientation:
+    /// ```json
+    /// {
+    ///   "x": [1.0, 2.0, 3.0],
+    ///   "y": [2.0, 4.0, 6.0]
+    /// }
+    /// ```
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::from_json("data.json").unwrap();
+    /// println!("Loaded {} rows and {} columns", df.n_rows(), df.n_cols());
+    /// ```
+    pub fn from_json<P: AsRef<Path>>(path: P) -> Result<Self, GreenersError> {
+        use std::fs::File;
+        use std::io::BufReader;
+
+        let path_ref = path.as_ref();
+
+        let file = File::open(path_ref)
+            .map_err(|e| GreenersError::FormulaError(format!("Failed to open JSON file: {}", e)))?;
+
+        let reader = BufReader::new(file);
+
+        // Try to parse as column-oriented first
+        if let Ok(columns) = serde_json::from_reader::<_, HashMap<String, Vec<f64>>>(reader) {
+            let mut data = HashMap::new();
+            for (name, values) in columns {
+                data.insert(name, Array1::from(values));
+            }
+            return DataFrame::new(data);
+        }
+
+        let file = File::open(path_ref)
+            .map_err(|e| GreenersError::FormulaError(format!("Failed to reopen JSON file: {}", e)))?;
+
+        let reader = BufReader::new(file);
+        let records: Vec<HashMap<String, f64>> = serde_json::from_reader(reader)
+            .map_err(|e| GreenersError::FormulaError(format!("Failed to parse JSON: {}", e)))?;
+
+        if records.is_empty() {
+            return DataFrame::new(HashMap::new());
+        }
+
+        // Get column names from first record
+        let first_record = &records[0];
+        let mut columns: HashMap<String, Vec<f64>> = HashMap::new();
+        for key in first_record.keys() {
+            columns.insert(key.clone(), Vec::new());
+        }
+
+        // Fill columns
+        for record in records {
+            for (key, value) in record {
+                columns.get_mut(&key).unwrap().push(value);
+            }
+        }
+
+        // Convert to Array1
+        let mut data = HashMap::new();
+        for (name, values) in columns {
+            data.insert(name, Array1::from(values));
+        }
+
+        DataFrame::new(data)
+    }
+
+    /// Read a DataFrame from a JSON file via URL.
+    ///
+    /// Expected JSON format (records orientation):
+    /// ```json
+    /// [
+    ///   {"x": 1.0, "y": 2.0},
+    ///   {"x": 2.0, "y": 4.0}
+    /// ]
+    /// ```
+    ///
+    /// Or column orientation:
+    /// ```json
+    /// {
+    ///   "x": [1.0, 2.0],
+    ///   "y": [2.0, 4.0]
+    /// }
+    /// ```
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::from_json_url("https://example.com/data.json").unwrap();
+    /// println!("Loaded {} rows and {} columns", df.n_rows(), df.n_cols());
+    /// ```
+    pub fn from_json_url(url: &str) -> Result<Self, GreenersError> {
+        // Fetch JSON content from URL
+        let response = reqwest::blocking::get(url)
+            .map_err(|e| GreenersError::FormulaError(format!("Failed to fetch URL: {}", e)))?;
+
+        if !response.status().is_success() {
+            return Err(GreenersError::FormulaError(format!(
+                "HTTP error {}: failed to fetch JSON from URL",
+                response.status()
+            )));
+        }
+
+        let json_text = response
+            .text()
+            .map_err(|e| GreenersError::FormulaError(format!("Failed to read response: {}", e)))?;
+
+        // Try to parse as column-oriented first
+        if let Ok(columns) = serde_json::from_str::<HashMap<String, Vec<f64>>>(&json_text) {
+            let mut data = HashMap::new();
+            for (name, values) in columns {
+                data.insert(name, Array1::from(values));
+            }
+            return DataFrame::new(data);
+        }
+
+        // If that fails, try record-oriented
+        let records: Vec<HashMap<String, f64>> = serde_json::from_str(&json_text)
+            .map_err(|e| GreenersError::FormulaError(format!("Failed to parse JSON: {}", e)))?;
+
+        if records.is_empty() {
+            return DataFrame::new(HashMap::new());
+        }
+
+        // Get column names from first record
+        let first_record = &records[0];
+        let mut columns: HashMap<String, Vec<f64>> = HashMap::new();
+        for key in first_record.keys() {
+            columns.insert(key.clone(), Vec::new());
+        }
+
+        // Fill columns
+        for record in records {
+            for (key, value) in record {
+                columns.get_mut(&key).unwrap().push(value);
+            }
+        }
+
+        // Convert to Array1
+        let mut data = HashMap::new();
+        for (name, values) in columns {
+            data.insert(name, Array1::from(values));
+        }
+
+        DataFrame::new(data)
+    }
+
+    /// Create a DataFrame from a builder pattern for convenient construction.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("x", vec![1.0, 2.0, 3.0])
+    ///     .add_column("y", vec![2.0, 4.0, 6.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// assert_eq!(df.n_rows(), 3);
+    /// assert_eq!(df.n_cols(), 2);
+    /// ```
+    pub fn builder() -> DataFrameBuilder {
+        DataFrameBuilder::new()
+    }
+}
+
+/// Builder for creating DataFrames conveniently
+pub struct DataFrameBuilder {
+    columns: HashMap<String, Array1<f64>>,
+}
+
+impl DataFrameBuilder {
+    /// Create a new DataFrameBuilder
+    pub fn new() -> Self {
+        DataFrameBuilder {
+            columns: HashMap::new(),
+        }
+    }
+
+    /// Add a column from a Vec<f64>
+    pub fn add_column(mut self, name: &str, data: Vec<f64>) -> Self {
+        self.columns.insert(name.to_string(), Array1::from(data));
+        self
+    }
+
+    /// Add a column from an Array1<f64>
+    pub fn add_column_array(mut self, name: &str, data: Array1<f64>) -> Self {
+        self.columns.insert(name.to_string(), data);
+        self
+    }
+
+    /// Build the DataFrame
+    pub fn build(self) -> Result<DataFrame, GreenersError> {
+        DataFrame::new(self.columns)
+    }
+}
+
+impl Default for DataFrameBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(test)]
