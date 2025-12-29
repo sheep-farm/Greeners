@@ -7,6 +7,7 @@ pub enum DataType {
     Float,
     Categorical,
     Bool,
+    Int,
 }
 
 /// Categorical column with string levels and integer codes
@@ -154,6 +155,8 @@ pub enum Column {
     Categorical(CategoricalColumn),
     /// Boolean column
     Bool(Array1<bool>),
+    /// Integer column (signed 64-bit)
+    Int(Array1<i64>),
 }
 
 impl Column {
@@ -163,6 +166,7 @@ impl Column {
             Column::Float(_) => DataType::Float,
             Column::Categorical(_) => DataType::Categorical,
             Column::Bool(_) => DataType::Bool,
+            Column::Int(_) => DataType::Int,
         }
     }
 
@@ -172,6 +176,7 @@ impl Column {
             Column::Float(arr) => arr.len(),
             Column::Categorical(cat) => cat.len(),
             Column::Bool(arr) => arr.len(),
+            Column::Int(arr) => arr.len(),
         }
     }
 
@@ -186,6 +191,7 @@ impl Column {
             Column::Float(arr) => Some(arr),
             Column::Categorical(_) => None,
             Column::Bool(_) => None,
+            Column::Int(_) => None,
         }
     }
 
@@ -195,6 +201,7 @@ impl Column {
             Column::Float(_) => None,
             Column::Categorical(cat) => Some(cat),
             Column::Bool(_) => None,
+            Column::Int(_) => None,
         }
     }
 
@@ -204,10 +211,21 @@ impl Column {
             Column::Float(_) => None,
             Column::Categorical(_) => None,
             Column::Bool(arr) => Some(arr),
+            Column::Int(_) => None,
         }
     }
 
-    /// Convert to float array (categorical -> codes as f64, bool -> 1.0/0.0)
+    /// Try to get as int array
+    pub fn as_int(&self) -> Option<&Array1<i64>> {
+        match self {
+            Column::Float(_) => None,
+            Column::Categorical(_) => None,
+            Column::Bool(_) => None,
+            Column::Int(arr) => Some(arr),
+        }
+    }
+
+    /// Convert to float array (categorical -> codes as f64, bool -> 1.0/0.0, int -> f64)
     pub fn to_float(&self) -> Array1<f64> {
         match self {
             Column::Float(arr) => arr.clone(),
@@ -217,6 +235,7 @@ impl Column {
                     .map(|&b| if b { 1.0 } else { 0.0 })
                     .collect::<Vec<_>>(),
             ),
+            Column::Int(arr) => Array1::from(arr.iter().map(|&i| i as f64).collect::<Vec<_>>()),
         }
     }
 
@@ -231,6 +250,10 @@ impl Column {
             Column::Bool(arr) => {
                 let filtered: Vec<bool> = indices.iter().map(|&i| arr[i]).collect();
                 Column::Bool(Array1::from(filtered))
+            }
+            Column::Int(arr) => {
+                let filtered: Vec<i64> = indices.iter().map(|&i| arr[i]).collect();
+                Column::Int(Array1::from(filtered))
             }
         }
     }
@@ -248,6 +271,11 @@ impl Column {
     /// Create from bool array
     pub fn from_bool(arr: Array1<bool>) -> Self {
         Column::Bool(arr)
+    }
+
+    /// Create from int array
+    pub fn from_int(arr: Array1<i64>) -> Self {
+        Column::Int(arr)
     }
 }
 
@@ -433,20 +461,89 @@ mod tests {
         let float_col = Column::Float(Array1::from(vec![1.0, 2.0]));
         let cat_col = Column::from_strings(vec!["A".to_string()]);
         let bool_col = Column::from_bool(Array1::from(vec![true, false]));
+        let int_col = Column::from_int(Array1::from(vec![1, 2, 3]));
 
         // Float column
         assert!(float_col.as_float().is_some());
         assert!(float_col.as_categorical().is_none());
         assert!(float_col.as_bool().is_none());
+        assert!(float_col.as_int().is_none());
 
         // Categorical column
         assert!(cat_col.as_float().is_none());
         assert!(cat_col.as_categorical().is_some());
         assert!(cat_col.as_bool().is_none());
+        assert!(cat_col.as_int().is_none());
 
         // Bool column
         assert!(bool_col.as_float().is_none());
         assert!(bool_col.as_categorical().is_none());
         assert!(bool_col.as_bool().is_some());
+        assert!(bool_col.as_int().is_none());
+
+        // Int column
+        assert!(int_col.as_float().is_none());
+        assert!(int_col.as_categorical().is_none());
+        assert!(int_col.as_bool().is_none());
+        assert!(int_col.as_int().is_some());
+    }
+
+    #[test]
+    fn test_int_column_creation() {
+        let int_col = Column::from_int(Array1::from(vec![1, 2, 3, 4, 5]));
+
+        assert_eq!(int_col.dtype(), DataType::Int);
+        assert_eq!(int_col.len(), 5);
+        assert!(!int_col.is_empty());
+    }
+
+    #[test]
+    fn test_int_column_as_int() {
+        let int_col = Column::from_int(Array1::from(vec![10, 20, 30]));
+
+        let arr = int_col.as_int().unwrap();
+        assert_eq!(arr[0], 10);
+        assert_eq!(arr[1], 20);
+        assert_eq!(arr[2], 30);
+    }
+
+    #[test]
+    fn test_int_column_to_float() {
+        let int_col = Column::from_int(Array1::from(vec![100, 200, 300, 400]));
+
+        let float_arr = int_col.to_float();
+        assert_eq!(float_arr[0], 100.0);
+        assert_eq!(float_arr[1], 200.0);
+        assert_eq!(float_arr[2], 300.0);
+        assert_eq!(float_arr[3], 400.0);
+    }
+
+    #[test]
+    fn test_int_column_filter_indices() {
+        let int_col = Column::from_int(Array1::from(vec![1, 2, 3, 4, 5]));
+        let filtered = int_col.filter_indices(&[0, 2, 4]);
+
+        if let Column::Int(arr) = filtered {
+            assert_eq!(arr.len(), 3);
+            assert_eq!(arr[0], 1);
+            assert_eq!(arr[1], 3);
+            assert_eq!(arr[2], 5);
+        } else {
+            panic!("Expected Int column");
+        }
+    }
+
+    #[test]
+    fn test_int_column_negative_values() {
+        let int_col = Column::from_int(Array1::from(vec![-10, -5, 0, 5, 10]));
+
+        let arr = int_col.as_int().unwrap();
+        assert_eq!(arr[0], -10);
+        assert_eq!(arr[2], 0);
+        assert_eq!(arr[4], 10);
+
+        let float_arr = int_col.to_float();
+        assert_eq!(float_arr[0], -10.0);
+        assert_eq!(float_arr[4], 10.0);
     }
 }
