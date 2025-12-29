@@ -1853,6 +1853,387 @@ impl DataFrame {
     pub fn has_na(&self) -> bool {
         self.columns.values().any(|col| col.iter().any(|v| v.is_nan()))
     }
+
+    /// Append a single row to the DataFrame.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    /// use std::collections::HashMap;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("x", vec![1.0, 2.0])
+    ///     .add_column("y", vec![3.0, 4.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let mut row = HashMap::new();
+    /// row.insert("x".to_string(), 5.0);
+    /// row.insert("y".to_string(), 6.0);
+    ///
+    /// let df2 = df.append_row(&row).unwrap();
+    /// assert_eq!(df2.n_rows(), 3);
+    /// ```
+    pub fn append_row(&self, row: &HashMap<String, f64>) -> Result<Self, GreenersError> {
+        // Check that row has all required columns
+        for col_name in self.columns.keys() {
+            if !row.contains_key(col_name) {
+                return Err(GreenersError::VariableNotFound(format!(
+                    "Row is missing column '{}'",
+                    col_name
+                )));
+            }
+        }
+
+        // Check for extra columns in row
+        for col_name in row.keys() {
+            if !self.columns.contains_key(col_name) {
+                return Err(GreenersError::VariableNotFound(format!(
+                    "Unknown column '{}' in row",
+                    col_name
+                )));
+            }
+        }
+
+        let mut new_columns = HashMap::new();
+        for (col_name, col_data) in &self.columns {
+            let mut new_col = col_data.to_vec();
+            new_col.push(row[col_name]);
+            new_columns.insert(col_name.clone(), Array1::from(new_col));
+        }
+
+        DataFrame::new(new_columns)
+    }
+
+    /// Merge (join) two DataFrames on a common column.
+    ///
+    /// # Arguments
+    /// * `other` - The DataFrame to merge with
+    /// * `on` - The column name to join on
+    /// * `how` - Join type: "inner", "left", "right", or "outer"
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df1 = DataFrame::builder()
+    ///     .add_column("id", vec![1.0, 2.0, 3.0])
+    ///     .add_column("value_a", vec![10.0, 20.0, 30.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let df2 = DataFrame::builder()
+    ///     .add_column("id", vec![2.0, 3.0, 4.0])
+    ///     .add_column("value_b", vec![200.0, 300.0, 400.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// // Inner join
+    /// let merged = df1.merge(&df2, "id", "inner").unwrap();
+    /// assert_eq!(merged.n_rows(), 2); // Only rows with id 2 and 3
+    /// ```
+    pub fn merge(
+        &self,
+        other: &DataFrame,
+        on: &str,
+        how: &str,
+    ) -> Result<Self, GreenersError> {
+        // Validate join column exists in both DataFrames
+        if !self.has_column(on) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Join column '{}' not found in left DataFrame",
+                on
+            )));
+        }
+        if !other.has_column(on) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Join column '{}' not found in right DataFrame",
+                on
+            )));
+        }
+
+        let left_key = self.get(on)?;
+        let right_key = other.get(on)?;
+
+        // Build result columns
+        let mut result_data: HashMap<String, Vec<f64>> = HashMap::new();
+
+        // Initialize all columns
+        for col_name in self.columns.keys() {
+            result_data.insert(col_name.clone(), Vec::new());
+        }
+        for col_name in other.columns.keys() {
+            if col_name != on {
+                result_data.insert(col_name.clone(), Vec::new());
+            }
+        }
+
+        match how {
+            "inner" => {
+                // Inner join: only rows with matching keys
+                for i in 0..self.n_rows {
+                    let left_val = left_key[i];
+                    for j in 0..other.n_rows {
+                        if (left_val - right_key[j]).abs() < 1e-10 {
+                            // Match found
+                            for (col_name, col_data) in &self.columns {
+                                result_data.get_mut(col_name).unwrap().push(col_data[i]);
+                            }
+                            for (col_name, col_data) in &other.columns {
+                                if col_name != on {
+                                    result_data.get_mut(col_name).unwrap().push(col_data[j]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            "left" => {
+                // Left join: all rows from left, matched from right
+                for i in 0..self.n_rows {
+                    let left_val = left_key[i];
+                    let mut found = false;
+
+                    for j in 0..other.n_rows {
+                        if (left_val - right_key[j]).abs() < 1e-10 {
+                            found = true;
+                            for (col_name, col_data) in &self.columns {
+                                result_data.get_mut(col_name).unwrap().push(col_data[i]);
+                            }
+                            for (col_name, col_data) in &other.columns {
+                                if col_name != on {
+                                    result_data.get_mut(col_name).unwrap().push(col_data[j]);
+                                }
+                            }
+                        }
+                    }
+
+                    if !found {
+                        // No match: include left row with NaN for right columns
+                        for (col_name, col_data) in &self.columns {
+                            result_data.get_mut(col_name).unwrap().push(col_data[i]);
+                        }
+                        for col_name in other.columns.keys() {
+                            if col_name != on {
+                                result_data.get_mut(col_name).unwrap().push(f64::NAN);
+                            }
+                        }
+                    }
+                }
+            }
+            "right" => {
+                // Right join: all rows from right, matched from left
+                for j in 0..other.n_rows {
+                    let right_val = right_key[j];
+                    let mut found = false;
+
+                    for i in 0..self.n_rows {
+                        if (left_key[i] - right_val).abs() < 1e-10 {
+                            found = true;
+                            for (col_name, col_data) in &self.columns {
+                                result_data.get_mut(col_name).unwrap().push(col_data[i]);
+                            }
+                            for (col_name, col_data) in &other.columns {
+                                if col_name != on {
+                                    result_data.get_mut(col_name).unwrap().push(col_data[j]);
+                                }
+                            }
+                        }
+                    }
+
+                    if !found {
+                        // No match: include right row with NaN for left columns
+                        for col_name in self.columns.keys() {
+                            if col_name != on {
+                                result_data.get_mut(col_name).unwrap().push(f64::NAN);
+                            } else {
+                                result_data.get_mut(col_name).unwrap().push(right_val);
+                            }
+                        }
+                        for (col_name, col_data) in &other.columns {
+                            if col_name != on {
+                                result_data.get_mut(col_name).unwrap().push(col_data[j]);
+                            }
+                        }
+                    }
+                }
+            }
+            "outer" => {
+                // Outer join: all rows from both, with NaN where no match
+                use std::collections::HashSet;
+                let mut processed_right: HashSet<usize> = HashSet::new();
+
+                // Process left rows
+                for i in 0..self.n_rows {
+                    let left_val = left_key[i];
+                    let mut found = false;
+
+                    for j in 0..other.n_rows {
+                        if (left_val - right_key[j]).abs() < 1e-10 {
+                            found = true;
+                            processed_right.insert(j);
+
+                            for (col_name, col_data) in &self.columns {
+                                result_data.get_mut(col_name).unwrap().push(col_data[i]);
+                            }
+                            for (col_name, col_data) in &other.columns {
+                                if col_name != on {
+                                    result_data.get_mut(col_name).unwrap().push(col_data[j]);
+                                }
+                            }
+                        }
+                    }
+
+                    if !found {
+                        for (col_name, col_data) in &self.columns {
+                            result_data.get_mut(col_name).unwrap().push(col_data[i]);
+                        }
+                        for col_name in other.columns.keys() {
+                            if col_name != on {
+                                result_data.get_mut(col_name).unwrap().push(f64::NAN);
+                            }
+                        }
+                    }
+                }
+
+                // Add unmatched right rows
+                for j in 0..other.n_rows {
+                    if !processed_right.contains(&j) {
+                        for col_name in self.columns.keys() {
+                            if col_name != on {
+                                result_data.get_mut(col_name).unwrap().push(f64::NAN);
+                            } else {
+                                result_data.get_mut(col_name).unwrap().push(right_key[j]);
+                            }
+                        }
+                        for (col_name, col_data) in &other.columns {
+                            if col_name != on {
+                                result_data.get_mut(col_name).unwrap().push(col_data[j]);
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {
+                return Err(GreenersError::FormulaError(format!(
+                    "Unknown join type '{}'. Use 'inner', 'left', 'right', or 'outer'",
+                    how
+                )));
+            }
+        }
+
+        // Convert to Array1
+        let mut final_columns = HashMap::new();
+        for (col_name, values) in result_data {
+            final_columns.insert(col_name, Array1::from(values));
+        }
+
+        DataFrame::new(final_columns)
+    }
+
+    /// Group by one or more columns and apply aggregation functions.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("category", vec![1.0, 1.0, 2.0, 2.0, 3.0])
+    ///     .add_column("value", vec![10.0, 20.0, 30.0, 40.0, 50.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// // Group by category and sum values
+    /// let grouped = df.groupby(&["category"], "value", "sum").unwrap();
+    /// assert_eq!(grouped.n_rows(), 3); // 3 unique categories
+    /// ```
+    pub fn groupby(
+        &self,
+        by: &[&str],
+        value_col: &str,
+        agg: &str,
+    ) -> Result<Self, GreenersError> {
+        // Validate columns exist
+        for col in by {
+            if !self.has_column(col) {
+                return Err(GreenersError::VariableNotFound(format!(
+                    "Grouping column '{}' not found",
+                    col
+                )));
+            }
+        }
+        if !self.has_column(value_col) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Value column '{}' not found",
+                value_col
+            )));
+        }
+
+        // Build groups
+        use std::collections::BTreeMap;
+        let mut groups: BTreeMap<Vec<i64>, Vec<usize>> = BTreeMap::new();
+
+        for i in 0..self.n_rows {
+            let mut key = Vec::new();
+            for col_name in by {
+                let val = self.get(col_name)?[i];
+                key.push(val.round() as i64);
+            }
+            groups.entry(key).or_insert_with(Vec::new).push(i);
+        }
+
+        // Apply aggregation
+        let value_data = self.get(value_col)?;
+        let mut result_keys: Vec<Vec<f64>> = vec![Vec::new(); by.len()];
+        let mut result_values: Vec<f64> = Vec::new();
+
+        for (key, indices) in groups {
+            // Add group keys
+            for (i, &k) in key.iter().enumerate() {
+                result_keys[i].push(k as f64);
+            }
+
+            // Calculate aggregation
+            let group_values: Vec<f64> = indices.iter().map(|&i| value_data[i]).collect();
+            let agg_value = match agg {
+                "sum" => group_values.iter().sum(),
+                "mean" => group_values.iter().sum::<f64>() / group_values.len() as f64,
+                "count" => group_values.len() as f64,
+                "min" => group_values
+                    .iter()
+                    .fold(f64::INFINITY, |a, &b| if b < a { b } else { a }),
+                "max" => group_values
+                    .iter()
+                    .fold(f64::NEG_INFINITY, |a, &b| if b > a { b } else { a }),
+                "median" => {
+                    let mut sorted = group_values.clone();
+                    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                    let mid = sorted.len() / 2;
+                    if sorted.len() % 2 == 0 {
+                        (sorted[mid - 1] + sorted[mid]) / 2.0
+                    } else {
+                        sorted[mid]
+                    }
+                }
+                _ => {
+                    return Err(GreenersError::FormulaError(format!(
+                        "Unknown aggregation '{}'. Use 'sum', 'mean', 'count', 'min', 'max', or 'median'",
+                        agg
+                    )));
+                }
+            };
+            result_values.push(agg_value);
+        }
+
+        // Build result DataFrame
+        let mut result_columns = HashMap::new();
+        for (i, col_name) in by.iter().enumerate() {
+            result_columns.insert(col_name.to_string(), Array1::from(result_keys[i].clone()));
+        }
+        result_columns.insert(format!("{}_{}", value_col, agg), Array1::from(result_values));
+
+        DataFrame::new(result_columns)
+    }
 }
 
 impl std::fmt::Display for DataFrame {
