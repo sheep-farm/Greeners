@@ -89,18 +89,25 @@ fn main() {
     println!("6. CSV from URL:");
     println!("   Note: This requires internet connection and a valid CSV URL");
     println!("   Example usage:");
-    println!(r#"   let df = DataFrame::from_csv_url("https://github.com/sheep-farm/Greeners/blob/main/data.csv")?;"#);
+    println!(
+        r#"   let df = DataFrame::from_csv_url("https://github.com/sheep-farm/Greeners/blob/main/data.csv")?;"#
+    );
     println!();
 
     // Uncomment to test with a real URL:
-    let df6 = DataFrame::from_csv_url("https://raw.githubusercontent.com/sheep-farm/Greeners/refs/heads/main/data.csv").unwrap();
+    let df6 = DataFrame::from_csv_url(
+        "https://raw.githubusercontent.com/sheep-farm/Greeners/refs/heads/main/data.csv",
+    )
+    .unwrap();
     println!("   Loaded {} rows x {} columns", df6.n_rows(), df6.n_cols());
 
     // Method 7: JSON from URL (example - requires internet connection)
     println!("7. JSON from URL:");
     println!("   Note: This requires internet connection and a valid JSON URL");
     println!("   Example usage:");
-    println!(r#"   let df = DataFrame::from_json_url("https://raw.githubusercontent.com/sheep-farm/Greeners/refs/heads/main/data.json")?;"#);
+    println!(
+        r#"   let df = DataFrame::from_json_url("https://raw.githubusercontent.com/sheep-farm/Greeners/refs/heads/main/data.json")?;"#
+    );
     println!();
 
     // Bonus: Using the DataFrame with formulas
@@ -118,7 +125,11 @@ fn main() {
         .to_design_matrix(&formula)
         .expect("Failed to create design matrix");
 
-    println!("Design matrix shape: {} rows x {} columns", x.nrows(), x.ncols());
+    println!(
+        "Design matrix shape: {} rows x {} columns",
+        x.nrows(),
+        x.ncols()
+    );
     println!("Response vector length: {}", y.len());
 
     // You can now use this with OLS or any other model:

@@ -496,8 +496,9 @@ impl DataFrame {
             return DataFrame::new(data);
         }
 
-        let file = File::open(path_ref)
-            .map_err(|e| GreenersError::FormulaError(format!("Failed to reopen JSON file: {}", e)))?;
+        let file = File::open(path_ref).map_err(|e| {
+            GreenersError::FormulaError(format!("Failed to reopen JSON file: {}", e))
+        })?;
 
         let reader = BufReader::new(file);
         let records: Vec<HashMap<String, f64>> = serde_json::from_reader(reader)
