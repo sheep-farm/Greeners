@@ -1,15 +1,282 @@
 use greeners::DataFrame;
 
 fn main() {
-    println!("=== TIME SERIES & ADVANCED FEATURES ===\n");
+    println!("=== TIME SERIES OPERATIONS - v1.9.0 ===\n");
+    println!("Demonstrating: lag(), lead(), diff(), pct_change()\n");
+
+    // ========== 1. LAG OPERATOR - CREATING LAGGED VARIABLES ==========
+    println!("=== 1. LAG OPERATOR - Creating Lagged Variables ===\n");
+
+    let prices_df = DataFrame::builder()
+        .add_column("day", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])
+        .add_column(
+            "price",
+            vec![100.0, 102.0, 101.0, 105.0, 103.0, 108.0, 107.0, 110.0],
+        )
+        .build()
+        .unwrap();
+
+    println!("Original price data:");
+    println!("{}\n", prices_df);
+
+    // Lag 1 - previous day's price
+    println!("--- Lag 1 (previous period) ---");
+    let lag1_df = prices_df.lag("price", 1).unwrap();
     println!(
-        "Demonstrating: rolling, cumulative, shift, quantile, rank, drop_duplicates, interpolate\n"
+        "{}\n",
+        lag1_df.select(&["day", "price", "price_lag_1"]).unwrap()
     );
 
-    // ========== 1. ROLLING WINDOW FUNCTIONS ==========
-    println!("=== 1. ROLLING - Moving Averages & Window Aggregations ===\n");
+    // Lag 2 - two days ago
+    println!("--- Lag 2 (two periods ago) ---");
+    let lag2_df = prices_df.lag("price", 2).unwrap();
+    println!(
+        "{}\n",
+        lag2_df.select(&["day", "price", "price_lag_2"]).unwrap()
+    );
 
-    let stock_prices = DataFrame::builder()
+    // Multiple lags for autoregressive models
+    println!("--- Multiple Lags for AR(3) Model ---");
+    let ar_df = prices_df
+        .lag("price", 1)
+        .unwrap()
+        .lag("price", 2)
+        .unwrap()
+        .lag("price", 3)
+        .unwrap();
+    println!(
+        "{}\n",
+        ar_df
+            .select(&["day", "price", "price_lag_1", "price_lag_2", "price_lag_3"])
+            .unwrap()
+    );
+
+    // ========== 2. LEAD OPERATOR - FORWARD-LOOKING VARIABLES ==========
+    println!("\n=== 2. LEAD OPERATOR - Forward-Looking Variables ===\n");
+
+    let forecast_df = DataFrame::builder()
+        .add_column("quarter", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+        .add_column("sales", vec![100.0, 110.0, 105.0, 120.0, 115.0, 130.0])
+        .build()
+        .unwrap();
+
+    println!("Quarterly sales:");
+    println!("{}\n", forecast_df);
+
+    // Lead 1 - next quarter's sales
+    println!("--- Lead 1 (next period) ---");
+    let lead1_df = forecast_df.lead("sales", 1).unwrap();
+    println!(
+        "{}\n",
+        lead1_df
+            .select(&["quarter", "sales", "sales_lead_1"])
+            .unwrap()
+    );
+
+    // Lead 2 - two quarters ahead
+    println!("--- Lead 2 (two periods ahead) ---");
+    let lead2_df = forecast_df.lead("sales", 2).unwrap();
+    println!(
+        "{}\n",
+        lead2_df
+            .select(&["quarter", "sales", "sales_lead_2"])
+            .unwrap()
+    );
+
+    // ========== 3. DIFF OPERATOR - FIRST DIFFERENCES ==========
+    println!("\n=== 3. DIFF OPERATOR - First Differences ===\n");
+
+    let gdp_df = DataFrame::builder()
+        .add_column("year", vec![2015.0, 2016.0, 2017.0, 2018.0, 2019.0, 2020.0])
+        .add_column("gdp", vec![100.0, 102.5, 105.0, 107.8, 110.2, 108.0])
+        .build()
+        .unwrap();
+
+    println!("GDP levels (non-stationary):");
+    println!("{}\n", gdp_df);
+
+    // First difference - make stationary
+    println!("--- First Difference (absolute change) ---");
+    let diff1_df = gdp_df.diff("gdp", 1).unwrap();
+    println!(
+        "{}\n",
+        diff1_df.select(&["year", "gdp", "gdp_diff_1"]).unwrap()
+    );
+
+    // Second difference
+    println!("--- Second Difference (change in change) ---");
+    let diff2_df = gdp_df.diff("gdp", 2).unwrap();
+    println!(
+        "{}\n",
+        diff2_df.select(&["year", "gdp", "gdp_diff_2"]).unwrap()
+    );
+
+    // ========== 4. PERCENTAGE CHANGE - RETURNS CALCULATION ==========
+    println!("\n=== 4. PERCENTAGE CHANGE - Returns Calculation ===\n");
+
+    let stock_df = DataFrame::builder()
+        .add_column("week", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])
+        .add_column(
+            "close",
+            vec![100.0, 105.0, 103.0, 110.0, 108.0, 115.0, 118.0, 120.0],
+        )
+        .build()
+        .unwrap();
+
+    println!("Weekly stock prices:");
+    println!("{}\n", stock_df);
+
+    // 1-week return
+    println!("--- 1-Week Returns (%) ---");
+    let ret1_df = stock_df.pct_change("close", 1).unwrap();
+    let close_vals = ret1_df.get("close").unwrap();
+    let ret1_vals = ret1_df.get("close_pct_1").unwrap();
+
+    println!("╭─────┬────────┬────────────╮");
+    println!("│ week│  close │ close_pct_1│");
+    println!("├─────┼────────┼────────────┤");
+    for i in 0..close_vals.len() {
+        if ret1_vals[i].is_nan() {
+            println!(
+                "│ {:>4.0}│ {:>7.2}│        NaN │",
+                ret1_df.get("week").unwrap()[i],
+                close_vals[i]
+            );
+        } else {
+            println!(
+                "│ {:>4.0}│ {:>7.2}│ {:>9.4} │",
+                ret1_df.get("week").unwrap()[i],
+                close_vals[i],
+                ret1_vals[i]
+            );
+        }
+    }
+    println!("╰─────┴────────┴────────────╯\n");
+
+    // 2-week return
+    println!("--- 2-Week Returns (%) ---");
+    let ret2_df = stock_df.pct_change("close", 2).unwrap();
+    println!(
+        "{}\n",
+        ret2_df.select(&["week", "close", "close_pct_2"]).unwrap()
+    );
+
+    // ========== 5. PRACTICAL EXAMPLE: STOCK PRICE ANALYSIS ==========
+    println!("\n=== 5. PRACTICAL EXAMPLE - Stock Price Analysis ===\n");
+
+    let apple_df = DataFrame::builder()
+        .add_column(
+            "date",
+            vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
+        )
+        .add_column(
+            "price",
+            vec![
+                150.0, 152.0, 151.0, 155.0, 153.0, 158.0, 160.0, 159.0, 162.0, 165.0,
+            ],
+        )
+        .build()
+        .unwrap();
+
+    println!("AAPL daily prices:");
+    println!("{}\n", apple_df);
+
+    // Build complete analysis DataFrame
+    let analysis_df = apple_df
+        .lag("price", 1)
+        .unwrap() // Previous day's price
+        .diff("price", 1)
+        .unwrap() // Daily price change
+        .pct_change("price", 1)
+        .unwrap(); // Daily return
+
+    println!("Complete analysis:");
+    println!(
+        "{}\n",
+        analysis_df
+            .select(&[
+                "date",
+                "price",
+                "price_lag_1",
+                "price_diff_1",
+                "price_pct_1"
+            ])
+            .unwrap()
+    );
+
+    // ========== 6. PRACTICAL EXAMPLE: GDP GROWTH RATES ==========
+    println!("\n=== 6. PRACTICAL EXAMPLE - GDP Growth Rates ===\n");
+
+    let macro_df = DataFrame::builder()
+        .add_column(
+            "year",
+            vec![
+                2010.0, 2011.0, 2012.0, 2013.0, 2014.0, 2015.0, 2016.0, 2017.0,
+            ],
+        )
+        .add_column(
+            "gdp_billions",
+            vec![
+                14500.0, 15000.0, 15500.0, 16000.0, 16800.0, 17400.0, 18000.0, 18500.0,
+            ],
+        )
+        .build()
+        .unwrap();
+
+    println!("GDP data:");
+    println!("{}\n", macro_df);
+
+    // Calculate growth rates
+    let growth_df = macro_df
+        .diff("gdp_billions", 1)
+        .unwrap()
+        .pct_change("gdp_billions", 1)
+        .unwrap();
+
+    println!("GDP growth analysis:");
+    println!(
+        "{}\n",
+        growth_df
+            .select(&[
+                "year",
+                "gdp_billions",
+                "gdp_billions_diff_1",
+                "gdp_billions_pct_1"
+            ])
+            .unwrap()
+    );
+
+    // ========== 7. PRACTICAL EXAMPLE: AR(2) MODEL PREPARATION ==========
+    println!("\n=== 7. PRACTICAL EXAMPLE - AR(2) Model Preparation ===\n");
+
+    let ar_data = DataFrame::builder()
+        .add_column("t", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0])
+        .add_column(
+            "y",
+            vec![10.0, 12.0, 15.0, 14.0, 18.0, 20.0, 19.0, 23.0, 25.0, 24.0],
+        )
+        .build()
+        .unwrap();
+
+    println!("Time series data:");
+    println!("{}\n", ar_data);
+
+    // Prepare for AR(2): y_t = β0 + β1*y_{t-1} + β2*y_{t-2} + ε_t
+    let ar2_df = ar_data.lag("y", 1).unwrap().lag("y", 2).unwrap();
+
+    println!("AR(2) regression ready:");
+    println!(
+        "{}\n",
+        ar2_df.select(&["t", "y", "y_lag_1", "y_lag_2"]).unwrap()
+    );
+
+    println!("Ready for regression: y ~ y_lag_1 + y_lag_2");
+    println!("First 2 observations are NaN (lost to lagging)\n");
+
+    // ========== 8. PRACTICAL EXAMPLE: MOMENTUM TRADING STRATEGY ==========
+    println!("\n=== 8. PRACTICAL EXAMPLE - Momentum Trading Strategy ===\n");
+
+    let trading_df = DataFrame::builder()
         .add_column(
             "day",
             vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
@@ -17,385 +284,215 @@ fn main() {
         .add_column(
             "price",
             vec![
-                100.0, 102.0, 98.0, 105.0, 110.0, 108.0, 115.0, 112.0, 118.0, 120.0,
-            ],
-        )
-        .add_column(
-            "volume",
-            vec![
-                1000.0, 1200.0, 900.0, 1500.0, 1800.0, 1600.0, 2000.0, 1700.0, 2100.0, 2200.0,
+                100.0, 102.0, 105.0, 103.0, 108.0, 110.0, 108.0, 112.0, 115.0, 118.0,
             ],
         )
         .build()
         .unwrap();
 
-    println!("Stock prices (10 days):");
-    println!("{}\n", stock_prices);
+    println!("Daily prices:");
+    println!("{}\n", trading_df);
 
-    // Rolling mean (3-day moving average)
-    println!("--- 3-Day Moving Average (price) ---");
-    let ma3 = stock_prices.rolling("price", 3, "mean").unwrap();
-    println!(
-        "{}\n",
-        ma3.select(&["day", "price", "price_rolling_mean"]).unwrap()
-    );
-
-    // Rolling sum (3-day volume)
-    println!("--- 3-Day Rolling Volume Sum ---");
-    let vol_sum = stock_prices.rolling("volume", 3, "sum").unwrap();
-    println!(
-        "{}\n",
-        vol_sum
-            .select(&["day", "volume", "volume_rolling_sum"])
-            .unwrap()
-    );
-
-    // Rolling max (5-day high)
-    println!("--- 5-Day High Price ---");
-    let high5 = stock_prices.rolling("price", 5, "max").unwrap();
-    println!(
-        "{}\n",
-        high5
-            .select(&["day", "price", "price_rolling_max"])
-            .unwrap()
-    );
-
-    // Rolling min (5-day low)
-    println!("--- 5-Day Low Price ---");
-    let low5 = stock_prices.rolling("price", 5, "min").unwrap();
-    println!(
-        "{}\n",
-        low5.select(&["day", "price", "price_rolling_min"]).unwrap()
-    );
-
-    // Rolling std (volatility)
-    println!("--- 3-Day Price Volatility (std) ---");
-    let volatility = stock_prices.rolling("price", 3, "std").unwrap();
-    println!(
-        "{}\n",
-        volatility
-            .select(&["day", "price", "price_rolling_std"])
-            .unwrap()
-    );
-
-    // ========== 2. CUMULATIVE OPERATIONS ==========
-    println!("\n=== 2. CUMULATIVE OPERATIONS - Running Totals ===\n");
-
-    let sales = DataFrame::builder()
-        .add_column("month", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
-        .add_column(
-            "revenue",
-            vec![1000.0, 1200.0, 1500.0, 1300.0, 1800.0, 2000.0],
-        )
-        .add_column("growth", vec![1.0, 1.2, 1.15, 1.1, 1.25, 1.3])
-        .build()
+    // Calculate short-term (1-day) and medium-term (3-day) momentum
+    let momentum_df = trading_df
+        .pct_change("price", 1)
+        .unwrap()
+        .pct_change("price", 3)
         .unwrap();
 
-    println!("Monthly sales data:");
-    println!("{}\n", sales);
+    println!("Momentum signals:");
+    println!(
+        "{}\n",
+        momentum_df
+            .select(&["day", "price", "price_pct_1", "price_pct_3"])
+            .unwrap()
+    );
 
-    // Cumulative sum - year-to-date revenue
-    println!("--- Cumulative Revenue (YTD) ---");
-    let ytd = sales.cumsum("revenue").unwrap();
-    println!("{}\n", ytd);
+    println!("Trading rules:");
+    println!("  • BUY if price_pct_3 > 0.05 (5% gain in 3 days)");
+    println!("  • SELL if price_pct_1 < -0.02 (2% loss in 1 day)\n");
 
-    // Cumulative product - compound growth
-    println!("--- Cumulative Growth Factor ---");
-    let compound = sales.cumprod("growth").unwrap();
-    println!("{}\n", compound);
+    // ========== 9. LAG vs SHIFT - UNDERSTANDING THE DIFFERENCE ==========
+    println!("\n=== 9. LAG vs SHIFT - Understanding the Difference ===\n");
 
-    // Cumulative max - all-time high
-    println!("--- All-Time High Revenue ---");
-    let ath = sales.cummax("revenue").unwrap();
-    println!("{}\n", ath);
-
-    // Cumulative min - all-time low
-    println!("--- All-Time Low Revenue ---");
-    let atl = sales.cummin("revenue").unwrap();
-    println!("{}\n", atl);
-
-    // ========== 3. SHIFT - LAG/LEAD ==========
-    println!("\n=== 3. SHIFT - Lag & Lead for Time Series ===\n");
-
-    let metrics = DataFrame::builder()
-        .add_column("period", vec![1.0, 2.0, 3.0, 4.0, 5.0])
-        .add_column("value", vec![100.0, 120.0, 115.0, 130.0, 125.0])
+    let compare_df = DataFrame::builder()
+        .add_column("t", vec![1.0, 2.0, 3.0, 4.0, 5.0])
+        .add_column("value", vec![10.0, 20.0, 30.0, 40.0, 50.0])
         .build()
         .unwrap();
 
     println!("Original data:");
-    println!("{}\n", metrics);
+    println!("{}\n", compare_df);
 
-    // Lag 1 (previous period)
-    println!("--- Lag 1 (previous value) ---");
-    let lag1 = metrics.shift("value", 1).unwrap();
-    println!("{}\n", lag1);
-
-    // Lead 1 (next period)
-    println!("--- Lead 1 (next value) ---");
-    let lead1 = metrics.shift("value", -1).unwrap();
-    println!("{}\n", lead1);
-
-    // Lag 2 (two periods ago)
-    println!("--- Lag 2 (two periods ago) ---");
-    let lag2 = metrics.shift("value", 2).unwrap();
-    println!("{}\n", lag2);
-
-    // ========== 4. QUANTILE - PERCENTILES ==========
-    println!("\n=== 4. QUANTILE - Percentile Analysis ===\n");
-
-    let scores = DataFrame::builder()
-        .add_column(
-            "student",
-            vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
-        )
-        .add_column(
-            "score",
-            vec![45.0, 67.0, 78.0, 82.0, 88.0, 91.0, 93.0, 95.0, 98.0, 100.0],
-        )
-        .build()
-        .unwrap();
-
-    println!("Student scores:");
-    println!("{}\n", scores);
-
-    println!("Percentile analysis:");
-    println!(
-        "  25th percentile (Q1): {:.1}",
-        scores.quantile("score", 0.25).unwrap()
-    );
-    println!(
-        "  50th percentile (median): {:.1}",
-        scores.quantile("score", 0.50).unwrap()
-    );
-    println!(
-        "  75th percentile (Q3): {:.1}",
-        scores.quantile("score", 0.75).unwrap()
-    );
-    println!(
-        "  90th percentile: {:.1}",
-        scores.quantile("score", 0.90).unwrap()
-    );
-    println!(
-        "  95th percentile: {:.1}\n",
-        scores.quantile("score", 0.95).unwrap()
-    );
-
-    // ========== 5. RANK - VALUE RANKING ==========
-    println!("=== 5. RANK - Ranking Values ===\n");
-
-    let competitors = DataFrame::builder()
-        .add_column("competitor", vec![1.0, 2.0, 3.0, 4.0, 5.0])
-        .add_column("revenue", vec![5000.0, 8000.0, 3000.0, 12000.0, 7000.0])
-        .build()
-        .unwrap();
-
-    println!("Competitor data:");
-    println!("{}\n", competitors);
-
-    // Rank descending (1 = highest revenue)
-    println!("--- Rank by Revenue (descending, 1 = highest) ---");
-    let ranked_desc = competitors.rank("revenue", false).unwrap();
-    println!("{}\n", ranked_desc);
-
-    // Rank ascending (1 = lowest revenue)
-    println!("--- Rank by Revenue (ascending, 1 = lowest) ---");
-    let ranked_asc = competitors.rank("revenue", true).unwrap();
-    println!("{}\n", ranked_asc);
-
-    // ========== 6. DROP_DUPLICATES - REMOVE DUPLICATES ==========
-    println!("\n=== 6. DROP_DUPLICATES - Remove Duplicate Values ===\n");
-
-    let transactions = DataFrame::builder()
-        .add_column("transaction_id", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0])
-        .add_column(
-            "customer",
-            vec![101.0, 102.0, 101.0, 103.0, 102.0, 104.0, 103.0],
-        )
-        .add_column("amount", vec![50.0, 75.0, 60.0, 100.0, 80.0, 90.0, 110.0])
-        .build()
-        .unwrap();
-
-    println!("Transaction log (with duplicate customers):");
-    println!("{}\n", transactions);
-
-    println!("--- After dropping duplicate customers (keeps first) ---");
-    let unique_customers = transactions.drop_duplicates("customer").unwrap();
-    println!(
-        "Unique customers: {} (from {} transactions)\n",
-        unique_customers.n_rows(),
-        transactions.n_rows()
-    );
-    println!("{}\n", unique_customers);
-
-    // ========== 7. INTERPOLATE - FILL MISSING VALUES ==========
-    println!("\n=== 7. INTERPOLATE - Linear Interpolation for NaN ===\n");
-
-    let sensor_data = DataFrame::builder()
-        .add_column("time", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])
-        .add_column(
-            "temperature",
-            vec![20.0, 22.0, f64::NAN, f64::NAN, 28.0, f64::NAN, 32.0, 34.0],
-        )
-        .build()
-        .unwrap();
-
-    println!("Sensor data with missing values:");
-    println!("{}\n", sensor_data);
-
-    println!("--- After linear interpolation ---");
-    let interpolated = sensor_data.interpolate("temperature").unwrap();
-    println!("{}\n", interpolated);
-
-    // ========== 8. REAL-WORLD WORKFLOW ==========
-    println!("\n=== 8. REAL-WORLD EXAMPLE - Stock Analysis ===\n");
-
-    let stock = DataFrame::builder()
-        .add_column(
-            "day",
-            vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
-        )
-        .add_column(
-            "close",
-            vec![
-                100.0, 102.0, 98.0, 105.0, 110.0, 108.0, 115.0, 112.0, 118.0, 120.0,
-            ],
-        )
-        .build()
-        .unwrap();
-
-    println!("Step 1: Original stock prices");
-    println!("{}\n", stock);
-
-    // Calculate 3-day moving average
-    let with_ma = stock.rolling("close", 3, "mean").unwrap();
-    println!("Step 2: Add 3-day moving average");
+    // lag() - econometric approach (positive periods = backward)
+    let with_lag = compare_df.lag("value", 1).unwrap();
+    println!("--- Using lag(1) - econometric style ---");
     println!(
         "{}\n",
-        with_ma
-            .select(&["day", "close", "close_rolling_mean"])
+        with_lag.select(&["t", "value", "value_lag_1"]).unwrap()
+    );
+    println!("lag(1) creates value_lag_1: shifts backward, NaN at start\n");
+
+    // shift() - pandas approach (positive = forward, negative = backward)
+    let with_shift = compare_df.shift("value", 1).unwrap();
+    println!("--- Using shift(1) - pandas style ---");
+    println!(
+        "{}\n",
+        with_shift.select(&["t", "value", "value_shift_1"]).unwrap()
+    );
+    println!("shift(1) shifts forward, NaN at end\n");
+
+    println!("Key differences:");
+    println!("  • lag(n): n periods BACK (econometric: y_t-1)");
+    println!("  • shift(n): n periods FORWARD (pandas: positive shifts down)");
+    println!("  • shift(-n): n periods BACK (pandas: negative shifts up)");
+    println!("  • lag(1) ≈ shift(-1) in pandas terminology\n");
+
+    // ========== 10. COMBINING OPERATIONS - DIFFERENCE OF DIFFERENCES ==========
+    println!("\n=== 10. COMBINING OPERATIONS - Difference of Differences ===\n");
+
+    let accel_df = DataFrame::builder()
+        .add_column("month", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])
+        .add_column(
+            "sales",
+            vec![100.0, 110.0, 125.0, 145.0, 170.0, 200.0, 235.0, 275.0],
+        )
+        .build()
+        .unwrap();
+
+    println!("Monthly sales (accelerating growth):");
+    println!("{}\n", accel_df);
+
+    // First difference - growth
+    let growth = accel_df.diff("sales", 1).unwrap();
+    println!("First difference (growth):");
+    println!(
+        "{}\n",
+        growth.select(&["month", "sales", "sales_diff_1"]).unwrap()
+    );
+
+    // Second difference - acceleration
+    let acceleration = growth.diff("sales_diff_1", 1).unwrap();
+    println!("Second difference (acceleration of growth):");
+    println!(
+        "{}\n",
+        acceleration
+            .select(&["month", "sales", "sales_diff_1", "sales_diff_1_diff_1"])
             .unwrap()
     );
 
-    // Calculate daily change (lag)
-    let with_prev = stock.shift("close", 1).unwrap();
-    println!("Step 3: Add previous day's close");
-    println!(
-        "{}\n",
-        with_prev
-            .select(&["day", "close", "close_shift_1"])
-            .unwrap()
-    );
+    println!("Interpretation:");
+    println!("  • sales: Level (original values)");
+    println!("  • sales_diff_1: Growth (month-over-month change)");
+    println!("  • sales_diff_1_diff_1: Acceleration (change in growth rate)\n");
 
-    // Calculate all-time high
-    let with_ath = stock.cummax("close").unwrap();
-    println!("Step 4: Add all-time high");
-    println!(
-        "{}\n",
-        with_ath.select(&["day", "close", "close_cummax"]).unwrap()
-    );
+    // ========== 11. LEAD-LAG ANALYSIS ==========
+    println!("\n=== 11. LEAD-LAG ANALYSIS - Causality Testing ===\n");
 
-    // Rank by price
-    let with_rank = stock.rank("close", false).unwrap();
-    println!("Step 5: Rank by price (1 = highest)");
-    println!("{}\n", with_rank);
-
-    // ========== 9. COMBINING FEATURES ==========
-    println!("\n=== 9. COMBINING MULTIPLE FEATURES ===\n");
-
-    let timeseries = DataFrame::builder()
-        .add_column("t", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])
+    let causality_df = DataFrame::builder()
+        .add_column("week", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])
         .add_column(
-            "value",
-            vec![10.0, f64::NAN, 14.0, 16.0, f64::NAN, 22.0, 25.0, 28.0],
+            "google_searches",
+            vec![100.0, 110.0, 105.0, 120.0, 115.0, 130.0, 125.0, 140.0],
+        )
+        .add_column(
+            "product_sales",
+            vec![50.0, 55.0, 53.0, 60.0, 58.0, 65.0, 63.0, 70.0],
         )
         .build()
         .unwrap();
 
-    println!("Original data with gaps:");
-    println!("{}\n", timeseries);
+    println!("Google searches vs product sales:");
+    println!("{}\n", causality_df);
 
-    // Step 1: Interpolate missing values
-    let filled = timeseries.interpolate("value").unwrap();
-    println!("After interpolation:");
-    println!("{}\n", filled);
+    // Hypothesis: searches predict future sales
+    let lead_lag_df = causality_df
+        .lag("google_searches", 1)
+        .unwrap()
+        .lag("google_searches", 2)
+        .unwrap()
+        .lead("product_sales", 1)
+        .unwrap();
 
-    // Step 2: Add 3-period moving average
-    let with_ma = filled.rolling("value", 3, "mean").unwrap();
-    println!("After adding rolling mean:");
+    println!("Lead-lag structure for Granger causality:");
     println!(
         "{}\n",
-        with_ma
-            .select(&["t", "value", "value_rolling_mean"])
+        lead_lag_df
+            .select(&[
+                "week",
+                "google_searches",
+                "google_searches_lag_1",
+                "google_searches_lag_2",
+                "product_sales",
+                "product_sales_lead_1"
+            ])
             .unwrap()
     );
 
-    // Step 3: Add cumulative sum
-    let with_cumsum = with_ma.cumsum("value").unwrap();
-    println!("After adding cumulative sum:");
-    println!(
-        "{}\n",
-        with_cumsum.select(&["t", "value", "value_cumsum"]).unwrap()
-    );
+    println!("Analysis:");
+    println!("  • google_searches_lag_1: Do searches 1 week ago predict sales today?");
+    println!("  • google_searches_lag_2: Do searches 2 weeks ago predict sales today?");
+    println!("  • product_sales_lead_1: What will sales be next week?\n");
 
     // ========== SUMMARY ==========
-    println!("\n=== FEATURE SUMMARY ===\n");
+    println!("\n=== FEATURE SUMMARY - v1.9.0 ===\n");
 
-    println!("✅ ROLLING - Window functions:");
-    println!("  • rolling(col, window, 'mean') - Moving average");
-    println!("  • rolling(col, window, 'sum')  - Rolling sum");
-    println!("  • rolling(col, window, 'min')  - Rolling minimum");
-    println!("  • rolling(col, window, 'max')  - Rolling maximum");
-    println!("  • rolling(col, window, 'std')  - Rolling volatility");
+    println!("✅ TIME SERIES OPERATIONS:");
+    println!("  • lag(column, periods)        - Create lagged variables (t-n)");
+    println!("  • lead(column, periods)       - Create lead variables (t+n)");
+    println!("  • diff(column, periods)       - First differences (Δy)");
+    println!("  • pct_change(column, periods) - Percentage changes (returns)");
 
-    println!("\n✅ CUMULATIVE operations:");
-    println!("  • cumsum(col)   - Running total");
-    println!("  • cumprod(col)  - Compound growth");
-    println!("  • cummax(col)   - All-time high");
-    println!("  • cummin(col)   - All-time low");
+    println!("\n✅ PROPERTIES:");
+    println!("  • All methods return Result<DataFrame>");
+    println!("  • periods must be >= 1 (error otherwise)");
+    println!("  • NaN for initial/final values where calculation impossible");
+    println!("  • Creates new columns with descriptive names");
 
-    println!("\n✅ SHIFT - Time series:");
-    println!("  • shift(col, 1)  - Lag (previous value)");
-    println!("  • shift(col, -1) - Lead (next value)");
-    println!("  • shift(col, n)  - n periods back");
+    println!("\n✅ COLUMN NAMING:");
+    println!("  • lag: 'price' → 'price_lag_1', 'price_lag_2'");
+    println!("  • lead: 'sales' → 'sales_lead_1', 'sales_lead_2'");
+    println!("  • diff: 'gdp' → 'gdp_diff_1', 'gdp_diff_2'");
+    println!("  • pct_change: 'close' → 'close_pct_1', 'close_pct_2'");
 
-    println!("\n✅ QUANTILE - Statistics:");
-    println!("  • quantile(col, 0.25) - Q1");
-    println!("  • quantile(col, 0.50) - Median");
-    println!("  • quantile(col, 0.75) - Q3");
+    println!("\n✅ USE CASES:");
+    println!("  📈 Finance:");
+    println!("    - Stock returns: pct_change(price, 1)");
+    println!("    - Momentum: pct_change(price, n) for n periods");
+    println!("    - Price changes: diff(price, 1)");
 
-    println!("\n✅ RANK - Ordering:");
-    println!("  • rank(col, false) - Descending (1 = highest)");
-    println!("  • rank(col, true)  - Ascending (1 = lowest)");
+    println!("\n  📊 Econometrics:");
+    println!("    - AR models: lag(y, 1), lag(y, 2), ...");
+    println!("    - Stationarity: diff(series, 1)");
+    println!("    - GDP growth: pct_change(gdp, 1)");
 
-    println!("\n✅ DROP_DUPLICATES - Data cleaning:");
-    println!("  • drop_duplicates(col) - Keep first occurrence");
+    println!("\n  🔬 Research:");
+    println!("    - Lead-lag analysis: lag(x, n) + lead(y, m)");
+    println!("    - Granger causality: multiple lags");
+    println!("    - Panel data: lag within groups");
 
-    println!("\n✅ INTERPOLATE - Missing data:");
-    println!("  • interpolate(col) - Linear interpolation for NaN");
+    println!("\n  🤖 Machine Learning:");
+    println!("    - Feature engineering: lag(features, 1..n)");
+    println!("    - Time series forecasting: create lagged predictors");
+    println!("    - Sequence modeling: lead(target, 1) for prediction");
 
-    println!("\n=== USE CASES ===\n");
-    println!("📈 Financial Analysis:");
-    println!("  - Moving averages (SMA, EMA simulation)");
-    println!("  - Price momentum (shift for returns)");
-    println!("  - All-time highs/lows (cummax/cummin)");
-    println!("  - Volatility windows (rolling std)");
+    println!("\n✅ MATHEMATICAL RELATIONSHIPS:");
+    println!("  • lag(x, n)[t] = x[t-n]");
+    println!("  • lead(x, n)[t] = x[t+n]");
+    println!("  • diff(x, n)[t] = x[t] - x[t-n]");
+    println!("  • pct_change(x, n)[t] = (x[t] - x[t-n]) / x[t-n]");
+    println!("  • pct_change = diff / lag");
 
-    println!("\n📊 Time Series:");
-    println!("  - Seasonal patterns (rolling aggregations)");
-    println!("  - Trend analysis (cumulative operations)");
-    println!("  - Lag features for ML (shift)");
-    println!("  - Missing data handling (interpolate)");
+    println!("\n✅ ERROR HANDLING:");
+    println!("  • InvalidOperation: periods = 0");
+    println!("  • VariableNotFound: column doesn't exist");
+    println!("  • Division by zero in pct_change → NaN");
 
-    println!("\n🔬 Statistical Analysis:");
-    println!("  - Percentile rankings (quantile)");
-    println!("  - Outlier detection (quantile + rank)");
-    println!("  - Distribution analysis");
-
-    println!("\n🧹 Data Cleaning:");
-    println!("  - Remove duplicates (drop_duplicates)");
-    println!("  - Fill gaps (interpolate)");
-    println!("  - Smooth noisy data (rolling mean)");
+    println!("\n✅ INTEGRATION:");
+    println!("  • Works with all DataFrame types");
+    println!("  • Chain operations: df.lag().diff().pct_change()");
+    println!("  • Compatible with regression models");
+    println!("  • Export to CSV/JSON preserves all columns");
 
     println!("\n=== Demo Complete! ===");
 }
