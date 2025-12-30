@@ -54,7 +54,7 @@ fn main() {
         .filter(|row| {
             // Get the is_active column
             if let Some(col) = user_df.get_column("is_active").ok() {
-                if let Some(bool_col) = col.as_bool() {
+                if let Some(_bool_col) = col.as_bool() {
                     // Get the index from row data
                     // For simplicity, we'll use a workaround
                     return row.get("age").map(|_| true).unwrap_or(false);
