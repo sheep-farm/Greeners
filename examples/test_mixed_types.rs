@@ -52,7 +52,7 @@ fn main() {
     use std::fs::File;
     use std::io::Write;
 
-    let mut file = File::create("test_mixed.csv").expect("Failed to create file");
+    let mut file = File::create("examples/data/test_mixed.csv").expect("Failed to create file");
     writeln!(file, "id,name,age,salary,active,region").unwrap();
     writeln!(file, "1,Alice,25,50000.50,true,North").unwrap();
     writeln!(file, "2,Bob,30,60000.75,false,South").unwrap();
@@ -60,7 +60,7 @@ fn main() {
     writeln!(file, "4,Diana,28,55000.25,false,East").unwrap();
     writeln!(file, "5,Eve,32,65000.50,true,North").unwrap();
 
-    match DataFrame::from_csv("test_mixed.csv") {
+    match DataFrame::from_csv("examples/data/test_mixed.csv") {
         Ok(df) => {
             println!(
                 "   ✓ SUCCESS: Loaded {} rows x {} columns",
@@ -104,7 +104,7 @@ fn main() {
 
     // Test 4: JSON with mixed types
     println!("\n4. Testing from_json() with mixed types:");
-    let mut json_file = File::create("test_mixed.json").expect("Failed to create file");
+    let mut json_file = File::create("examples/data/test_mixed.json").expect("Failed to create file");
     writeln!(json_file, "[").unwrap();
     writeln!(
         json_file,
@@ -123,7 +123,7 @@ fn main() {
     .unwrap();
     writeln!(json_file, "]").unwrap();
 
-    match DataFrame::from_json("test_mixed.json") {
+    match DataFrame::from_json("examples/data/test_mixed.json") {
         Ok(df) => {
             println!(
                 "   ✓ SUCCESS: Loaded {} rows x {} columns",
@@ -146,8 +146,8 @@ fn main() {
 
     // Clean up
     println!("\n=== Cleaning up test files ===");
-    std::fs::remove_file("test_mixed.csv").ok();
-    std::fs::remove_file("test_mixed.json").ok();
+    std::fs::remove_file("examples/data/test_mixed.csv").ok();
+    std::fs::remove_file("examples/data/test_mixed.json").ok();
     println!("Test files removed.\n");
 
     println!("=== All tests completed! ===");
