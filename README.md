@@ -2,7 +2,7 @@
 # Greeners: High-Performance Econometrics in Rust
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
-![Version](https://img.shields.io/badge/version-2.0.0-blue)
+![Version](https://img.shields.io/badge/version-1.3.0-blue)
 ![License](https://img.shields.io/badge/license-GPLv3-green)
 ![Stability](https://img.shields.io/badge/stability-stable-green)
 
@@ -10,13 +10,13 @@
 
 Designed for academic research, heavy simulations, and production-grade economic modeling.
 
-## 🎉 v2.0.0 MAJOR RELEASE: Complete Data Handling & Time Series
+## 🎉 v1.3.0 MAJOR FEATURE RELEASE: Complete Data Handling & Time Series
 
-**Greeners v2.0.0** brings **pandas-like DataFrame capabilities** and **essential time series operations** for econometric analysis!
+**Greeners v1.3.0** brings **pandas-like DataFrame capabilities** and **essential time series operations** for econometric analysis - all while maintaining **100% backward compatibility** with v1.0.2!
 
-### 🆕 Three Major Feature Sets (NEW in v2.0.0)
+### 🆕 Three Major Feature Sets (NEW in v1.3.0)
 
-#### 1. String Column Support (v1.7.0)
+#### 1. String Column Support
 
 Store free-form text data alongside numerical columns:
 
@@ -49,7 +49,7 @@ println!("First customer: {}", names[0]); // "Alice Johnson"
 
 📖 See `examples/string_features.rs` for comprehensive demonstration.
 
-#### 2. Missing Data & Null Support (v1.8.0)
+#### 2. Missing Data & Null Support
 
 Complete toolkit for handling missing values - just like pandas!
 
@@ -78,7 +78,7 @@ let smooth = df.interpolate("temperature")?;  // Linear interpolation
 
 📖 See `examples/missing_data_features.rs` for complete workflow.
 
-#### 3. Time Series Operations (v1.9.0)
+#### 3. Time Series Operations
 
 Essential operations for econometric time series analysis:
 
@@ -128,25 +128,26 @@ let analysis = df
 
 📖 See `examples/time_series_features.rs` for 11 practical examples.
 
-### Why v2.0.0 Matters
+### Why v1.3.0 Matters
 
-**Before v2.0.0:**
+**Before v1.3.0:**
 - Greeners = Powerful econometric estimators + basic DataFrame
 - Missing data? Manual handling required
 - Time series? Use `shift()` and manual calculations
 - Text data? Not supported
 
-**Now v2.0.0:**
+**Now v1.3.0:**
 - Greeners = **Complete data analysis platform** with pandas-like capabilities
 - String columns ✅ Missing data toolkit ✅ Time series ops ✅
 - Full workflow: Load → Clean → Transform → Model → Predict
 - **Only Rust library** with comprehensive econometrics + DataFrame
+- **100% backward compatible** - all v1.0.2 code works unchanged!
 
 ### Migration from v1.0.2
 
-**100% backward compatible** - all v1.0.2 code works unchanged!
+**100% backward compatible** - **zero breaking changes!**
 
-New capabilities are additive:
+All v1.0.2 code works unchanged. New capabilities are purely additive:
 ```rust
 // Your existing v1.0.2 code
 let df = DataFrame::from_csv("data.csv")?;
@@ -154,7 +155,7 @@ let formula = Formula::parse("y ~ x1 + x2")?;
 let result = OLS::from_formula(&formula, &df, CovarianceType::HC3)?;
 // ✅ Still works perfectly!
 
-// New v2.0.0 capabilities
+// New v1.3.0 capabilities (additive)
 let df_with_strings = df.add_string("region", regions)?;  // NEW
 let clean_df = df.dropna()?;  // NEW
 let with_lags = df.lag("y", 1)?;  // NEW
@@ -245,19 +246,20 @@ female       -1.20    0.25       -4.80  0.000
 
 ### Comprehensive Test Coverage
 
-v1.0.2 includes **143 unit tests** covering all major functionality:
+v1.3.0 includes **102 unit tests** covering all major functionality:
 
-- **62 new tests** added in v1.0.2 across 7 test modules
-- Full coverage of IV/2SLS, Panel Data, DiD, FGLS, Quantile Regression
+- **17 new tests** added in v1.3.0 for time series operations
+- Full coverage of OLS, IV/2SLS, Panel Data, DiD, FGLS, Quantile Regression
+- String columns, Missing data, Time series operations
 - Diagnostic tests (VIF, Breusch-Pagan, Jarque-Bera, Durbin-Watson)
 - GMM specification tests (J-statistic, overidentification)
 - Model selection and information criteria
 
 Run tests locally:
 ```sh
-cargo test              # Run all 143 tests
+cargo test              # Run all 102 tests
 cargo test --lib        # Library tests only
-cargo test quantile     # Specific module tests
+cargo test dataframe    # DataFrame-specific tests
 ```
 
 <!-- ### Quality & Competitive Analysis
@@ -355,7 +357,7 @@ let result = OLS::from_formula(&formula, &df, CovarianceType::HC1)?;
 
 📖 See [FORMULA_API.md](FORMULA_API.md) for complete documentation and examples.
 
-## 🚀 NEW in v0.9.0: Panel Diagnostics & Model Selection
+## 🚀 Panel Diagnostics & Model Selection
 
 Greeners now provides comprehensive tools for **panel data model selection** and **information criteria-based model comparison** - essential for rigorous empirical research!
 
@@ -467,7 +469,7 @@ SummaryStats::print_summary(&summary_data);
 
 📖 See `examples/panel_model_selection.rs` for comprehensive demonstration with panel data workflow.
 
-## 🌟 NEW in v0.5.0: Marginal Effects for Binary Choice Models
+## 🌟 Marginal Effects for Binary Choice Models
 
 After estimating Logit/Probit models, **coefficients alone are hard to interpret** (they're on log-odds/z-score scale). **Marginal effects** translate these to **probability changes** - essential for policy analysis and substantive interpretation!
 
@@ -566,7 +568,7 @@ let result = OLS::from_formula(
 
 📖 See `examples/two_way_clustering.rs` for complete comparison of non-robust vs one-way vs two-way clustering.
 
-## 🎊 NEW in v0.4.0: Categorical Variables & Polynomial Terms
+## 🎊 Categorical Variables & Polynomial Terms
 
 ### Categorical Variable Encoding
 Automatic dummy variable creation with R/Python syntax:
@@ -609,7 +611,7 @@ let formula = Formula::parse("y ~ x + I(x**2)")?;
 let formula = Formula::parse("sales ~ C(region) * I(advertising^2)")?;
 ```
 
-## 🆕 NEW in v0.2.0: Clustered Standard Errors & Advanced Diagnostics
+## 🆕 Clustered Standard Errors & Advanced Diagnostics
 
 ### Clustered Standard Errors
 Critical for panel data and hierarchical structures where observations are grouped:
@@ -646,7 +648,7 @@ let (bp_stat, bp_p) = Diagnostics::breusch_pagan(&residuals, &x)?;  // Heteroske
 let dw_stat = Diagnostics::durbin_watson(&residuals);  // Autocorrelation
 ```
 
-## 🎉 NEW in v0.3.0: Interactions, HC2/HC3, and Predictions
+## 🎉 Interactions, HC2/HC3, and Predictions
 
 ### Interaction Terms
 Model interaction effects with R/Python syntax:
@@ -756,7 +758,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-greeners = "2.0.0"
+greeners = "1.3.0"
 ndarray = "0.17"
 # Note: You must have a BLAS/LAPACK provider installed on your system
 ndarray-linalg = { version = "0.18", features = ["openblas-system"] }
@@ -957,9 +959,9 @@ All formulas follow R/Python syntax for familiarity and ease of use.
 
 - **[FORMULA_API.md](FORMULA_API.md)** - Complete formula API guide with Python/R equivalents
 - **[examples/](examples/)** - Working examples for all estimators
-  - `string_features.rs` - **String column support** (NEW v2.0.0!)
-  - `missing_data_features.rs` - **Missing data toolkit** (NEW v2.0.0!)
-  - `time_series_features.rs` - **Time series operations: lag, lead, diff, pct_change** (NEW v2.0.0!)
+  - `string_features.rs` - **String column support** (NEW v1.3.0!)
+  - `missing_data_features.rs` - **Missing data toolkit** (NEW v1.3.0!)
+  - `time_series_features.rs` - **Time series operations: lag, lead, diff, pct_change** (NEW v1.3.0!)
   - `dataframe_loading.rs` - Load data from CSV, JSON, URLs, or Builder pattern
   - `csv_formula_example.rs` - Load CSV files and run regressions
   - `formula_example.rs` - General formula API demonstration
@@ -971,7 +973,7 @@ All formulas follow R/Python syntax for familiarity and ease of use.
 
 Run examples:
 ```sh
-# NEW v2.0.0 examples
+# NEW v1.3.0 examples
 cargo run --example string_features        # String columns
 cargo run --example missing_data_features  # Missing data handling
 cargo run --example time_series_features   # Time series operations
@@ -991,3 +993,4 @@ cargo run --example specification_tests
 3. **Performance:** Native speed with BLAS/LAPACK backends
 4. **Comprehensive:** Full suite of econometric estimators
 5. **Production Ready:** Memory safe, no garbage collection pauses
+
