@@ -2,13 +2,24 @@
 # Greeners: High-Performance Econometrics in Rust
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
-![Version](https://img.shields.io/badge/version-1.3.0-blue)
+![Version](https://img.shields.io/badge/version-1.3.1-blue)
 ![License](https://img.shields.io/badge/license-GPLv3-green)
 ![Stability](https://img.shields.io/badge/stability-stable-green)
 
 **Greeners** is a lightning-fast, type-safe econometrics library written in pure Rust. It provides a comprehensive suite of estimators for Cross-Sectional, Time-Series, and Panel Data analysis, leveraging linear algebra backends (LAPACK/BLAS) for maximum performance.
 
 Designed for academic research, heavy simulations, and production-grade economic modeling.
+
+## 🎉 v1.3.1 ENHANCED RELEASE: Intelligent Type Detection
+
+**Greeners v1.3.1** enhances the automatic type detection system with **smart Int vs Float distinction**, **DateTime support**, and **improved Boolean detection** - making data loading even more intelligent!
+
+### 🆕 What's New in v1.3.1
+
+1. **Improved Int vs Float Detection** - Now correctly distinguishes `1` from `1.0` and `1.5`
+2. **Automatic DateTime Detection** - ISO-8601 format timestamps are auto-detected
+3. **Enhanced Boolean Detection** - Supports `1/0`, `yes/no`, `true/false`, `t/f` variants
+4. **Configurable Thresholds** - Internal configuration for Categorical vs String detection
 
 ## 🎉 v1.3.0 MAJOR FEATURE RELEASE: Complete Data Handling & Time Series
 
@@ -752,13 +763,63 @@ sudo pacman -S gcc-fortran openblas lapack base-devel
 brew install openblas lapack
 ```
 
+## 🔍 Automatic Type Detection (v1.3.1+)
+
+Greeners automatically detects column types when loading data from CSV or JSON:
+
+### Detection Priority Order
+
+1. **Boolean** - `true/false`, `yes/no`, `t/f`, `1/0` → `Bool`
+2. **Integer** - `1`, `42`, `-10` → `Int` (i64)
+3. **Float** - `1.5`, `3.14`, `1.0` → `Float` (f64) or `Int` if no fractional part
+4. **DateTime** - `2024-01-15 10:30:00`, `2024-01-15T10:30:00` → `DateTime`
+5. **Categorical** - Repeated string values (< 50% unique) → `Categorical`
+6. **String** - Unique text values (≥ 50% unique) → `String`
+
+### Examples
+
+```rust
+// CSV with mixed types
+// id,name,created_at,amount,active,region
+// 1,Alice,2024-01-15 10:30:00,100.50,true,North
+// 2,Bob,2024-01-16 14:45:00,200.75,false,South
+
+let df = DataFrame::from_csv("data.csv")?;
+
+// Automatic type detection:
+let id = df.get_int("id")?;              // Int (not Float!)
+let name = df.get_string("name")?;       // String (high uniqueness)
+let timestamp = df.get_datetime("created_at")?; // DateTime
+let amount = df.get("amount")?;          // Float (has decimals)
+let active = df.get_bool("active")?;     // Bool
+let region = df.get_categorical("region")?; // Categorical (repeated values)
+```
+
+### Smart Integer Detection
+
+```rust
+// These CSV values:
+// pure_int: 1, 2, 3      → Int (parsed as integers)
+// as_float: 1.0, 2.0     → Int (no fractional part)
+// decimal:  1.5, 2.7     → Float (has fractional part)
+```
+
+### DateTime Formats Supported
+
+- `YYYY-MM-DD HH:MM:SS` (e.g., `2024-01-15 10:30:00`)
+- `YYYY-MM-DDTHH:MM:SS` (ISO-8601, e.g., `2024-01-15T10:30:00`)
+- `YYYY-MM-DD HH:MM:SS.fff` (with milliseconds)
+- `YYYY-MM-DDTHH:MM:SS.fff`
+
+📖 See `examples/test_improved_type_detection.rs` for comprehensive examples.
+
 ## 📦 Installation
 
 Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-greeners = "1.3.0"
+greeners = "1.3.1"
 ndarray = "0.17"
 # Note: You must have a BLAS/LAPACK provider installed on your system
 ndarray-linalg = { version = "0.18", features = ["openblas-system"] }
