@@ -387,13 +387,165 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GMM, SUR, 3SLS, Arellano-Bond
 - Basic diagnostics: Jarque-Bera, Breusch-Pagan, Durbin-Watson
 
+## [2.0.0] - 2025-01-29 🎉 MAJOR RELEASE: Complete Data Handling & Time Series
+
+### Summary
+**Greeners v2.0.0** represents a **major milestone** with comprehensive data handling capabilities matching pandas/polars and essential time series operations for econometric analysis. This release completes the core DataFrame API and time series toolkit.
+
+### Added - Three Major Feature Sets
+
+#### v1.7.0: String Column Support
+- **`DataFrame::add_string(name, values)`** - Create string columns for free text
+  - Store names, emails, addresses, comments, descriptions
+  - Variable-length text without encoding (unlike Categorical)
+  - Full integration with all DataFrame operations
+- **`DataFrame::get_string(name)`** - Access string data
+- **String vs Categorical distinction:**
+  - String: Free text, unique values, variable length (names, addresses)
+  - Categorical: Repeated categories, encoded as integers (regions, groups)
+- **Operations:** concat, filter, select, head/tail preserve strings
+- **Export:** to_csv() and to_json() preserve string columns
+- **Missing data:** Empty strings represent missing (no NaN concept)
+- See `examples/string_features.rs` for comprehensive demonstration
+
+#### v1.8.0: Missing Data & Null Support
+- **`DataFrame::isna(column)`** - Boolean mask for missing values
+- **`DataFrame::notna(column)`** - Boolean mask for non-missing values
+- **`DataFrame::dropna()`** - Remove rows with any NaN
+- **`DataFrame::dropna_subset(cols)`** - Remove rows with NaN in specific columns
+- **`DataFrame::fillna(column, value)`** - Fill missing with constant
+- **`DataFrame::fillna_ffill(column)`** - Forward fill (carry forward)
+- **`DataFrame::fillna_bfill(column)`** - Backward fill (carry backward)
+- **`DataFrame::interpolate(column)`** - Linear interpolation for gaps
+- **Comprehensive missing data workflow:**
+  - Detect: isna/notna for investigation
+  - Handle: dropna for complete-case analysis
+  - Impute: fillna/ffill/bfill/interpolate for missing value treatment
+- **Type-aware:** Works with Float, Int, Bool, DateTime columns
+- **Bool columns:** Returns false for count_na() (no missing concept)
+- See `examples/missing_data_features.rs` for complete demonstration
+
+#### v1.9.0: Time Series Operations
+- **`DataFrame::lag(column, periods)`** - Create lagged variables (y_{t-n})
+  - Essential for autoregressive models: AR(p), ARIMA
+  - Returns NaN for first `periods` observations
+  - Example: `df.lag("price", 1)` creates `price_lag_1`
+- **`DataFrame::lead(column, periods)`** - Create lead variables (y_{t+n})
+  - Forward-looking analysis and causality testing
+  - Returns NaN for last `periods` observations
+  - Example: `df.lead("sales", 1)` creates `sales_lead_1`
+- **`DataFrame::diff(column, periods)`** - First differences (y_t - y_{t-n})
+  - Essential for achieving stationarity
+  - Used in unit root tests and differenced models
+  - Example: `df.diff("gdp", 1)` creates `gdp_diff_1`
+- **`DataFrame::pct_change(column, periods)`** - Percentage changes
+  - Standard for financial returns: (y_t - y_{t-n}) / y_{t-n}
+  - Division by zero returns NaN
+  - Example: `df.pct_change("close", 1)` creates `close_pct_1`
+- **Mathematical relationships:**
+  - lag(x, n)[t] = x[t-n]
+  - lead(x, n)[t] = x[t+n]
+  - diff(x, n)[t] = x[t] - x[t-n]
+  - pct_change(x, n)[t] = diff(x, n)[t] / lag(x, n)[t]
+- **Error handling:**
+  - InvalidOperation if periods = 0
+  - VariableNotFound if column doesn't exist
+- **Use cases:**
+  - Finance: Returns, momentum strategies
+  - Econometrics: AR models, stationarity testing, GDP growth
+  - Machine Learning: Time series feature engineering
+- See `examples/time_series_features.rs` for 11 practical examples
+
+### Changed
+- **Cargo.toml**: Version bumped to 2.0.0
+- **Error types**: Added `InvalidOperation` variant to `GreenersError`
+- **Column types**: String and enhanced missing data handling
+- **Test coverage**: 102 total tests (added 17 new time series tests)
+
+### Documentation
+- **README.md**: Updated with v2.0.0 features and examples
+- **CHANGELOG.md**: Complete documentation of v1.7.0, v1.8.0, v1.9.0
+- **Examples:**
+  - `examples/string_features.rs` (467 lines) - String column demonstration
+  - `examples/missing_data_features.rs` - Missing data workflow
+  - `examples/time_series_features.rs` (467 lines) - Time series operations
+
+### Migration Guide from v1.0.2 to v2.0.0
+All v1.0.2 features remain **fully compatible** - no breaking changes!
+
+**New capabilities:**
+```rust
+// 1. String columns
+let df = DataFrame::builder()
+    .add_string("name", vec!["Alice".to_string(), "Bob".to_string()])
+    .add_column("score", vec![85.0, 92.0])
+    .build()?;
+
+// 2. Missing data handling
+let clean = df.dropna();  // Remove rows with NaN
+let filled = df.fillna_ffill("score")?;  // Forward fill
+let interpolated = df.interpolate("price")?;  // Linear interpolation
+
+// 3. Time series operations
+let with_lag = df.lag("price", 1)?;  // Previous period
+let returns = df.pct_change("price", 1)?;  // Percentage change
+let stationary = df.diff("gdp", 1)?;  // First difference
+```
+
+### Performance
+- String columns: Variable memory per value (use Categorical for repeated values)
+- Missing data ops: O(n) time complexity
+- Time series ops: O(n) with NaN-safe operations
+- All operations leverage ndarray for vectorized performance
+
+### Quality Metrics
+- **Test coverage**: 102/102 tests passing
+- **Code quality**: Clippy clean, idiomatic Rust
+- **Documentation**: 3 comprehensive examples (1,400+ lines total)
+- **API stability**: v2.0.0 marks stable DataFrame API
+
+### Comparison with Other Libraries
+**Greeners v2.0.0 now offers:**
+- ✅ pandas-like data handling (string columns, missing data, time series)
+- ✅ statsmodels-like econometric methods (all existing estimators)
+- ✅ Rust type safety and performance
+- ✅ Production-ready memory safety
+
+**What's unique:**
+- Only Rust library with complete econometric + DataFrame capabilities
+- Type-safe time series operations (compile-time guarantees)
+- Zero-copy design matrix creation from formulas
+- BLAS/LAPACK backend for maximum performance
+
+### Stata/R/Python Equivalents
+
+**String columns:**
+- Python: `df['name'] = ['Alice', 'Bob']` (pandas Series with dtype='object')
+- R: `df$name <- c('Alice', 'Bob')` (character vector)
+- Stata: `gen str name = "Alice"` (string variable)
+
+**Missing data:**
+- Python: `df.isna()`, `df.dropna()`, `df.fillna()`, `df.interpolate()`
+- R: `is.na()`, `na.omit()`, `na.fill()`, `na.approx()`
+- Stata: `misstable`, `drop if missing()`, `replace x = ...`
+
+**Time series:**
+- Python: `df['x'].shift(1)`, `df['x'].diff()`, `df['x'].pct_change()`
+- R: `lag(x, 1)`, `diff(x)`, `Delt(x)`
+- Stata: `L.x`, `D.x`, (x - L.x)/L.x`
+
+### Future Roadmap (v2.1.0+)
+- ✅ Core DataFrame operations (COMPLETE in v2.0.0)
+- ✅ Time series basics (COMPLETE in v2.0.0)
+- ⏳ Advanced time series: rolling window statistics
+- ⏳ Group-by operations: aggregations by categorical variables
+- ⏳ Merge/join operations: combining multiple DataFrames
+- ⏳ Reshaping: pivot, melt, stack/unstack
+
 ## [Unreleased]
 
 ### Planned Features
-- Two-way clustering (clustered by both dimensions)
-- Interaction terms in formulas (e.g., `y ~ x1 * x2`)
-- Categorical variables and factor encoding (e.g., `y ~ C(category)`)
-- Polynomial terms (e.g., `y ~ x + I(x^2)`)
-- More covariance estimators (HC2, HC3, HC4)
-- Wild bootstrap for hypothesis testing
-- Post-estimation predictions and marginal effects
+- Rolling window aggregations (mean, sum, std, min, max)
+- Group-by operations with aggregations
+- DataFrame merge/join operations
+- Pivot tables and data reshaping

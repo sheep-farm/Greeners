@@ -27,4 +27,8 @@ pub enum GreenersError {
     /// Error thrown when a variable is not found in the data
     #[error("Variable not found in data: {0}")]
     VariableNotFound(String),
+
+    /// Error thrown when an invalid operation is requested
+    #[error("Invalid operation: {0}")]
+    InvalidOperation(String),
 }
