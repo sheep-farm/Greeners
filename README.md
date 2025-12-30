@@ -10,17 +10,18 @@
 
 Designed for academic research, heavy simulations, and production-grade economic modeling.
 
-## 🎉 v1.3.1 ENHANCED RELEASE: Intelligent Type Detection
+## 🎉 v1.3.1 ENHANCED RELEASE: Intelligent Type Detection + Automatic Collinearity Handling
 
-**Greeners v1.3.1** enhances the automatic type detection system with **smart Int vs Float distinction**, **DateTime support**, and **revolutionary Binary Boolean Detection** - making data loading even more intelligent!
+**Greeners v1.3.1** enhances the automatic type detection system with **smart Int vs Float distinction**, **DateTime support**, **revolutionary Binary Boolean Detection**, and adds **Stata-like automatic collinearity detection** across ALL models!
 
 ### 🆕 What's New in v1.3.1
 
 1. **🌟 Binary Boolean Detection** - **UNIQUE TO GREENERS!** Any column with 2 unique values → Bool (works in ANY language: `['casado', 'solteiro']`, `['M', 'F']`, etc.)
-2. **Improved Int vs Float Detection** - Now correctly distinguishes `1` from `1.0` and `1.5`
-3. **Automatic DateTime Detection** - ISO-8601 format timestamps are auto-detected
-4. **Enhanced Boolean Detection** - Supports `1/0`, `yes/no`, `true/false`, `t/f` variants
-5. **Configurable Thresholds** - Internal configuration for Categorical vs String detection
+2. **🌟 Automatic Collinearity Detection** - **100% MODEL COVERAGE!** All 11 models automatically detect and handle perfect collinearity, just like Stata
+3. **Improved Int vs Float Detection** - Now correctly distinguishes `1` from `1.0` and `1.5`
+4. **Automatic DateTime Detection** - ISO-8601 format timestamps are auto-detected
+5. **Enhanced Boolean Detection** - Supports `1/0`, `yes/no`, `true/false`, `t/f` variants
+6. **Configurable Thresholds** - Internal configuration for Categorical vs String detection
 
 **Why Binary Boolean Detection is Revolutionary:**
 Unlike pandas, R, polars, or Stata which require manual conversion of binary variables (married/single, male/female, treated/control), Greeners **automatically** recognizes and converts them - saving you from repetitive data preprocessing and potential errors!

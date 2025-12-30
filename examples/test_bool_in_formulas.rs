@@ -39,21 +39,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Formula: wage ~ education + casado");
 
     match Formula::parse("wage ~ education + casado") {
-        Ok(formula) => {
-            match OLS::from_formula(&formula, &df, CovarianceType::NonRobust) {
-                Ok(result) => {
-                    println!("  ✅ SUCCESS! Bool column works in formula");
-                    println!("  Coefficients:");
-                    println!("    Intercept: {:.2}", result.params[0]);
-                    println!("    education: {:.2}", result.params[1]);
-                    println!("    casado: {:.2}", result.params[2]);
-                    println!("    R²: {:.4}\n", result.r_squared);
-                }
-                Err(e) => {
-                    println!("  ❌ FAILED: {}\n", e);
-                }
+        Ok(formula) => match OLS::from_formula(&formula, &df, CovarianceType::NonRobust) {
+            Ok(result) => {
+                println!("  ✅ SUCCESS! Bool column works in formula");
+                println!("  Coefficients:");
+                println!("    Intercept: {:.2}", result.params[0]);
+                println!("    education: {:.2}", result.params[1]);
+                println!("    casado: {:.2}", result.params[2]);
+                println!("    R²: {:.4}\n", result.r_squared);
             }
-        }
+            Err(e) => {
+                println!("  ❌ FAILED: {}\n", e);
+            }
+        },
         Err(e) => {
             println!("  ❌ Formula parse failed: {}\n", e);
         }
@@ -64,22 +62,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Formula: wage ~ education + casado + sexo");
 
     match Formula::parse("wage ~ education + casado + sexo") {
-        Ok(formula) => {
-            match OLS::from_formula(&formula, &df, CovarianceType::HC3) {
-                Ok(result) => {
-                    println!("  ✅ SUCCESS! Multiple Bool columns work");
-                    println!("  Coefficients:");
-                    println!("    Intercept: {:.2}", result.params[0]);
-                    println!("    education: {:.2}", result.params[1]);
-                    println!("    casado: {:.2}", result.params[2]);
-                    println!("    sexo: {:.2}", result.params[3]);
-                    println!("    R²: {:.4}\n", result.r_squared);
-                }
-                Err(e) => {
-                    println!("  ❌ FAILED: {}\n", e);
-                }
+        Ok(formula) => match OLS::from_formula(&formula, &df, CovarianceType::HC3) {
+            Ok(result) => {
+                println!("  ✅ SUCCESS! Multiple Bool columns work");
+                println!("  Coefficients:");
+                println!("    Intercept: {:.2}", result.params[0]);
+                println!("    education: {:.2}", result.params[1]);
+                println!("    casado: {:.2}", result.params[2]);
+                println!("    sexo: {:.2}", result.params[3]);
+                println!("    R²: {:.4}\n", result.r_squared);
             }
-        }
+            Err(e) => {
+                println!("  ❌ FAILED: {}\n", e);
+            }
+        },
         Err(e) => {
             println!("  ❌ Formula parse failed: {}\n", e);
         }
@@ -90,20 +86,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Formula: wage ~ education");
 
     match Formula::parse("wage ~ education") {
-        Ok(formula) => {
-            match OLS::from_formula(&formula, &df, CovarianceType::NonRobust) {
-                Ok(result) => {
-                    println!("  ✅ SUCCESS! Int column works in formula");
-                    println!("  Coefficients:");
-                    println!("    Intercept: {:.2}", result.params[0]);
-                    println!("    education: {:.2}", result.params[1]);
-                    println!("    R²: {:.4}\n", result.r_squared);
-                }
-                Err(e) => {
-                    println!("  ❌ FAILED: {}\n", e);
-                }
+        Ok(formula) => match OLS::from_formula(&formula, &df, CovarianceType::NonRobust) {
+            Ok(result) => {
+                println!("  ✅ SUCCESS! Int column works in formula");
+                println!("  Coefficients:");
+                println!("    Intercept: {:.2}", result.params[0]);
+                println!("    education: {:.2}", result.params[1]);
+                println!("    R²: {:.4}\n", result.r_squared);
             }
-        }
+            Err(e) => {
+                println!("  ❌ FAILED: {}\n", e);
+            }
+        },
         Err(e) => {
             println!("  ❌ Formula parse failed: {}\n", e);
         }
@@ -114,21 +108,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Formula: wage ~ education + C(region)");
 
     match Formula::parse("wage ~ education + C(region)") {
-        Ok(formula) => {
-            match OLS::from_formula(&formula, &df, CovarianceType::NonRobust) {
-                Ok(result) => {
-                    println!("  ✅ SUCCESS! C(region) creates dummies");
-                    println!("  Coefficients: (intercept + education + region_2 + region_3)");
-                    for (i, param) in result.params.iter().enumerate() {
-                        println!("    β[{}]: {:.2}", i, param);
-                    }
-                    println!("    R²: {:.4}\n", result.r_squared);
+        Ok(formula) => match OLS::from_formula(&formula, &df, CovarianceType::NonRobust) {
+            Ok(result) => {
+                println!("  ✅ SUCCESS! C(region) creates dummies");
+                println!("  Coefficients: (intercept + education + region_2 + region_3)");
+                for (i, param) in result.params.iter().enumerate() {
+                    println!("    β[{}]: {:.2}", i, param);
                 }
-                Err(e) => {
-                    println!("  ❌ FAILED: {}\n", e);
-                }
+                println!("    R²: {:.4}\n", result.r_squared);
             }
-        }
+            Err(e) => {
+                println!("  ❌ FAILED: {}\n", e);
+            }
+        },
         Err(e) => {
             println!("  ❌ Formula parse failed: {}\n", e);
         }
@@ -139,22 +131,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Formula: wage ~ education + casado + education:casado");
 
     match Formula::parse("wage ~ education + casado + education:casado") {
-        Ok(formula) => {
-            match OLS::from_formula(&formula, &df, CovarianceType::NonRobust) {
-                Ok(result) => {
-                    println!("  ✅ SUCCESS! Bool interaction works");
-                    println!("  Coefficients:");
-                    println!("    Intercept: {:.2}", result.params[0]);
-                    println!("    education: {:.2}", result.params[1]);
-                    println!("    casado: {:.2}", result.params[2]);
-                    println!("    education:casado: {:.2}", result.params[3]);
-                    println!("    R²: {:.4}\n", result.r_squared);
-                }
-                Err(e) => {
-                    println!("  ❌ FAILED: {}\n", e);
-                }
+        Ok(formula) => match OLS::from_formula(&formula, &df, CovarianceType::NonRobust) {
+            Ok(result) => {
+                println!("  ✅ SUCCESS! Bool interaction works");
+                println!("  Coefficients:");
+                println!("    Intercept: {:.2}", result.params[0]);
+                println!("    education: {:.2}", result.params[1]);
+                println!("    casado: {:.2}", result.params[2]);
+                println!("    education:casado: {:.2}", result.params[3]);
+                println!("    R²: {:.4}\n", result.r_squared);
             }
-        }
+            Err(e) => {
+                println!("  ❌ FAILED: {}\n", e);
+            }
+        },
         Err(e) => {
             println!("  ❌ Formula parse failed: {}\n", e);
         }
@@ -165,21 +155,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Formula: wage ~ education + I(education^2)");
 
     match Formula::parse("wage ~ education + I(education^2)") {
-        Ok(formula) => {
-            match OLS::from_formula(&formula, &df, CovarianceType::NonRobust) {
-                Ok(result) => {
-                    println!("  ✅ SUCCESS! Polynomial with Int works");
-                    println!("  Coefficients:");
-                    println!("    Intercept: {:.2}", result.params[0]);
-                    println!("    education: {:.2}", result.params[1]);
-                    println!("    education²: {:.2}", result.params[2]);
-                    println!("    R²: {:.4}\n", result.r_squared);
-                }
-                Err(e) => {
-                    println!("  ❌ FAILED: {}\n", e);
-                }
+        Ok(formula) => match OLS::from_formula(&formula, &df, CovarianceType::NonRobust) {
+            Ok(result) => {
+                println!("  ✅ SUCCESS! Polynomial with Int works");
+                println!("  Coefficients:");
+                println!("    Intercept: {:.2}", result.params[0]);
+                println!("    education: {:.2}", result.params[1]);
+                println!("    education²: {:.2}", result.params[2]);
+                println!("    R²: {:.4}\n", result.r_squared);
             }
-        }
+            Err(e) => {
+                println!("  ❌ FAILED: {}\n", e);
+            }
+        },
         Err(e) => {
             println!("  ❌ Formula parse failed: {}\n", e);
         }

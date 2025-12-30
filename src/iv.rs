@@ -1,6 +1,6 @@
 use crate::error::GreenersError;
 use crate::CovarianceType;
-use crate::{DataFrame, Formula};
+use crate::{DataFrame, Formula, OLS};
 use ndarray::{Array1, Array2};
 use ndarray_linalg::Inverse;
 use statrs::distribution::{ContinuousCDF, StudentsT};
@@ -20,6 +20,7 @@ pub struct IvResult {
     pub sigma: f64,
     pub cov_type: CovarianceType,
     pub variable_names: Option<Vec<String>>,
+    pub omitted_vars: Vec<String>,
 }
 
 impl fmt::Display for IvResult {
@@ -94,6 +95,16 @@ impl fmt::Display for IvResult {
                 var_name, self.params[i], self.std_errors[i], self.t_values[i], self.p_values[i]
             )?;
         }
+
+        // Show omitted variables if any
+        if !self.omitted_vars.is_empty() {
+            writeln!(f, "{:-^78}", "")?;
+            writeln!(f, "Omitted due to collinearity:")?;
+            for var in &self.omitted_vars {
+                writeln!(f, "  o.{}", var)?;
+            }
+        }
+
         writeln!(f, "{:=^78}", "")
     }
 }
@@ -269,12 +280,42 @@ impl IV {
             )));
         }
 
+        // Detect collinearity in X (endogenous variables)
+        let tolerance = 1e-10;
+        let (x_clean, keep_indices_x, omit_indices_x) = OLS::detect_collinearity(x, tolerance);
+
+        let mut omitted_var_names = Vec::new();
+        let mut clean_var_names = Vec::new();
+
+        if let Some(ref names) = variable_names {
+            for &idx in &omit_indices_x {
+                if idx < names.len() {
+                    omitted_var_names.push(names[idx].clone());
+                }
+            }
+            for &idx in &keep_indices_x {
+                if idx < names.len() {
+                    clean_var_names.push(names[idx].clone());
+                }
+            }
+        }
+
+        // Use cleaned matrix
+        let x_to_use = &x_clean;
+        let k_clean = x_to_use.ncols();
+
+        if n <= k_clean {
+            return Err(GreenersError::ShapeMismatch(
+                "Degrees of freedom <= 0 after removing collinear variables".into(),
+            ));
+        }
+
         // --- STAGE 1: Regress X on Z to get X_hat ---
         let z_t = z.t();
         let zt_z = z_t.dot(z);
         let zt_z_inv = zt_z.inv()?;
 
-        let zt_x = z_t.dot(x);
+        let zt_x = z_t.dot(x_to_use);
         let first_stage_coeffs = zt_z_inv.dot(&zt_x);
         let x_hat = z.dot(&first_stage_coeffs);
 
@@ -287,12 +328,12 @@ impl IV {
         let beta = xht_xh_inv.dot(&xht_y);
 
         // --- Residuals ---
-        // Uses ORIGINAL X
-        let predicted_original = x.dot(&beta);
+        // Uses cleaned X
+        let predicted_original = x_to_use.dot(&beta);
         let residuals = y - &predicted_original;
         let ssr = residuals.dot(&residuals);
 
-        let df_resid = n - k;
+        let df_resid = n - k_clean;
         let sigma2 = ssr / (df_resid as f64);
         let sigma = sigma2.sqrt();
 
@@ -415,15 +456,15 @@ impl IV {
                 // 2. Autocovariance terms
                 for l in 1..=lags {
                     let weight = 1.0 - (l as f64) / ((lags + 1) as f64);
-                    let mut omega_l = Array2::<f64>::zeros((k, k));
+                    let mut omega_l = Array2::<f64>::zeros((k_clean, k_clean));
 
                     for t in l..n {
                         let scale = residuals[t] * residuals[t - l];
                         let row_t = x_hat.row(t);
                         let row_prev = x_hat.row(t - l);
 
-                        for i in 0..k {
-                            for j in 0..k {
+                        for i in 0..k_clean {
+                            for j in 0..k_clean {
                                 omega_l[[i, j]] += scale * row_t[i] * row_prev[j];
                             }
                         }
@@ -459,11 +500,11 @@ impl IV {
                 }
 
                 let n_clusters = clusters.len();
-                let mut meat = Array2::<f64>::zeros((k, k));
+                let mut meat = Array2::<f64>::zeros((k_clean, k_clean));
 
                 for (_cluster_id, obs_indices) in clusters.iter() {
                     let cluster_size = obs_indices.len();
-                    let mut xhat_g = Array2::<f64>::zeros((cluster_size, k));
+                    let mut xhat_g = Array2::<f64>::zeros((cluster_size, k_clean));
                     let mut u_g = Array1::<f64>::zeros(cluster_size);
 
                     for (i, &obs_idx) in obs_indices.iter().enumerate() {
@@ -477,8 +518,8 @@ impl IV {
                             let x_i = xhat_g.row(i);
                             let x_j = xhat_g.row(j);
 
-                            for p in 0..k {
-                                for q in 0..k {
+                            for p in 0..k_clean {
+                                for q in 0..k_clean {
                                     meat[[p, q]] += scale * x_i[p] * x_j[q];
                                 }
                             }
@@ -511,11 +552,11 @@ impl IV {
                         clusters.entry(cluster_id).or_default().push(obs_idx);
                     }
 
-                    let mut meat = Array2::<f64>::zeros((k, k));
+                    let mut meat = Array2::<f64>::zeros((k_clean, k_clean));
 
                     for (_cluster_id, obs_indices) in clusters.iter() {
                         let cluster_size = obs_indices.len();
-                        let mut xhat_g = Array2::<f64>::zeros((cluster_size, k));
+                        let mut xhat_g = Array2::<f64>::zeros((cluster_size, k_clean));
                         let mut u_g = Array1::<f64>::zeros(cluster_size);
 
                         for (i, &obs_idx) in obs_indices.iter().enumerate() {
@@ -529,8 +570,8 @@ impl IV {
                                 let x_i = xhat_g.row(i);
                                 let x_j = xhat_g.row(j);
 
-                                for p in 0..k {
-                                    for q in 0..k {
+                                for p in 0..k_clean {
+                                    for q in 0..k_clean {
                                         meat[[p, q]] += scale * x_i[p] * x_j[q];
                                     }
                                 }
@@ -590,7 +631,12 @@ impl IV {
             df_resid,
             sigma,
             cov_type,
-            variable_names,
+            variable_names: if !clean_var_names.is_empty() {
+                Some(clean_var_names)
+            } else {
+                variable_names
+            },
+            omitted_vars: omitted_var_names,
         })
     }
 }
