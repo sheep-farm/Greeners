@@ -2,13 +2,163 @@
 # Greeners: High-Performance Econometrics in Rust
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
-![Version](https://img.shields.io/badge/version-1.0.2-blue)
+![Version](https://img.shields.io/badge/version-2.0.0-blue)
 ![License](https://img.shields.io/badge/license-GPLv3-green)
 ![Stability](https://img.shields.io/badge/stability-stable-green)
 
 **Greeners** is a lightning-fast, type-safe econometrics library written in pure Rust. It provides a comprehensive suite of estimators for Cross-Sectional, Time-Series, and Panel Data analysis, leveraging linear algebra backends (LAPACK/BLAS) for maximum performance.
 
 Designed for academic research, heavy simulations, and production-grade economic modeling.
+
+## 🎉 v2.0.0 MAJOR RELEASE: Complete Data Handling & Time Series
+
+**Greeners v2.0.0** brings **pandas-like DataFrame capabilities** and **essential time series operations** for econometric analysis!
+
+### 🆕 Three Major Feature Sets (NEW in v2.0.0)
+
+#### 1. String Column Support (v1.7.0)
+
+Store free-form text data alongside numerical columns:
+
+```rust
+use greeners::DataFrame;
+
+let customers = DataFrame::builder()
+    .add_int("id", vec![1, 2, 3])
+    .add_string("name", vec![
+        "Alice Johnson".to_string(),
+        "Bob Smith".to_string(),
+        "Charlie Brown".to_string(),
+    ])
+    .add_string("email", vec![
+        "alice@example.com".to_string(),
+        "bob@example.com".to_string(),
+        "charlie@example.com".to_string(),
+    ])
+    .add_column("purchase_amount", vec![150.0, 200.0, 75.0])
+    .build()?;
+
+// Access string data
+let names = customers.get_string("name")?;
+println!("First customer: {}", names[0]); // "Alice Johnson"
+```
+
+**String vs Categorical:**
+- **String columns**: Free text, unique values (names, emails, addresses, comments)
+- **Categorical columns**: Repeated categories, encoded as integers (regions, groups)
+
+📖 See `examples/string_features.rs` for comprehensive demonstration.
+
+#### 2. Missing Data & Null Support (v1.8.0)
+
+Complete toolkit for handling missing values - just like pandas!
+
+```rust
+use greeners::DataFrame;
+
+// Detect missing values
+let mask = df.isna("temperature")?;  // Boolean mask
+let n_missing = df.count_na("temperature");  // Count
+
+// Remove missing data
+let clean = df.dropna()?;  // Drop any row with NaN
+let clean_subset = df.dropna_subset(&["price", "quantity"])?;  // Drop if specific cols missing
+
+// Fill missing values
+let filled = df.fillna("price", 100.0)?;  // Fill with constant
+let forward = df.fillna_ffill("price")?;  // Forward fill (carry last valid)
+let backward = df.fillna_bfill("price")?;  // Backward fill (carry next valid)
+let smooth = df.interpolate("temperature")?;  // Linear interpolation
+```
+
+**Comprehensive workflow:**
+- **Detect**: `isna()`, `notna()`, `count_na()` for investigation
+- **Handle**: `dropna()` for complete-case analysis
+- **Impute**: `fillna()`, `ffill()`, `bfill()`, `interpolate()` for treatment
+
+📖 See `examples/missing_data_features.rs` for complete workflow.
+
+#### 3. Time Series Operations (v1.9.0)
+
+Essential operations for econometric time series analysis:
+
+```rust
+use greeners::DataFrame;
+
+// Stock price data
+let df = DataFrame::builder()
+    .add_column("date", vec![1.0, 2.0, 3.0, 4.0, 5.0])
+    .add_column("price", vec![100.0, 102.0, 101.0, 105.0, 103.0])
+    .build()?;
+
+// Lag operator - create lagged variables
+let with_lag = df.lag("price", 1)?;  // Previous day's price → price_lag_1
+// Essential for AR models: y_t = β₀ + β₁·y_{t-1} + ε_t
+
+// Lead operator - forward-looking variables
+let with_lead = df.lead("price", 1)?;  // Next day's price → price_lead_1
+// Essential for lead-lag analysis and Granger causality
+
+// First differences - achieve stationarity
+let stationary = df.diff("price", 1)?;  // Δprice_t = price_t - price_{t-1} → price_diff_1
+// Essential for unit root tests and I(1) processes
+
+// Percentage changes - returns calculation
+let returns = df.pct_change("price", 1)?;  // (price_t - price_{t-1}) / price_{t-1} → price_pct_1
+// Standard in finance for asset returns
+
+// Chain operations for complete analysis
+let analysis = df
+    .lag("price", 1)?
+    .diff("price", 1)?
+    .pct_change("price", 1)?;
+// Creates: price_lag_1, price_diff_1, price_pct_1
+```
+
+**Use cases:**
+- **Finance**: Returns (`pct_change`), momentum strategies
+- **Econometrics**: AR models (`lag`), stationarity testing (`diff`), GDP growth
+- **Machine Learning**: Time series feature engineering (multiple lags)
+
+**Mathematical relationships:**
+- `lag(x, n)[t] = x[t-n]`
+- `lead(x, n)[t] = x[t+n]`
+- `diff(x, n)[t] = x[t] - x[t-n]`
+- `pct_change(x, n)[t] = (x[t] - x[t-n]) / x[t-n]`
+
+📖 See `examples/time_series_features.rs` for 11 practical examples.
+
+### Why v2.0.0 Matters
+
+**Before v2.0.0:**
+- Greeners = Powerful econometric estimators + basic DataFrame
+- Missing data? Manual handling required
+- Time series? Use `shift()` and manual calculations
+- Text data? Not supported
+
+**Now v2.0.0:**
+- Greeners = **Complete data analysis platform** with pandas-like capabilities
+- String columns ✅ Missing data toolkit ✅ Time series ops ✅
+- Full workflow: Load → Clean → Transform → Model → Predict
+- **Only Rust library** with comprehensive econometrics + DataFrame
+
+### Migration from v1.0.2
+
+**100% backward compatible** - all v1.0.2 code works unchanged!
+
+New capabilities are additive:
+```rust
+// Your existing v1.0.2 code
+let df = DataFrame::from_csv("data.csv")?;
+let formula = Formula::parse("y ~ x1 + x2")?;
+let result = OLS::from_formula(&formula, &df, CovarianceType::HC3)?;
+// ✅ Still works perfectly!
+
+// New v2.0.0 capabilities
+let df_with_strings = df.add_string("region", regions)?;  // NEW
+let clean_df = df.dropna()?;  // NEW
+let with_lags = df.lag("y", 1)?;  // NEW
+```
 
 ## 🎊 v1.0.2 STABLE RELEASE: Named Variables & Enhanced Data Loading
 
@@ -606,10 +756,10 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-greeners = "1.0.2"
-ndarray = "0.15"
+greeners = "2.0.0"
+ndarray = "0.17"
 # Note: You must have a BLAS/LAPACK provider installed on your system
-ndarray-linalg = { version = "0.14", features = ["openblas"] }
+ndarray-linalg = { version = "0.18", features = ["openblas-system"] }
 ```
 
 ## 🎯 Quick Start
@@ -807,7 +957,10 @@ All formulas follow R/Python syntax for familiarity and ease of use.
 
 - **[FORMULA_API.md](FORMULA_API.md)** - Complete formula API guide with Python/R equivalents
 - **[examples/](examples/)** - Working examples for all estimators
-  - `dataframe_loading.rs` - **Load data from CSV, JSON, URLs, or Builder pattern** (NEW!)
+  - `string_features.rs` - **String column support** (NEW v2.0.0!)
+  - `missing_data_features.rs` - **Missing data toolkit** (NEW v2.0.0!)
+  - `time_series_features.rs` - **Time series operations: lag, lead, diff, pct_change** (NEW v2.0.0!)
+  - `dataframe_loading.rs` - Load data from CSV, JSON, URLs, or Builder pattern
   - `csv_formula_example.rs` - Load CSV files and run regressions
   - `formula_example.rs` - General formula API demonstration
   - `did_formula_example.rs` - Difference-in-Differences with formulas
@@ -818,7 +971,13 @@ All formulas follow R/Python syntax for familiarity and ease of use.
 
 Run examples:
 ```sh
-cargo run --example dataframe_loading    # NEW: Multiple data loading methods
+# NEW v2.0.0 examples
+cargo run --example string_features        # String columns
+cargo run --example missing_data_features  # Missing data handling
+cargo run --example time_series_features   # Time series operations
+
+# Other examples
+cargo run --example dataframe_loading
 cargo run --example csv_formula_example
 cargo run --example formula_example
 cargo run --example marginal_effects

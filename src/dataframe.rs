@@ -141,6 +141,18 @@ impl DataFrame {
                 "Column '{}' is boolean. Use get_bool() or get_column()",
                 name
             ))),
+            Column::Int(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is integer. Use get_int() or get_column()",
+                name
+            ))),
+            Column::DateTime(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is datetime. Use get_datetime() or get_column()",
+                name
+            ))),
+            Column::String(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is string. Use get_string() or get_column()",
+                name
+            ))),
         }
     }
 
@@ -164,6 +176,18 @@ impl DataFrame {
             ))),
             Column::Bool(_) => Err(GreenersError::VariableNotFound(format!(
                 "Column '{}' is boolean. Cannot get mutable reference",
+                name
+            ))),
+            Column::Int(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is integer. Cannot get mutable reference",
+                name
+            ))),
+            Column::DateTime(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is datetime. Cannot get mutable reference",
+                name
+            ))),
+            Column::String(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is string. Cannot get mutable reference",
                 name
             ))),
         }
@@ -216,6 +240,18 @@ impl DataFrame {
                 "Column '{}' is boolean, not categorical",
                 name
             ))),
+            Column::Int(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is integer, not categorical",
+                name
+            ))),
+            Column::DateTime(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is datetime, not categorical",
+                name
+            ))),
+            Column::String(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is string, not categorical",
+                name
+            ))),
         }
     }
 
@@ -243,6 +279,148 @@ impl DataFrame {
             ))),
             Column::Categorical(_) => Err(GreenersError::VariableNotFound(format!(
                 "Column '{}' is categorical, not boolean",
+                name
+            ))),
+            Column::Int(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is integer, not boolean",
+                name
+            ))),
+            Column::DateTime(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is datetime, not boolean",
+                name
+            ))),
+            Column::String(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is string, not boolean",
+                name
+            ))),
+        }
+    }
+
+    /// Get an integer column by name.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    /// use ndarray::Array1;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_int("user_id", vec![1, 2, 3])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let int_col = df.get_int("user_id").unwrap();
+    /// assert_eq!(int_col[0], 1);
+    /// ```
+    pub fn get_int(&self, name: &str) -> Result<&Array1<i64>, GreenersError> {
+        match self.get_column(name)? {
+            Column::Int(arr) => Ok(arr),
+            Column::Float(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is float, not integer",
+                name
+            ))),
+            Column::Categorical(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is categorical, not integer",
+                name
+            ))),
+            Column::Bool(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is boolean, not integer",
+                name
+            ))),
+            Column::DateTime(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is datetime, not integer",
+                name
+            ))),
+            Column::String(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is string, not integer",
+                name
+            ))),
+        }
+    }
+
+    /// Get a datetime column by name.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    /// use ndarray::Array1;
+    /// use chrono::NaiveDate;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_datetime("date", vec![
+    ///         NaiveDate::from_ymd_opt(2024, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap(),
+    ///         NaiveDate::from_ymd_opt(2024, 1, 2).unwrap().and_hms_opt(0, 0, 0).unwrap(),
+    ///     ])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let dt_col = df.get_datetime("date").unwrap();
+    /// assert_eq!(dt_col.len(), 2);
+    /// ```
+    pub fn get_datetime(
+        &self,
+        name: &str,
+    ) -> Result<&Array1<chrono::NaiveDateTime>, GreenersError> {
+        match self.get_column(name)? {
+            Column::DateTime(arr) => Ok(arr),
+            Column::Float(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is float, not datetime",
+                name
+            ))),
+            Column::Categorical(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is categorical, not datetime",
+                name
+            ))),
+            Column::Bool(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is boolean, not datetime",
+                name
+            ))),
+            Column::Int(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is integer, not datetime",
+                name
+            ))),
+            Column::String(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is string, not datetime",
+                name
+            ))),
+        }
+    }
+
+    /// Get a string column by name.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    /// use ndarray::Array1;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_string("name", vec!["Alice".to_string(), "Bob".to_string()])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let str_col = df.get_string("name").unwrap();
+    /// assert_eq!(str_col[0], "Alice");
+    /// ```
+    pub fn get_string(&self, name: &str) -> Result<&Array1<String>, GreenersError> {
+        match self.get_column(name)? {
+            Column::String(arr) => Ok(arr),
+            Column::Float(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is float, not string",
+                name
+            ))),
+            Column::Categorical(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is categorical, not string",
+                name
+            ))),
+            Column::Bool(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is boolean, not string",
+                name
+            ))),
+            Column::Int(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is integer, not string",
+                name
+            ))),
+            Column::DateTime(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is datetime, not string",
                 name
             ))),
         }
@@ -1065,7 +1243,8 @@ impl DataFrame {
             .map(|(name, col)| {
                 let arr = col.to_float();
                 let mut sorted = arr.to_vec();
-                sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                // Handle NaN values by treating them as greater than all other values
+                sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
                 let mid = sorted.len() / 2;
                 let median = if sorted.len().is_multiple_of(2) {
                     (sorted[mid - 1] + sorted[mid]) / 2.0
@@ -1352,6 +1531,9 @@ impl DataFrame {
                         Column::Float(arr) => arr[i].to_string(),
                         Column::Categorical(cat) => cat.get_string(i).unwrap_or("NA").to_string(),
                         Column::Bool(arr) => arr[i].to_string(),
+                        Column::Int(arr) => arr[i].to_string(),
+                        Column::DateTime(arr) => arr[i].format("%Y-%m-%d %H:%M:%S").to_string(),
+                        Column::String(arr) => arr[i].clone(),
                     }
                 })
                 .collect();
@@ -1398,6 +1580,15 @@ impl DataFrame {
                 Column::Float(arr) => serde_json::to_value(arr.to_vec()).unwrap(),
                 Column::Categorical(cat) => serde_json::to_value(cat.to_strings()).unwrap(),
                 Column::Bool(arr) => serde_json::to_value(arr.to_vec()).unwrap(),
+                Column::Int(arr) => serde_json::to_value(arr.to_vec()).unwrap(),
+                Column::DateTime(arr) => {
+                    let strings: Vec<String> = arr
+                        .iter()
+                        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                        .collect();
+                    serde_json::to_value(strings).unwrap()
+                }
+                Column::String(arr) => serde_json::to_value(arr.to_vec()).unwrap(),
             };
             data.insert(name.clone(), value);
         }
@@ -1632,6 +1823,24 @@ impl DataFrame {
                     let mut combined_vec = arr1.to_vec();
                     combined_vec.extend_from_slice(arr2.as_slice().unwrap());
                     Column::Bool(Array1::from(combined_vec))
+                }
+                (Column::Int(arr1), Column::Int(arr2)) => {
+                    // Concatenate Int columns
+                    let mut combined_vec = arr1.to_vec();
+                    combined_vec.extend_from_slice(arr2.as_slice().unwrap());
+                    Column::Int(Array1::from(combined_vec))
+                }
+                (Column::DateTime(arr1), Column::DateTime(arr2)) => {
+                    // Concatenate DateTime columns
+                    let mut combined_vec = arr1.to_vec();
+                    combined_vec.extend_from_slice(arr2.as_slice().unwrap());
+                    Column::DateTime(Array1::from(combined_vec))
+                }
+                (Column::String(arr1), Column::String(arr2)) => {
+                    // Concatenate String columns
+                    let mut combined_vec = arr1.to_vec();
+                    combined_vec.extend_from_slice(arr2.as_slice().unwrap());
+                    Column::String(Array1::from(combined_vec))
                 }
                 _ => {
                     return Err(GreenersError::ShapeMismatch(format!(
@@ -1936,6 +2145,119 @@ impl DataFrame {
         self.iloc(Some(&keep_indices), None)
     }
 
+    /// Drop rows that contain NaN values in specific columns only.
+    ///
+    /// This is useful when you only care about missing values in certain columns.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("x", vec![1.0, 2.0, f64::NAN, 4.0])
+    ///     .add_column("y", vec![5.0, f64::NAN, 7.0, 8.0])
+    ///     .add_column("z", vec![9.0, 10.0, 11.0, 12.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// // Only drop rows with NaN in column "x"
+    /// let cleaned = df.dropna_subset(&["x"]).unwrap();
+    /// assert_eq!(cleaned.n_rows(), 3); // Row 2 removed (x is NaN)
+    /// ```
+    pub fn dropna_subset(&self, subset: &[&str]) -> Result<Self, GreenersError> {
+        // Validate that all columns in subset exist
+        for col_name in subset {
+            if !self.columns.contains_key(*col_name) {
+                return Err(GreenersError::VariableNotFound(format!(
+                    "Column '{}' not found",
+                    col_name
+                )));
+            }
+        }
+
+        let mut keep_indices = Vec::new();
+
+        for i in 0..self.n_rows {
+            let mut has_nan = false;
+            for col_name in subset {
+                // Only check Float columns for NaN
+                if let Some(Column::Float(arr)) = self.columns.get(*col_name) {
+                    if arr[i].is_nan() {
+                        has_nan = true;
+                        break;
+                    }
+                }
+            }
+            if !has_nan {
+                keep_indices.push(i);
+            }
+        }
+
+        if keep_indices.is_empty() {
+            return Ok(DataFrame {
+                columns: HashMap::new(),
+                n_rows: 0,
+            });
+        }
+
+        self.iloc(Some(&keep_indices), None)
+    }
+
+    /// Drop rows where ALL values are NaN.
+    ///
+    /// Unlike `dropna()` which drops rows with ANY NaN value, this only drops
+    /// rows where every value in the row is NaN.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("x", vec![f64::NAN, 2.0, f64::NAN, 4.0])
+    ///     .add_column("y", vec![f64::NAN, f64::NAN, 7.0, 8.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let cleaned = df.dropna_all().unwrap();
+    /// assert_eq!(cleaned.n_rows(), 3); // Only row 0 removed (both x and y are NaN)
+    /// ```
+    pub fn dropna_all(&self) -> Result<Self, GreenersError> {
+        let mut keep_indices = Vec::new();
+
+        for i in 0..self.n_rows {
+            let mut all_nan = true;
+            let mut has_float_col = false;
+
+            for col in self.columns.values() {
+                if let Column::Float(arr) = col {
+                    has_float_col = true;
+                    if !arr[i].is_nan() {
+                        all_nan = false;
+                        break;
+                    }
+                } else {
+                    // Non-Float columns are never NaN, so row can't be all NaN
+                    all_nan = false;
+                    break;
+                }
+            }
+
+            // Keep row if not all values are NaN, or if there are no Float columns
+            if !all_nan || !has_float_col {
+                keep_indices.push(i);
+            }
+        }
+
+        if keep_indices.is_empty() {
+            return Ok(DataFrame {
+                columns: HashMap::new(),
+                n_rows: 0,
+            });
+        }
+
+        self.iloc(Some(&keep_indices), None)
+    }
+
     /// Fill all NaN values with a specified value.
     ///
     /// # Examples
@@ -1956,13 +2278,16 @@ impl DataFrame {
         let mut new_columns = HashMap::new();
 
         for (col_name, col_data) in &self.columns {
-            // Only fill NaN in Float columns (Categorical and Bool have no NaN concept)
+            // Only fill NaN in Float columns (Categorical, Bool, Int, and DateTime have no NaN concept)
             let filled = match col_data {
                 Column::Float(arr) => {
                     Column::Float(arr.mapv(|v| if v.is_nan() { value } else { v }))
                 }
                 Column::Categorical(_) => col_data.clone(), // Categorical unchanged
                 Column::Bool(_) => col_data.clone(),        // Bool unchanged
+                Column::Int(_) => col_data.clone(),         // Int unchanged
+                Column::DateTime(_) => col_data.clone(),    // DateTime unchanged
+                Column::String(_) => col_data.clone(),      // String unchanged
             };
             new_columns.insert(col_name.clone(), filled);
         }
@@ -2000,6 +2325,9 @@ impl DataFrame {
             Column::Float(arr) => Column::Float(arr.mapv(|v| if v.is_nan() { value } else { v })),
             Column::Categorical(_) => col_data.clone(), // Categorical unchanged
             Column::Bool(_) => col_data.clone(),        // Bool unchanged
+            Column::Int(_) => col_data.clone(),         // Int unchanged
+            Column::DateTime(_) => col_data.clone(),    // DateTime unchanged
+            Column::String(_) => col_data.clone(),      // String unchanged
         };
         new_columns.insert(column.to_string(), filled);
 
@@ -2045,6 +2373,9 @@ impl DataFrame {
                 }
                 Column::Categorical(_) => col_data.clone(), // Categorical unchanged
                 Column::Bool(_) => col_data.clone(),        // Bool unchanged
+                Column::Int(_) => col_data.clone(),         // Int unchanged
+                Column::DateTime(_) => col_data.clone(),    // DateTime unchanged
+                Column::String(_) => col_data.clone(),      // String unchanged
             };
             new_columns.insert(col_name.clone(), filled);
         }
@@ -2097,6 +2428,133 @@ impl DataFrame {
                 }
                 Column::Categorical(_) => col_data.clone(), // Categorical unchanged
                 Column::Bool(_) => col_data.clone(),        // Bool unchanged
+                Column::Int(_) => col_data.clone(),         // Int unchanged
+                Column::DateTime(_) => col_data.clone(),    // DateTime unchanged
+                Column::String(_) => col_data.clone(),      // String unchanged
+            };
+            new_columns.insert(col_name.clone(), filled);
+        }
+
+        DataFrame::from_columns(new_columns)
+    }
+
+    /// Fill NaN values by propagating the last valid value forward (forward fill).
+    ///
+    /// For each NaN value, this method replaces it with the most recent non-NaN
+    /// value that appeared before it in the same column. If there is no prior
+    /// valid value, the NaN remains unchanged.
+    ///
+    /// This is particularly useful for time series data where you want to carry
+    /// forward the last observation.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("price", vec![100.0, f64::NAN, f64::NAN, 105.0, f64::NAN])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let filled = df.fillna_ffill().unwrap();
+    /// let price = filled.get("price").unwrap();
+    /// assert_eq!(price[0], 100.0);
+    /// assert_eq!(price[1], 100.0);  // Filled from price[0]
+    /// assert_eq!(price[2], 100.0);  // Filled from price[0]
+    /// assert_eq!(price[3], 105.0);
+    /// assert_eq!(price[4], 105.0);  // Filled from price[3]
+    /// ```
+    pub fn fillna_ffill(&self) -> Result<Self, GreenersError> {
+        let mut new_columns = HashMap::new();
+
+        for (col_name, col_data) in &self.columns {
+            let filled = match col_data {
+                Column::Float(arr) => {
+                    let mut filled_vec = arr.to_vec();
+                    let mut last_valid: Option<f64> = None;
+
+                    for value in &mut filled_vec {
+                        if value.is_nan() {
+                            // Use last valid value if available
+                            if let Some(val) = last_valid {
+                                *value = val;
+                            }
+                            // Otherwise, leave as NaN
+                        } else {
+                            // Update last valid value
+                            last_valid = Some(*value);
+                        }
+                    }
+
+                    Column::Float(Array1::from(filled_vec))
+                }
+                Column::Categorical(_) => col_data.clone(), // Categorical unchanged
+                Column::Bool(_) => col_data.clone(),        // Bool unchanged
+                Column::Int(_) => col_data.clone(),         // Int unchanged
+                Column::DateTime(_) => col_data.clone(),    // DateTime unchanged
+                Column::String(_) => col_data.clone(),      // String unchanged
+            };
+            new_columns.insert(col_name.clone(), filled);
+        }
+
+        DataFrame::from_columns(new_columns)
+    }
+
+    /// Fill NaN values by propagating the next valid value backward (backward fill).
+    ///
+    /// For each NaN value, this method replaces it with the next non-NaN value
+    /// that appears after it in the same column. If there is no subsequent valid
+    /// value, the NaN remains unchanged.
+    ///
+    /// This is useful when you want to use future observations to fill gaps.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("price", vec![f64::NAN, f64::NAN, 100.0, f64::NAN, 105.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let filled = df.fillna_bfill().unwrap();
+    /// let price = filled.get("price").unwrap();
+    /// assert_eq!(price[0], 100.0);  // Filled from price[2]
+    /// assert_eq!(price[1], 100.0);  // Filled from price[2]
+    /// assert_eq!(price[2], 100.0);
+    /// assert_eq!(price[3], 105.0);  // Filled from price[4]
+    /// assert_eq!(price[4], 105.0);
+    /// ```
+    pub fn fillna_bfill(&self) -> Result<Self, GreenersError> {
+        let mut new_columns = HashMap::new();
+
+        for (col_name, col_data) in &self.columns {
+            let filled = match col_data {
+                Column::Float(arr) => {
+                    let mut filled_vec = arr.to_vec();
+                    let mut next_valid: Option<f64> = None;
+
+                    // Iterate backwards
+                    for i in (0..filled_vec.len()).rev() {
+                        if filled_vec[i].is_nan() {
+                            // Use next valid value if available
+                            if let Some(val) = next_valid {
+                                filled_vec[i] = val;
+                            }
+                            // Otherwise, leave as NaN
+                        } else {
+                            // Update next valid value
+                            next_valid = Some(filled_vec[i]);
+                        }
+                    }
+
+                    Column::Float(Array1::from(filled_vec))
+                }
+                Column::Categorical(_) => col_data.clone(), // Categorical unchanged
+                Column::Bool(_) => col_data.clone(),        // Bool unchanged
+                Column::Int(_) => col_data.clone(),         // Int unchanged
+                Column::DateTime(_) => col_data.clone(),    // DateTime unchanged
+                Column::String(_) => col_data.clone(),      // String unchanged
             };
             new_columns.insert(col_name.clone(), filled);
         }
@@ -2128,6 +2586,9 @@ impl DataFrame {
                     Column::Float(arr) => arr.iter().filter(|v| v.is_nan()).count(),
                     Column::Categorical(_) => 0, // Categorical has no NaN
                     Column::Bool(_) => 0,        // Bool has no NaN
+                    Column::Int(_) => 0,         // Int has no NaN
+                    Column::DateTime(_) => 0,    // DateTime has no NaN
+                    Column::String(_) => 0,      // String has no NaN
                 };
                 (name.clone(), count)
             })
@@ -2157,7 +2618,107 @@ impl DataFrame {
             Column::Float(arr) => arr.iter().any(|v| v.is_nan()),
             Column::Categorical(_) => false, // Categorical has no NaN
             Column::Bool(_) => false,        // Bool has no NaN
+            Column::Int(_) => false,         // Int has no NaN
+            Column::DateTime(_) => false,    // DateTime has no NaN
+            Column::String(_) => false,      // String has no NaN
         })
+    }
+
+    /// Return a DataFrame of booleans indicating which values are NaN.
+    ///
+    /// Returns a DataFrame with the same shape as the input, where each value
+    /// is `true` if the corresponding value is NaN, and `false` otherwise.
+    ///
+    /// Note: Only Float columns can contain NaN. All other column types
+    /// (Categorical, Bool, Int, DateTime, String) will return all `false`.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("x", vec![1.0, f64::NAN, 3.0])
+    ///     .add_column("y", vec![4.0, 5.0, f64::NAN])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let na_mask = df.isna().unwrap();
+    /// let x_mask = na_mask.get_bool("x").unwrap();
+    /// assert_eq!(x_mask[0], false);
+    /// assert_eq!(x_mask[1], true);  // NaN position
+    /// assert_eq!(x_mask[2], false);
+    /// ```
+    pub fn isna(&self) -> Result<Self, GreenersError> {
+        let mut new_columns = HashMap::new();
+
+        for (col_name, col_data) in &self.columns {
+            let na_mask = match col_data {
+                Column::Float(arr) => {
+                    let mask: Vec<bool> = arr.iter().map(|v| v.is_nan()).collect();
+                    Column::from_bool(Array1::from(mask))
+                }
+                Column::Categorical(_)
+                | Column::Bool(_)
+                | Column::Int(_)
+                | Column::DateTime(_)
+                | Column::String(_) => {
+                    // Non-Float columns have no NaN concept
+                    let mask = vec![false; col_data.len()];
+                    Column::from_bool(Array1::from(mask))
+                }
+            };
+            new_columns.insert(col_name.clone(), na_mask);
+        }
+
+        DataFrame::from_columns(new_columns)
+    }
+
+    /// Return a DataFrame of booleans indicating which values are not NaN.
+    ///
+    /// Returns a DataFrame with the same shape as the input, where each value
+    /// is `true` if the corresponding value is not NaN, and `false` if it is NaN.
+    ///
+    /// This is the logical opposite of `isna()`.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("x", vec![1.0, f64::NAN, 3.0])
+    ///     .add_column("y", vec![4.0, 5.0, f64::NAN])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let not_na_mask = df.notna().unwrap();
+    /// let x_mask = not_na_mask.get_bool("x").unwrap();
+    /// assert_eq!(x_mask[0], true);
+    /// assert_eq!(x_mask[1], false);  // NaN position
+    /// assert_eq!(x_mask[2], true);
+    /// ```
+    pub fn notna(&self) -> Result<Self, GreenersError> {
+        let mut new_columns = HashMap::new();
+
+        for (col_name, col_data) in &self.columns {
+            let not_na_mask = match col_data {
+                Column::Float(arr) => {
+                    let mask: Vec<bool> = arr.iter().map(|v| !v.is_nan()).collect();
+                    Column::from_bool(Array1::from(mask))
+                }
+                Column::Categorical(_)
+                | Column::Bool(_)
+                | Column::Int(_)
+                | Column::DateTime(_)
+                | Column::String(_) => {
+                    // Non-Float columns have no NaN concept, all values are valid
+                    let mask = vec![true; col_data.len()];
+                    Column::from_bool(Array1::from(mask))
+                }
+            };
+            new_columns.insert(col_name.clone(), not_na_mask);
+        }
+
+        DataFrame::from_columns(new_columns)
     }
 
     /// Append a single row to the DataFrame.
@@ -2914,6 +3475,214 @@ impl DataFrame {
         Ok(new_df)
     }
 
+    /// Create lagged variable (shift values down by n periods).
+    ///
+    /// This is a convenience method for econometric analysis, equivalent to
+    /// `shift(column, periods)` with positive periods. Common for creating
+    /// lagged variables like L.x, L2.x in regression models.
+    ///
+    /// # Arguments
+    /// * `column` - Column to lag
+    /// * `periods` - Number of periods to lag (must be >= 1)
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("price", vec![100.0, 102.0, 101.0, 103.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let lagged = df.lag("price", 1).unwrap();
+    /// // Creates column "price_lag_1" with values [NaN, 100.0, 102.0, 101.0]
+    /// ```
+    pub fn lag(&self, column: &str, periods: usize) -> Result<Self, GreenersError> {
+        if periods == 0 {
+            return Err(GreenersError::InvalidOperation(
+                "Lag periods must be at least 1".to_string(),
+            ));
+        }
+
+        if !self.has_column(column) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' not found",
+                column
+            )));
+        }
+
+        let col_data = self.get(column)?;
+        let n = col_data.len();
+        let mut lagged = vec![f64::NAN; n];
+
+        for i in periods..n {
+            lagged[i] = col_data[i - periods];
+        }
+
+        let mut new_df = self.clone();
+        new_df.insert(format!("{}_lag_{}", column, periods), Array1::from(lagged))?;
+        Ok(new_df)
+    }
+
+    /// Create lead variable (shift values up by n periods).
+    ///
+    /// This is a convenience method for econometric analysis, equivalent to
+    /// `shift(column, -periods)` with negative periods. Common for forward-looking
+    /// variables or lead-lag analysis.
+    ///
+    /// # Arguments
+    /// * `column` - Column to lead
+    /// * `periods` - Number of periods to lead (must be >= 1)
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("price", vec![100.0, 102.0, 101.0, 103.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let lead_df = df.lead("price", 1).unwrap();
+    /// // Creates column "price_lead_1" with values [102.0, 101.0, 103.0, NaN]
+    /// ```
+    pub fn lead(&self, column: &str, periods: usize) -> Result<Self, GreenersError> {
+        if periods == 0 {
+            return Err(GreenersError::InvalidOperation(
+                "Lead periods must be at least 1".to_string(),
+            ));
+        }
+
+        if !self.has_column(column) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' not found",
+                column
+            )));
+        }
+
+        let col_data = self.get(column)?;
+        let n = col_data.len();
+        let mut lead_vals = vec![f64::NAN; n];
+
+        for i in 0..(n.saturating_sub(periods)) {
+            lead_vals[i] = col_data[i + periods];
+        }
+
+        let mut new_df = self.clone();
+        new_df.insert(
+            format!("{}_lead_{}", column, periods),
+            Array1::from(lead_vals),
+        )?;
+        Ok(new_df)
+    }
+
+    /// Calculate first difference (xt - xt-n).
+    ///
+    /// Computes the difference between each value and its lag. This is essential
+    /// for time series analysis, especially for achieving stationarity.
+    ///
+    /// # Arguments
+    /// * `column` - Column to difference
+    /// * `periods` - Number of periods for differencing (default = 1)
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("price", vec![100.0, 102.0, 101.0, 103.0, 105.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let diff_df = df.diff("price", 1).unwrap();
+    /// // Creates "price_diff_1" with values [NaN, 2.0, -1.0, 2.0, 2.0]
+    /// ```
+    pub fn diff(&self, column: &str, periods: usize) -> Result<Self, GreenersError> {
+        if periods == 0 {
+            return Err(GreenersError::InvalidOperation(
+                "Diff periods must be at least 1".to_string(),
+            ));
+        }
+
+        if !self.has_column(column) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' not found",
+                column
+            )));
+        }
+
+        let col_data = self.get(column)?;
+        let n = col_data.len();
+        let mut diff_vals = vec![f64::NAN; n];
+
+        for i in periods..n {
+            diff_vals[i] = col_data[i] - col_data[i - periods];
+        }
+
+        let mut new_df = self.clone();
+        new_df.insert(
+            format!("{}_diff_{}", column, periods),
+            Array1::from(diff_vals),
+        )?;
+        Ok(new_df)
+    }
+
+    /// Calculate percentage change ((xt - xt-n) / xt-n).
+    ///
+    /// Computes the percentage change between each value and its lag. This is
+    /// standard for calculating returns in finance and growth rates in economics.
+    ///
+    /// # Arguments
+    /// * `column` - Column to calculate percentage change
+    /// * `periods` - Number of periods for calculation (default = 1)
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("price", vec![100.0, 102.0, 101.0, 103.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let pct_df = df.pct_change("price", 1).unwrap();
+    /// // Creates "price_pct_1" with values [NaN, 0.02, -0.0098..., 0.0198...]
+    /// ```
+    pub fn pct_change(&self, column: &str, periods: usize) -> Result<Self, GreenersError> {
+        if periods == 0 {
+            return Err(GreenersError::InvalidOperation(
+                "pct_change periods must be at least 1".to_string(),
+            ));
+        }
+
+        if !self.has_column(column) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' not found",
+                column
+            )));
+        }
+
+        let col_data = self.get(column)?;
+        let n = col_data.len();
+        let mut pct_vals = vec![f64::NAN; n];
+
+        for i in periods..n {
+            let prev = col_data[i - periods];
+            if prev != 0.0 {
+                pct_vals[i] = (col_data[i] - prev) / prev;
+            } else {
+                pct_vals[i] = f64::NAN; // Avoid division by zero
+            }
+        }
+
+        let mut new_df = self.clone();
+        new_df.insert(
+            format!("{}_pct_{}", column, periods),
+            Array1::from(pct_vals),
+        )?;
+        Ok(new_df)
+    }
+
     /// Calculate quantile (percentile) for a column.
     ///
     /// # Arguments
@@ -3261,6 +4030,9 @@ impl std::fmt::Display for DataFrame {
                     cat.to_strings().iter().map(|s| s.len()).max().unwrap_or(0)
                 }
                 Column::Bool(_) => 5, // "true" or "false" - max is 5
+                Column::Int(arr) => arr.iter().map(|v| v.to_string().len()).max().unwrap_or(0),
+                Column::DateTime(_) => 19, // "YYYY-MM-DD HH:MM:SS" format is always 19 chars
+                Column::String(arr) => arr.iter().map(|s| s.len()).max().unwrap_or(0),
             };
             widths.insert(name.clone(), name.len().max(max_value_width));
         }
@@ -3304,6 +4076,16 @@ impl std::fmt::Display for DataFrame {
                     }
                     Column::Bool(arr) => {
                         write!(f, "{:>width$}", arr[row_idx], width = widths[name])?;
+                    }
+                    Column::Int(arr) => {
+                        write!(f, "{:>width$}", arr[row_idx], width = widths[name])?;
+                    }
+                    Column::DateTime(arr) => {
+                        let dt_str = arr[row_idx].format("%Y-%m-%d %H:%M:%S").to_string();
+                        write!(f, "{:>width$}", dt_str, width = widths[name])?;
+                    }
+                    Column::String(arr) => {
+                        write!(f, "{:>width$}", &arr[row_idx], width = widths[name])?;
                     }
                 }
             }
@@ -3386,6 +4168,65 @@ impl DataFrameBuilder {
     pub fn add_bool(mut self, name: &str, values: Vec<bool>) -> Self {
         self.columns
             .insert(name.to_string(), Column::from_bool(Array1::from(values)));
+        self
+    }
+
+    /// Add an Int column from integer values
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_int("user_id", vec![1, 2, 3, 4])
+    ///     .build()
+    ///     .unwrap();
+    /// ```
+    pub fn add_int(mut self, name: &str, values: Vec<i64>) -> Self {
+        self.columns
+            .insert(name.to_string(), Column::from_int(Array1::from(values)));
+        self
+    }
+
+    /// Add a DateTime column from NaiveDateTime values.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    /// use chrono::NaiveDate;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_datetime("date", vec![
+    ///         NaiveDate::from_ymd_opt(2024, 1, 1).unwrap().and_hms_opt(12, 0, 0).unwrap(),
+    ///         NaiveDate::from_ymd_opt(2024, 1, 2).unwrap().and_hms_opt(12, 0, 0).unwrap(),
+    ///     ])
+    ///     .build()
+    ///     .unwrap();
+    /// ```
+    pub fn add_datetime(mut self, name: &str, values: Vec<chrono::NaiveDateTime>) -> Self {
+        self.columns.insert(
+            name.to_string(),
+            Column::from_datetime(Array1::from(values)),
+        );
+        self
+    }
+
+    /// Add a String column from string values (non-categorical free text).
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_string("name", vec!["Alice".to_string(), "Bob".to_string(), "Charlie".to_string()])
+    ///     .build()
+    ///     .unwrap();
+    /// ```
+    pub fn add_string(mut self, name: &str, values: Vec<String>) -> Self {
+        self.columns.insert(
+            name.to_string(),
+            Column::from_string_array(Array1::from(values)),
+        );
         self
     }
 
@@ -3868,5 +4709,536 @@ mod tests {
 
         assert_eq!(q0, 1.0); // Minimum
         assert_eq!(q100, 5.0); // Maximum
+    }
+
+    // ========== MISSING DATA TESTS (Q6 v1.8.0) ==========
+
+    #[test]
+    fn test_isna_basic() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, f64::NAN, 3.0])
+            .add_column("y", vec![4.0, 5.0, f64::NAN])
+            .build()
+            .unwrap();
+
+        let na_mask = df.isna().unwrap();
+        let x_mask = na_mask.get_bool("x").unwrap();
+        let y_mask = na_mask.get_bool("y").unwrap();
+
+        assert_eq!(x_mask[0], false);
+        assert_eq!(x_mask[1], true);
+        assert_eq!(x_mask[2], false);
+
+        assert_eq!(y_mask[0], false);
+        assert_eq!(y_mask[1], false);
+        assert_eq!(y_mask[2], true);
+    }
+
+    #[test]
+    fn test_notna_basic() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, f64::NAN, 3.0])
+            .build()
+            .unwrap();
+
+        let not_na_mask = df.notna().unwrap();
+        let x_mask = not_na_mask.get_bool("x").unwrap();
+
+        assert_eq!(x_mask[0], true);
+        assert_eq!(x_mask[1], false);
+        assert_eq!(x_mask[2], true);
+    }
+
+    #[test]
+    fn test_isna_notna_complement() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, f64::NAN, 3.0, f64::NAN, 5.0])
+            .build()
+            .unwrap();
+
+        let na_mask = df.isna().unwrap();
+        let not_na_mask = df.notna().unwrap();
+
+        let na_x = na_mask.get_bool("x").unwrap();
+        let not_na_x = not_na_mask.get_bool("x").unwrap();
+
+        // isna and notna should be complements
+        for i in 0..5 {
+            assert_eq!(na_x[i], !not_na_x[i]);
+        }
+    }
+
+    #[test]
+    fn test_isna_non_float_columns() {
+        let df = DataFrame::builder()
+            .add_int("id", vec![1, 2, 3])
+            .add_bool("flag", vec![true, false, true])
+            .add_categorical(
+                "cat",
+                vec!["A".to_string(), "B".to_string(), "A".to_string()],
+            )
+            .build()
+            .unwrap();
+
+        let na_mask = df.isna().unwrap();
+
+        // Non-Float columns should have all false
+        let id_mask = na_mask.get_bool("id").unwrap();
+        let flag_mask = na_mask.get_bool("flag").unwrap();
+        let cat_mask = na_mask.get_bool("cat").unwrap();
+
+        assert!(id_mask.iter().all(|&v| !v));
+        assert!(flag_mask.iter().all(|&v| !v));
+        assert!(cat_mask.iter().all(|&v| !v));
+    }
+
+    #[test]
+    fn test_dropna_subset_single_column() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, f64::NAN, 4.0])
+            .add_column("y", vec![5.0, f64::NAN, 7.0, 8.0])
+            .add_column("z", vec![9.0, 10.0, 11.0, 12.0])
+            .build()
+            .unwrap();
+
+        let cleaned = df.dropna_subset(&["x"]).unwrap();
+        assert_eq!(cleaned.n_rows(), 3); // Row 2 removed (x is NaN)
+
+        let x = cleaned.get("x").unwrap();
+        assert_eq!(x[0], 1.0);
+        assert_eq!(x[1], 2.0);
+        assert_eq!(x[2], 4.0);
+    }
+
+    #[test]
+    fn test_dropna_subset_multiple_columns() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, f64::NAN, 4.0])
+            .add_column("y", vec![5.0, f64::NAN, 7.0, 8.0])
+            .add_column("z", vec![9.0, 10.0, 11.0, 12.0])
+            .build()
+            .unwrap();
+
+        let cleaned = df.dropna_subset(&["x", "y"]).unwrap();
+        assert_eq!(cleaned.n_rows(), 2); // Rows 1 and 2 removed
+
+        let x = cleaned.get("x").unwrap();
+        assert_eq!(x[0], 1.0);
+        assert_eq!(x[1], 4.0);
+    }
+
+    #[test]
+    fn test_dropna_subset_invalid_column() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0])
+            .build()
+            .unwrap();
+
+        let result = df.dropna_subset(&["nonexistent"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_dropna_all_basic() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![f64::NAN, 2.0, f64::NAN, 4.0])
+            .add_column("y", vec![f64::NAN, f64::NAN, 7.0, 8.0])
+            .build()
+            .unwrap();
+
+        let cleaned = df.dropna_all().unwrap();
+        assert_eq!(cleaned.n_rows(), 3); // Only row 0 removed (both NaN)
+
+        let x = cleaned.get("x").unwrap();
+        assert_eq!(x[0], 2.0);
+        assert_eq!(x[2], 4.0);
+    }
+
+    #[test]
+    fn test_dropna_all_vs_dropna() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, f64::NAN, f64::NAN])
+            .add_column("y", vec![f64::NAN, 2.0, f64::NAN])
+            .build()
+            .unwrap();
+
+        let dropna_result = df.dropna().unwrap();
+        let dropna_all_result = df.dropna_all().unwrap();
+
+        assert_eq!(dropna_result.n_rows(), 0); // dropna removes all rows
+        assert_eq!(dropna_all_result.n_rows(), 2); // dropna_all keeps rows 0 and 1
+    }
+
+    #[test]
+    fn test_fillna_ffill_basic() {
+        let df = DataFrame::builder()
+            .add_column("price", vec![100.0, f64::NAN, f64::NAN, 105.0, f64::NAN])
+            .build()
+            .unwrap();
+
+        let filled = df.fillna_ffill().unwrap();
+        let price = filled.get("price").unwrap();
+
+        assert_eq!(price[0], 100.0);
+        assert_eq!(price[1], 100.0);
+        assert_eq!(price[2], 100.0);
+        assert_eq!(price[3], 105.0);
+        assert_eq!(price[4], 105.0);
+    }
+
+    #[test]
+    fn test_fillna_ffill_leading_nan() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![f64::NAN, f64::NAN, 3.0, 4.0])
+            .build()
+            .unwrap();
+
+        let filled = df.fillna_ffill().unwrap();
+        let x = filled.get("x").unwrap();
+
+        // Leading NaN values remain NaN (no prior value to propagate)
+        assert!(x[0].is_nan());
+        assert!(x[1].is_nan());
+        assert_eq!(x[2], 3.0);
+        assert_eq!(x[3], 4.0);
+    }
+
+    #[test]
+    fn test_fillna_bfill_basic() {
+        let df = DataFrame::builder()
+            .add_column("price", vec![f64::NAN, f64::NAN, 100.0, f64::NAN, 105.0])
+            .build()
+            .unwrap();
+
+        let filled = df.fillna_bfill().unwrap();
+        let price = filled.get("price").unwrap();
+
+        assert_eq!(price[0], 100.0);
+        assert_eq!(price[1], 100.0);
+        assert_eq!(price[2], 100.0);
+        assert_eq!(price[3], 105.0);
+        assert_eq!(price[4], 105.0);
+    }
+
+    #[test]
+    fn test_fillna_bfill_trailing_nan() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, f64::NAN, f64::NAN])
+            .build()
+            .unwrap();
+
+        let filled = df.fillna_bfill().unwrap();
+        let x = filled.get("x").unwrap();
+
+        assert_eq!(x[0], 1.0);
+        assert_eq!(x[1], 2.0);
+        // Trailing NaN values remain NaN (no future value to propagate)
+        assert!(x[2].is_nan());
+        assert!(x[3].is_nan());
+    }
+
+    #[test]
+    fn test_fillna_ffill_bfill_combo() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![f64::NAN, 1.0, f64::NAN, 3.0, f64::NAN])
+            .build()
+            .unwrap();
+
+        // Forward fill first, then backward fill
+        let filled = df.fillna_ffill().unwrap().fillna_bfill().unwrap();
+        let x = filled.get("x").unwrap();
+
+        assert_eq!(x[0], 1.0); // bfill filled this
+        assert_eq!(x[1], 1.0);
+        assert_eq!(x[2], 1.0); // ffill filled this
+        assert_eq!(x[3], 3.0);
+        assert_eq!(x[4], 3.0); // ffill filled this
+    }
+
+    #[test]
+    fn test_fillna_methods_multiple_columns() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, f64::NAN, 3.0])
+            .add_column("y", vec![f64::NAN, 2.0, f64::NAN])
+            .build()
+            .unwrap();
+
+        let filled = df.fillna_ffill().unwrap();
+        let x = filled.get("x").unwrap();
+        let y = filled.get("y").unwrap();
+
+        assert_eq!(x[1], 1.0);
+        assert!(y[0].is_nan()); // No prior value, remains NaN
+        assert_eq!(y[1], 2.0);
+        assert_eq!(y[2], 2.0);
+    }
+
+    // ========== TIME SERIES OPERATIONS TESTS (Q7 v1.9.0) ==========
+
+    #[test]
+    fn test_lag_basic() {
+        let df = DataFrame::builder()
+            .add_column("price", vec![100.0, 102.0, 101.0, 103.0, 105.0])
+            .build()
+            .unwrap();
+
+        let lagged = df.lag("price", 1).unwrap();
+        let lag1 = lagged.get("price_lag_1").unwrap();
+
+        assert!(lag1[0].is_nan());
+        assert_eq!(lag1[1], 100.0);
+        assert_eq!(lag1[2], 102.0);
+        assert_eq!(lag1[3], 101.0);
+        assert_eq!(lag1[4], 103.0);
+    }
+
+    #[test]
+    fn test_lag_multiple_periods() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+            .build()
+            .unwrap();
+
+        let lagged = df.lag("x", 3).unwrap();
+        let lag3 = lagged.get("x_lag_3").unwrap();
+
+        assert!(lag3[0].is_nan());
+        assert!(lag3[1].is_nan());
+        assert!(lag3[2].is_nan());
+        assert_eq!(lag3[3], 1.0);
+        assert_eq!(lag3[4], 2.0);
+        assert_eq!(lag3[5], 3.0);
+    }
+
+    #[test]
+    fn test_lag_zero_periods_error() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0])
+            .build()
+            .unwrap();
+
+        let result = df.lag("x", 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_lag_invalid_column() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0])
+            .build()
+            .unwrap();
+
+        let result = df.lag("nonexistent", 1);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_lead_basic() {
+        let df = DataFrame::builder()
+            .add_column("price", vec![100.0, 102.0, 101.0, 103.0, 105.0])
+            .build()
+            .unwrap();
+
+        let lead_df = df.lead("price", 1).unwrap();
+        let lead1 = lead_df.get("price_lead_1").unwrap();
+
+        assert_eq!(lead1[0], 102.0);
+        assert_eq!(lead1[1], 101.0);
+        assert_eq!(lead1[2], 103.0);
+        assert_eq!(lead1[3], 105.0);
+        assert!(lead1[4].is_nan());
+    }
+
+    #[test]
+    fn test_lead_multiple_periods() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+            .build()
+            .unwrap();
+
+        let lead_df = df.lead("x", 2).unwrap();
+        let lead2 = lead_df.get("x_lead_2").unwrap();
+
+        assert_eq!(lead2[0], 3.0);
+        assert_eq!(lead2[1], 4.0);
+        assert_eq!(lead2[2], 5.0);
+        assert_eq!(lead2[3], 6.0);
+        assert!(lead2[4].is_nan());
+        assert!(lead2[5].is_nan());
+    }
+
+    #[test]
+    fn test_lead_zero_periods_error() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0])
+            .build()
+            .unwrap();
+
+        let result = df.lead("x", 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_diff_basic() {
+        let df = DataFrame::builder()
+            .add_column("price", vec![100.0, 102.0, 101.0, 103.0, 105.0])
+            .build()
+            .unwrap();
+
+        let diff_df = df.diff("price", 1).unwrap();
+        let diff1 = diff_df.get("price_diff_1").unwrap();
+
+        assert!(diff1[0].is_nan());
+        assert_eq!(diff1[1], 2.0); // 102 - 100
+        assert_eq!(diff1[2], -1.0); // 101 - 102
+        assert_eq!(diff1[3], 2.0); // 103 - 101
+        assert_eq!(diff1[4], 2.0); // 105 - 103
+    }
+
+    #[test]
+    fn test_diff_multiple_periods() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![100.0, 102.0, 104.0, 106.0, 108.0, 110.0])
+            .build()
+            .unwrap();
+
+        let diff_df = df.diff("x", 2).unwrap();
+        let diff2 = diff_df.get("x_diff_2").unwrap();
+
+        assert!(diff2[0].is_nan());
+        assert!(diff2[1].is_nan());
+        assert_eq!(diff2[2], 4.0); // 104 - 100
+        assert_eq!(diff2[3], 4.0); // 106 - 102
+        assert_eq!(diff2[4], 4.0); // 108 - 104
+        assert_eq!(diff2[5], 4.0); // 110 - 106
+    }
+
+    #[test]
+    fn test_diff_zero_periods_error() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0])
+            .build()
+            .unwrap();
+
+        let result = df.diff("x", 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pct_change_basic() {
+        let df = DataFrame::builder()
+            .add_column("price", vec![100.0, 102.0, 101.0, 103.0])
+            .build()
+            .unwrap();
+
+        let pct_df = df.pct_change("price", 1).unwrap();
+        let pct1 = pct_df.get("price_pct_1").unwrap();
+
+        assert!(pct1[0].is_nan());
+        assert!((pct1[1] - 0.02).abs() < 1e-10); // (102-100)/100 = 0.02
+        assert!((pct1[2] - (-1.0 / 102.0)).abs() < 1e-6); // (101-102)/102 = -1/102
+        assert!((pct1[3] - (2.0 / 101.0)).abs() < 1e-6); // (103-101)/101
+    }
+
+    #[test]
+    fn test_pct_change_zero_division() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![0.0, 10.0, 20.0])
+            .build()
+            .unwrap();
+
+        let pct_df = df.pct_change("x", 1).unwrap();
+        let pct1 = pct_df.get("x_pct_1").unwrap();
+
+        assert!(pct1[0].is_nan());
+        assert!(pct1[1].is_nan()); // Division by zero (10-0)/0
+        assert_eq!(pct1[2], 1.0); // (20-10)/10 = 1.0
+    }
+
+    #[test]
+    fn test_pct_change_multiple_periods() {
+        let df = DataFrame::builder()
+            .add_column("value", vec![100.0, 110.0, 121.0, 133.1])
+            .build()
+            .unwrap();
+
+        let pct_df = df.pct_change("value", 2).unwrap();
+        let pct2 = pct_df.get("value_pct_2").unwrap();
+
+        assert!(pct2[0].is_nan());
+        assert!(pct2[1].is_nan());
+        assert!((pct2[2] - 0.21).abs() < 1e-10); // (121-100)/100 = 0.21
+        assert!((pct2[3] - 0.21).abs() < 1e-10); // (133.1-110)/110 = 0.21
+    }
+
+    #[test]
+    fn test_pct_change_zero_periods_error() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0])
+            .build()
+            .unwrap();
+
+        let result = df.pct_change("x", 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_lag_lead_symmetry() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0, 4.0, 5.0])
+            .build()
+            .unwrap();
+
+        let lagged = df.lag("x", 1).unwrap();
+        let lead_df = df.lead("x", 1).unwrap();
+
+        let lag1 = lagged.get("x_lag_1").unwrap();
+        let lead1 = lead_df.get("x_lead_1").unwrap();
+
+        // lag[i] should equal original[i-1]
+        // lead[i] should equal original[i+1]
+        assert_eq!(lag1[2], 2.0); // x[2-1] = x[1] = 2.0
+        assert_eq!(lead1[1], 3.0); // x[1+1] = x[2] = 3.0
+    }
+
+    #[test]
+    fn test_diff_vs_lag() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![10.0, 12.0, 15.0, 13.0, 16.0])
+            .build()
+            .unwrap();
+
+        let diff_df = df.diff("x", 1).unwrap();
+        let lagged = df.lag("x", 1).unwrap();
+
+        let diff1 = diff_df.get("x_diff_1").unwrap();
+        let lag1 = lagged.get("x_lag_1").unwrap();
+        let x = df.get("x").unwrap();
+
+        // diff[i] should equal x[i] - lag1[i]
+        for i in 1..x.len() {
+            assert_eq!(diff1[i], x[i] - lag1[i]);
+        }
+    }
+
+    #[test]
+    fn test_pct_change_vs_diff() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![100.0, 110.0, 121.0, 108.9])
+            .build()
+            .unwrap();
+
+        let pct_df = df.pct_change("x", 1).unwrap();
+        let diff_df = df.diff("x", 1).unwrap();
+
+        let pct1 = pct_df.get("x_pct_1").unwrap();
+        let diff1 = diff_df.get("x_diff_1").unwrap();
+        let x = df.get("x").unwrap();
+
+        // pct_change[i] should equal diff1[i] / x[i-1]
+        for i in 1..x.len() {
+            let expected = diff1[i] / x[i - 1];
+            assert!((pct1[i] - expected).abs() < 1e-10);
+        }
     }
 }

@@ -1,3 +1,4 @@
+use chrono::NaiveDateTime;
 use ndarray::Array1;
 use std::collections::HashMap;
 
@@ -7,6 +8,9 @@ pub enum DataType {
     Float,
     Categorical,
     Bool,
+    Int,
+    DateTime,
+    String,
 }
 
 /// Categorical column with string levels and integer codes
@@ -154,6 +158,12 @@ pub enum Column {
     Categorical(CategoricalColumn),
     /// Boolean column
     Bool(Array1<bool>),
+    /// Integer column (signed 64-bit)
+    Int(Array1<i64>),
+    /// DateTime column (without timezone)
+    DateTime(Array1<NaiveDateTime>),
+    /// String column (free text, not categorical)
+    String(Array1<String>),
 }
 
 impl Column {
@@ -163,6 +173,9 @@ impl Column {
             Column::Float(_) => DataType::Float,
             Column::Categorical(_) => DataType::Categorical,
             Column::Bool(_) => DataType::Bool,
+            Column::Int(_) => DataType::Int,
+            Column::DateTime(_) => DataType::DateTime,
+            Column::String(_) => DataType::String,
         }
     }
 
@@ -172,6 +185,9 @@ impl Column {
             Column::Float(arr) => arr.len(),
             Column::Categorical(cat) => cat.len(),
             Column::Bool(arr) => arr.len(),
+            Column::Int(arr) => arr.len(),
+            Column::DateTime(arr) => arr.len(),
+            Column::String(arr) => arr.len(),
         }
     }
 
@@ -186,6 +202,9 @@ impl Column {
             Column::Float(arr) => Some(arr),
             Column::Categorical(_) => None,
             Column::Bool(_) => None,
+            Column::Int(_) => None,
+            Column::DateTime(_) => None,
+            Column::String(_) => None,
         }
     }
 
@@ -195,6 +214,9 @@ impl Column {
             Column::Float(_) => None,
             Column::Categorical(cat) => Some(cat),
             Column::Bool(_) => None,
+            Column::Int(_) => None,
+            Column::DateTime(_) => None,
+            Column::String(_) => None,
         }
     }
 
@@ -204,10 +226,49 @@ impl Column {
             Column::Float(_) => None,
             Column::Categorical(_) => None,
             Column::Bool(arr) => Some(arr),
+            Column::Int(_) => None,
+            Column::DateTime(_) => None,
+            Column::String(_) => None,
         }
     }
 
-    /// Convert to float array (categorical -> codes as f64, bool -> 1.0/0.0)
+    /// Try to get as int array
+    pub fn as_int(&self) -> Option<&Array1<i64>> {
+        match self {
+            Column::Float(_) => None,
+            Column::Categorical(_) => None,
+            Column::Bool(_) => None,
+            Column::Int(arr) => Some(arr),
+            Column::DateTime(_) => None,
+            Column::String(_) => None,
+        }
+    }
+
+    /// Try to get as datetime array
+    pub fn as_datetime(&self) -> Option<&Array1<NaiveDateTime>> {
+        match self {
+            Column::Float(_) => None,
+            Column::Categorical(_) => None,
+            Column::Bool(_) => None,
+            Column::Int(_) => None,
+            Column::DateTime(arr) => Some(arr),
+            Column::String(_) => None,
+        }
+    }
+
+    /// Try to get as string array
+    pub fn as_string(&self) -> Option<&Array1<String>> {
+        match self {
+            Column::Float(_) => None,
+            Column::Categorical(_) => None,
+            Column::Bool(_) => None,
+            Column::Int(_) => None,
+            Column::DateTime(_) => None,
+            Column::String(arr) => Some(arr),
+        }
+    }
+
+    /// Convert to float array (categorical -> codes as f64, bool -> 1.0/0.0, int -> f64, datetime -> timestamp, string -> NaN)
     pub fn to_float(&self) -> Array1<f64> {
         match self {
             Column::Float(arr) => arr.clone(),
@@ -217,6 +278,13 @@ impl Column {
                     .map(|&b| if b { 1.0 } else { 0.0 })
                     .collect::<Vec<_>>(),
             ),
+            Column::Int(arr) => Array1::from(arr.iter().map(|&i| i as f64).collect::<Vec<_>>()),
+            Column::DateTime(arr) => Array1::from(
+                arr.iter()
+                    .map(|dt| dt.and_utc().timestamp() as f64)
+                    .collect::<Vec<_>>(),
+            ),
+            Column::String(arr) => Array1::from(vec![f64::NAN; arr.len()]),
         }
     }
 
@@ -231,6 +299,18 @@ impl Column {
             Column::Bool(arr) => {
                 let filtered: Vec<bool> = indices.iter().map(|&i| arr[i]).collect();
                 Column::Bool(Array1::from(filtered))
+            }
+            Column::Int(arr) => {
+                let filtered: Vec<i64> = indices.iter().map(|&i| arr[i]).collect();
+                Column::Int(Array1::from(filtered))
+            }
+            Column::DateTime(arr) => {
+                let filtered: Vec<NaiveDateTime> = indices.iter().map(|&i| arr[i]).collect();
+                Column::DateTime(Array1::from(filtered))
+            }
+            Column::String(arr) => {
+                let filtered: Vec<String> = indices.iter().map(|&i| arr[i].clone()).collect();
+                Column::String(Array1::from(filtered))
             }
         }
     }
@@ -248,6 +328,21 @@ impl Column {
     /// Create from bool array
     pub fn from_bool(arr: Array1<bool>) -> Self {
         Column::Bool(arr)
+    }
+
+    /// Create from int array
+    pub fn from_int(arr: Array1<i64>) -> Self {
+        Column::Int(arr)
+    }
+
+    /// Create from datetime array
+    pub fn from_datetime(arr: Array1<NaiveDateTime>) -> Self {
+        Column::DateTime(arr)
+    }
+
+    /// Create from string array (non-categorical free text)
+    pub fn from_string_array(arr: Array1<String>) -> Self {
+        Column::String(arr)
     }
 }
 
@@ -433,20 +528,335 @@ mod tests {
         let float_col = Column::Float(Array1::from(vec![1.0, 2.0]));
         let cat_col = Column::from_strings(vec!["A".to_string()]);
         let bool_col = Column::from_bool(Array1::from(vec![true, false]));
+        let int_col = Column::from_int(Array1::from(vec![1, 2, 3]));
+        let str_col = Column::from_string_array(Array1::from(vec!["Hello".to_string()]));
 
         // Float column
         assert!(float_col.as_float().is_some());
         assert!(float_col.as_categorical().is_none());
         assert!(float_col.as_bool().is_none());
+        assert!(float_col.as_int().is_none());
+        assert!(float_col.as_string().is_none());
 
         // Categorical column
         assert!(cat_col.as_float().is_none());
         assert!(cat_col.as_categorical().is_some());
         assert!(cat_col.as_bool().is_none());
+        assert!(cat_col.as_int().is_none());
+        assert!(cat_col.as_string().is_none());
 
         // Bool column
         assert!(bool_col.as_float().is_none());
         assert!(bool_col.as_categorical().is_none());
         assert!(bool_col.as_bool().is_some());
+        assert!(bool_col.as_int().is_none());
+        assert!(bool_col.as_string().is_none());
+
+        // Int column
+        assert!(int_col.as_float().is_none());
+        assert!(int_col.as_categorical().is_none());
+        assert!(int_col.as_bool().is_none());
+        assert!(int_col.as_int().is_some());
+        assert!(int_col.as_string().is_none());
+
+        // String column
+        assert!(str_col.as_float().is_none());
+        assert!(str_col.as_categorical().is_none());
+        assert!(str_col.as_bool().is_none());
+        assert!(str_col.as_int().is_none());
+        assert!(str_col.as_string().is_some());
+    }
+
+    #[test]
+    fn test_int_column_creation() {
+        let int_col = Column::from_int(Array1::from(vec![1, 2, 3, 4, 5]));
+
+        assert_eq!(int_col.dtype(), DataType::Int);
+        assert_eq!(int_col.len(), 5);
+        assert!(!int_col.is_empty());
+    }
+
+    #[test]
+    fn test_int_column_as_int() {
+        let int_col = Column::from_int(Array1::from(vec![10, 20, 30]));
+
+        let arr = int_col.as_int().unwrap();
+        assert_eq!(arr[0], 10);
+        assert_eq!(arr[1], 20);
+        assert_eq!(arr[2], 30);
+    }
+
+    #[test]
+    fn test_int_column_to_float() {
+        let int_col = Column::from_int(Array1::from(vec![100, 200, 300, 400]));
+
+        let float_arr = int_col.to_float();
+        assert_eq!(float_arr[0], 100.0);
+        assert_eq!(float_arr[1], 200.0);
+        assert_eq!(float_arr[2], 300.0);
+        assert_eq!(float_arr[3], 400.0);
+    }
+
+    #[test]
+    fn test_int_column_filter_indices() {
+        let int_col = Column::from_int(Array1::from(vec![1, 2, 3, 4, 5]));
+        let filtered = int_col.filter_indices(&[0, 2, 4]);
+
+        if let Column::Int(arr) = filtered {
+            assert_eq!(arr.len(), 3);
+            assert_eq!(arr[0], 1);
+            assert_eq!(arr[1], 3);
+            assert_eq!(arr[2], 5);
+        } else {
+            panic!("Expected Int column");
+        }
+    }
+
+    #[test]
+    fn test_int_column_negative_values() {
+        let int_col = Column::from_int(Array1::from(vec![-10, -5, 0, 5, 10]));
+
+        let arr = int_col.as_int().unwrap();
+        assert_eq!(arr[0], -10);
+        assert_eq!(arr[2], 0);
+        assert_eq!(arr[4], 10);
+
+        let float_arr = int_col.to_float();
+        assert_eq!(float_arr[0], -10.0);
+        assert_eq!(float_arr[4], 10.0);
+    }
+
+    #[test]
+    fn test_datetime_column_creation() {
+        use chrono::NaiveDate;
+
+        let dates = vec![
+            NaiveDate::from_ymd_opt(2024, 1, 1)
+                .unwrap()
+                .and_hms_opt(0, 0, 0)
+                .unwrap(),
+            NaiveDate::from_ymd_opt(2024, 1, 2)
+                .unwrap()
+                .and_hms_opt(12, 30, 45)
+                .unwrap(),
+            NaiveDate::from_ymd_opt(2024, 1, 3)
+                .unwrap()
+                .and_hms_opt(23, 59, 59)
+                .unwrap(),
+        ];
+
+        let dt_col = Column::from_datetime(Array1::from(dates.clone()));
+        assert_eq!(dt_col.dtype(), DataType::DateTime);
+        assert_eq!(dt_col.len(), 3);
+
+        let arr = dt_col.as_datetime().unwrap();
+        assert_eq!(arr[0], dates[0]);
+        assert_eq!(arr[1], dates[1]);
+        assert_eq!(arr[2], dates[2]);
+    }
+
+    #[test]
+    fn test_datetime_column_as_datetime() {
+        use chrono::NaiveDate;
+
+        let dt_col =
+            Column::from_datetime(Array1::from(vec![NaiveDate::from_ymd_opt(2024, 6, 15)
+                .unwrap()
+                .and_hms_opt(10, 30, 0)
+                .unwrap()]));
+
+        if let Some(arr) = dt_col.as_datetime() {
+            assert_eq!(arr.len(), 1);
+            assert_eq!(
+                arr[0].format("%Y-%m-%d %H:%M:%S").to_string(),
+                "2024-06-15 10:30:00"
+            );
+        } else {
+            panic!("Expected DateTime column");
+        }
+    }
+
+    #[test]
+    fn test_datetime_column_to_float() {
+        use chrono::NaiveDate;
+
+        let dt = NaiveDate::from_ymd_opt(2024, 1, 1)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap();
+        let dt_col = Column::from_datetime(Array1::from(vec![dt]));
+
+        let float_arr = dt_col.to_float();
+        assert_eq!(float_arr.len(), 1);
+        // Should convert to Unix timestamp
+        assert_eq!(float_arr[0], dt.and_utc().timestamp() as f64);
+    }
+
+    #[test]
+    fn test_datetime_column_filter_indices() {
+        use chrono::NaiveDate;
+
+        let dates = vec![
+            NaiveDate::from_ymd_opt(2024, 1, 1)
+                .unwrap()
+                .and_hms_opt(0, 0, 0)
+                .unwrap(),
+            NaiveDate::from_ymd_opt(2024, 1, 2)
+                .unwrap()
+                .and_hms_opt(0, 0, 0)
+                .unwrap(),
+            NaiveDate::from_ymd_opt(2024, 1, 3)
+                .unwrap()
+                .and_hms_opt(0, 0, 0)
+                .unwrap(),
+            NaiveDate::from_ymd_opt(2024, 1, 4)
+                .unwrap()
+                .and_hms_opt(0, 0, 0)
+                .unwrap(),
+        ];
+
+        let dt_col = Column::from_datetime(Array1::from(dates.clone()));
+        let filtered = dt_col.filter_indices(&[0, 2, 3]);
+
+        if let Some(arr) = filtered.as_datetime() {
+            assert_eq!(arr.len(), 3);
+            assert_eq!(arr[0], dates[0]);
+            assert_eq!(arr[1], dates[2]);
+            assert_eq!(arr[2], dates[3]);
+        } else {
+            panic!("Expected DateTime column");
+        }
+    }
+
+    #[test]
+    fn test_datetime_column_timestamp_conversion() {
+        use chrono::NaiveDate;
+
+        let dates = vec![
+            NaiveDate::from_ymd_opt(2020, 1, 1)
+                .unwrap()
+                .and_hms_opt(0, 0, 0)
+                .unwrap(),
+            NaiveDate::from_ymd_opt(2021, 6, 15)
+                .unwrap()
+                .and_hms_opt(12, 0, 0)
+                .unwrap(),
+            NaiveDate::from_ymd_opt(2024, 12, 31)
+                .unwrap()
+                .and_hms_opt(23, 59, 59)
+                .unwrap(),
+        ];
+
+        let dt_col = Column::from_datetime(Array1::from(dates.clone()));
+        let float_arr = dt_col.to_float();
+
+        // Verify each conversion
+        for (i, dt) in dates.iter().enumerate() {
+            assert_eq!(float_arr[i], dt.and_utc().timestamp() as f64);
+        }
+    }
+
+    #[test]
+    fn test_string_column_creation() {
+        let str_col = Column::from_string_array(Array1::from(vec![
+            "Alice".to_string(),
+            "Bob".to_string(),
+            "Charlie".to_string(),
+        ]));
+
+        assert_eq!(str_col.dtype(), DataType::String);
+        assert_eq!(str_col.len(), 3);
+        assert!(!str_col.is_empty());
+    }
+
+    #[test]
+    fn test_string_column_as_string() {
+        let str_col = Column::from_string_array(Array1::from(vec![
+            "Hello".to_string(),
+            "World".to_string(),
+            "Test".to_string(),
+        ]));
+
+        let arr = str_col.as_string().unwrap();
+        assert_eq!(arr[0], "Hello");
+        assert_eq!(arr[1], "World");
+        assert_eq!(arr[2], "Test");
+    }
+
+    #[test]
+    fn test_string_column_to_float() {
+        // String columns should convert to NaN when to_float() is called
+        let str_col =
+            Column::from_string_array(Array1::from(vec!["Alice".to_string(), "Bob".to_string()]));
+
+        let float_arr = str_col.to_float();
+        assert_eq!(float_arr.len(), 2);
+        assert!(float_arr[0].is_nan());
+        assert!(float_arr[1].is_nan());
+    }
+
+    #[test]
+    fn test_string_column_filter_indices() {
+        let str_col = Column::from_string_array(Array1::from(vec![
+            "One".to_string(),
+            "Two".to_string(),
+            "Three".to_string(),
+            "Four".to_string(),
+            "Five".to_string(),
+        ]));
+
+        let filtered = str_col.filter_indices(&[0, 2, 4]);
+
+        if let Column::String(arr) = filtered {
+            assert_eq!(arr.len(), 3);
+            assert_eq!(arr[0], "One");
+            assert_eq!(arr[1], "Three");
+            assert_eq!(arr[2], "Five");
+        } else {
+            panic!("Expected String column");
+        }
+    }
+
+    #[test]
+    fn test_string_column_empty_strings() {
+        let str_col = Column::from_string_array(Array1::from(vec![
+            "".to_string(),
+            "Not empty".to_string(),
+            "".to_string(),
+        ]));
+
+        let arr = str_col.as_string().unwrap();
+        assert_eq!(arr.len(), 3);
+        assert_eq!(arr[0], "");
+        assert_eq!(arr[1], "Not empty");
+        assert_eq!(arr[2], "");
+    }
+
+    #[test]
+    fn test_string_column_long_text() {
+        let long_text = "This is a very long string to test that String columns can handle variable-length text content without issues.".to_string();
+        let str_col =
+            Column::from_string_array(Array1::from(vec![long_text.clone(), "Short".to_string()]));
+
+        let arr = str_col.as_string().unwrap();
+        assert_eq!(arr[0], long_text);
+        assert_eq!(arr[1], "Short");
+    }
+
+    #[test]
+    fn test_string_column_special_characters() {
+        let str_col = Column::from_string_array(Array1::from(vec![
+            "Test with spaces".to_string(),
+            "Test,with,commas".to_string(),
+            "Test\"with\"quotes".to_string(),
+            "Test\nwith\nnewlines".to_string(),
+        ]));
+
+        let arr = str_col.as_string().unwrap();
+        assert_eq!(arr.len(), 4);
+        assert!(arr[0].contains("spaces"));
+        assert!(arr[1].contains("commas"));
+        assert!(arr[2].contains("quotes"));
+        assert!(arr[3].contains("\n"));
     }
 }
