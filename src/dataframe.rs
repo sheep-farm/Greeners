@@ -471,7 +471,8 @@ impl DataFrame {
             if var_name.starts_with("C(") && var_name.ends_with(')') {
                 // Categorical: count unique values - 1 (drop first)
                 let var = var_name[2..var_name.len() - 1].trim();
-                let col_data = self.get(var)?;
+                let column = self.get_column(var)?;
+                let col_data = column.to_float();
 
                 use std::collections::BTreeSet;
                 let unique_vals: BTreeSet<i32> =
@@ -520,8 +521,9 @@ impl DataFrame {
         &self,
         formula: &Formula,
     ) -> Result<(Array1<f64>, Array2<f64>), GreenersError> {
-        // Extract y (dependent variable)
-        let y = self.get(&formula.dependent)?.clone();
+        // Extract y (dependent variable) - convert any type to float
+        let y_column = self.get_column(&formula.dependent)?;
+        let y = y_column.to_float();
 
         // Build X matrix
         let n_rows = self.n_rows;
@@ -546,7 +548,8 @@ impl DataFrame {
             if var_name.starts_with("C(") && var_name.ends_with(')') {
                 // Extract variable name from C(var)
                 let var = var_name[2..var_name.len() - 1].trim();
-                let col_data = self.get(var)?;
+                let column = self.get_column(var)?;
+                let col_data = column.to_float();
 
                 // Get unique values (categories)
                 use std::collections::BTreeSet;
@@ -612,7 +615,8 @@ impl DataFrame {
                         power_part = parts[1].trim();
                     }
 
-                    let col_data = self.get(var_part)?;
+                    let column = self.get_column(var_part)?;
+                    let col_data = column.to_float();
                     let power: i32 = power_part.parse().map_err(|_| {
                         GreenersError::FormulaError(format!(
                             "Invalid power in expression '{}'",
@@ -642,16 +646,19 @@ impl DataFrame {
                     )));
                 }
 
-                let var1 = self.get(parts[0].trim())?;
-                let var2 = self.get(parts[1].trim())?;
+                let column1 = self.get_column(parts[0].trim())?;
+                let var1 = column1.to_float();
+                let column2 = self.get_column(parts[1].trim())?;
+                let var2 = column2.to_float();
 
                 // Compute interaction: elementwise multiplication
                 for i in 0..n_rows {
                     x_mat[[i, col_idx]] = var1[i] * var2[i];
                 }
             } else {
-                // Regular variable
-                let col_data = self.get(var_name)?;
+                // Regular variable - convert any type to float
+                let column = self.get_column(var_name)?;
+                let col_data = column.to_float();
                 for i in 0..n_rows {
                     x_mat[[i, col_idx]] = col_data[i];
                 }
