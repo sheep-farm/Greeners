@@ -34,12 +34,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Coefficients:");
     println!("  Intercept: {:.2} grams", result1.params[0]);
     println!("  mbsmoke (mother smokes): {:.2} grams", result1.params[1]);
-    println!("  mmarried (mother married): {:.2} grams", result1.params[2]);
+    println!(
+        "  mmarried (mother married): {:.2} grams",
+        result1.params[2]
+    );
     println!("\nInterpretation:");
-    println!("  • Maternal smoking associated with {:.0}g lower birth weight",
-             -result1.params[1]);
-    println!("  • Being married associated with {:.0}g higher birth weight",
-             result1.params[2]);
+    println!(
+        "  • Maternal smoking associated with {:.0}g lower birth weight",
+        -result1.params[1]
+    );
+    println!(
+        "  • Being married associated with {:.0}g higher birth weight",
+        result1.params[2]
+    );
     println!("  • R² = {:.4}\n", result1.r_squared);
 
     // Example 2: Multiple Bool controls
@@ -74,7 +81,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\nInterpretation:");
     if result3.params[3].abs() > 0.0 {
         println!("  • Smoking effect differs by marital status");
-        println!("  • Interaction coefficient: {:.2} grams", result3.params[3]);
+        println!(
+            "  • Interaction coefficient: {:.2} grams",
+            result3.params[3]
+        );
     }
     println!("  • R² = {:.4}\n", result3.r_squared);
 

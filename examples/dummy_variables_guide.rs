@@ -52,16 +52,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result1 = OLS::from_formula(&formula1, &df, CovarianceType::HC3)?;
 
     println!("Coefficients:");
-    println!("  β₀ (Intercept):    {:>8.2} (baseline wage for males)", result1.params[0]);
-    println!("  β₁ (education):    {:>8.2} (wage increase per year of education)", result1.params[1]);
-    println!("  β₂ (experience):   {:>8.2} (wage increase per year of experience)", result1.params[2]);
-    println!("  β₃ (female):       {:>8.2} (wage difference: female - male)", result1.params[3]);
+    println!(
+        "  β₀ (Intercept):    {:>8.2} (baseline wage for males)",
+        result1.params[0]
+    );
+    println!(
+        "  β₁ (education):    {:>8.2} (wage increase per year of education)",
+        result1.params[1]
+    );
+    println!(
+        "  β₂ (experience):   {:>8.2} (wage increase per year of experience)",
+        result1.params[2]
+    );
+    println!(
+        "  β₃ (female):       {:>8.2} (wage difference: female - male)",
+        result1.params[3]
+    );
 
     println!("\n📊 INTERPRETATION:");
     if result1.params[3] < 0.0 {
-        println!("  Women earn R$ {:.2} LESS than men (controlling for education & experience)",
-                 -result1.params[3]);
-        println!("  This is the \"gender wage gap\" after controlling for observable characteristics");
+        println!(
+            "  Women earn R$ {:.2} LESS than men (controlling for education & experience)",
+            -result1.params[3]
+        );
+        println!(
+            "  This is the \"gender wage gap\" after controlling for observable characteristics"
+        );
     } else {
         println!("  Women earn R$ {:.2} MORE than men", result1.params[3]);
     }
@@ -78,15 +94,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Coefficients:");
     println!("  Intercept:   {:>8.2}", result2.params[0]);
-    println!("  education:   {:>8.2} (each additional year of schooling)", result2.params[1]);
-    println!("  female:      {:>8.2} (being female vs male)", result2.params[2]);
-    println!("  married:     {:>8.2} (being married vs single)", result2.params[3]);
-    println!("  union:       {:>8.2} (union member vs non-member)", result2.params[4]);
+    println!(
+        "  education:   {:>8.2} (each additional year of schooling)",
+        result2.params[1]
+    );
+    println!(
+        "  female:      {:>8.2} (being female vs male)",
+        result2.params[2]
+    );
+    println!(
+        "  married:     {:>8.2} (being married vs single)",
+        result2.params[3]
+    );
+    println!(
+        "  union:       {:>8.2} (union member vs non-member)",
+        result2.params[4]
+    );
 
     println!("\n📊 INTERPRETATION:");
     println!("  Reference group: Single, non-union, male worker");
     if result2.params[3] > 0.0 {
-        println!("  Marriage premium: R$ {:.2} higher wage", result2.params[3]);
+        println!(
+            "  Marriage premium: R$ {:.2} higher wage",
+            result2.params[3]
+        );
     }
     if result2.params[4] > 0.0 {
         println!("  Union premium: R$ {:.2} higher wage", result2.params[4]);
@@ -103,15 +134,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result3 = OLS::from_formula(&formula3, &df, CovarianceType::HC3)?;
 
     println!("Coefficients:");
-    println!("  Intercept:           {:>8.2} (baseline for males, 0 education)", result3.params[0]);
-    println!("  education:           {:>8.2} (return to education for MALES)", result3.params[1]);
-    println!("  female:              {:>8.2} (base difference for females)", result3.params[2]);
-    println!("  education:female:    {:>8.2} (ADDITIONAL return to education for females)", result3.params[3]);
+    println!(
+        "  Intercept:           {:>8.2} (baseline for males, 0 education)",
+        result3.params[0]
+    );
+    println!(
+        "  education:           {:>8.2} (return to education for MALES)",
+        result3.params[1]
+    );
+    println!(
+        "  female:              {:>8.2} (base difference for females)",
+        result3.params[2]
+    );
+    println!(
+        "  education:female:    {:>8.2} (ADDITIONAL return to education for females)",
+        result3.params[3]
+    );
 
     println!("\n📊 INTERPRETATION:");
-    println!("  Return to education for males:   R$ {:.2} per year", result3.params[1]);
-    println!("  Return to education for females: R$ {:.2} per year",
-             result3.params[1] + result3.params[3]);
+    println!(
+        "  Return to education for males:   R$ {:.2} per year",
+        result3.params[1]
+    );
+    println!(
+        "  Return to education for females: R$ {:.2} per year",
+        result3.params[1] + result3.params[3]
+    );
     if result3.params[3].abs() > 1.0 {
         if result3.params[3] > 0.0 {
             println!("  ✓ Women have HIGHER returns to education than men!");
@@ -143,24 +191,51 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result4 = OLS::from_formula(&formula4, &df, CovarianceType::HC3)?;
 
     println!("Coefficients:");
-    println!("  Intercept:     {:>8.2} (baseline: Norte, 0 education)", result4.params[0]);
-    println!("  education:     {:>8.2} (return to education)", result4.params[1]);
-    println!("  region_2 (Sul):   {:>8.2} (Sul vs Norte)", result4.params[2]);
-    println!("  region_3 (Leste): {:>8.2} (Leste vs Norte)", result4.params[3]);
-    println!("  region_4 (Oeste): {:>8.2} (Oeste vs Norte)", result4.params[4]);
+    println!(
+        "  Intercept:     {:>8.2} (baseline: Norte, 0 education)",
+        result4.params[0]
+    );
+    println!(
+        "  education:     {:>8.2} (return to education)",
+        result4.params[1]
+    );
+    println!(
+        "  region_2 (Sul):   {:>8.2} (Sul vs Norte)",
+        result4.params[2]
+    );
+    println!(
+        "  region_3 (Leste): {:>8.2} (Leste vs Norte)",
+        result4.params[3]
+    );
+    println!(
+        "  region_4 (Oeste): {:>8.2} (Oeste vs Norte)",
+        result4.params[4]
+    );
 
     println!("\n📊 INTERPRETATION:");
     println!("  Reference region: Norte (region=1) - DROPPED as baseline");
     println!("  All coefficients are relative to Norte:");
     if result4.params[2] > 0.0 {
-        println!("  • Sul workers earn R$ {:.2} MORE than Norte", result4.params[2]);
+        println!(
+            "  • Sul workers earn R$ {:.2} MORE than Norte",
+            result4.params[2]
+        );
     } else {
-        println!("  • Sul workers earn R$ {:.2} LESS than Norte", -result4.params[2]);
+        println!(
+            "  • Sul workers earn R$ {:.2} LESS than Norte",
+            -result4.params[2]
+        );
     }
     if result4.params[3] > 0.0 {
-        println!("  • Leste workers earn R$ {:.2} MORE than Norte", result4.params[3]);
+        println!(
+            "  • Leste workers earn R$ {:.2} MORE than Norte",
+            result4.params[3]
+        );
     } else {
-        println!("  • Leste workers earn R$ {:.2} LESS than Norte", -result4.params[3]);
+        println!(
+            "  • Leste workers earn R$ {:.2} LESS than Norte",
+            -result4.params[3]
+        );
     }
     println!("  R² = {:.4}\n", result4.r_squared);
 
@@ -227,7 +302,10 @@ fn create_dataset() -> Result<(), Box<dyn std::error::Error>> {
     let mut file = File::create("wage_data.csv")?;
 
     // Header
-    writeln!(file, "wage,education,experience,female,married,union,region")?;
+    writeln!(
+        file,
+        "wage,education,experience,female,married,union,region"
+    )?;
 
     // Data: Mix of values to create realistic patterns
     // Region: 1=Norte, 2=Sul, 3=Leste, 4=Oeste
@@ -255,7 +333,11 @@ fn create_dataset() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     for (wage, edu, exp, gender, married, union, region) in data {
-        writeln!(file, "{},{},{},{},{},{},{}", wage, edu, exp, gender, married, union, region)?;
+        writeln!(
+            file,
+            "{},{},{},{},{},{},{}",
+            wage, edu, exp, gender, married, union, region
+        )?;
     }
 
     Ok(())

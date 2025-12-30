@@ -1,4 +1,5 @@
 use crate::error::GreenersError;
+use crate::OLS;
 use ndarray as nd;
 use ndarray::{Array1, Array2};
 use ndarray_linalg::Inverse;
@@ -16,6 +17,7 @@ pub struct GmmResult {
     pub n_obs: usize,
     pub df_model: usize,
     pub df_overid: usize, // Over-identification degrees of freedom
+    pub omitted_vars: Vec<String>,
 }
 
 impl fmt::Display for GmmResult {
@@ -52,6 +54,16 @@ impl fmt::Display for GmmResult {
                 i, self.params[i], self.std_errors[i], self.t_values[i], self.p_values[i]
             )?;
         }
+
+        // Show omitted variables if any
+        if !self.omitted_vars.is_empty() {
+            writeln!(f, "{:-^78}", "")?;
+            writeln!(f, "Omitted due to collinearity:")?;
+            for var in &self.omitted_vars {
+                writeln!(f, "  o.{}", var)?;
+            }
+        }
+
         writeln!(f, "{:=^78}", "")
     }
 }
@@ -77,14 +89,40 @@ impl GMM {
             )));
         }
 
+        // Detect collinearity in X
+        let tolerance = 1e-10;
+        let (x_clean, _keep_indices_x, omit_indices_x) = OLS::detect_collinearity(x, tolerance);
+
+        let mut omitted_var_names = Vec::new();
+        for &idx in &omit_indices_x {
+            omitted_var_names.push(format!("x{}", idx));
+        }
+
+        // Use cleaned matrix
+        let x_to_use = &x_clean;
+        let k_clean = x_to_use.ncols();
+
+        if n <= k_clean {
+            return Err(GreenersError::ShapeMismatch(
+                "Degrees of freedom <= 0 after removing collinear variables".into(),
+            ));
+        }
+
+        if l < k_clean {
+            return Err(GreenersError::ShapeMismatch(format!(
+                "GMM requires L >= K after removing collinear variables. Got L={}, K_clean={}",
+                l, k_clean
+            )));
+        }
+
         // --- MATRIX PREPARATION ---
         // Sample Moments: g = (1/n) * Z'u
         // We need the cross product matrices
         // let x_t = x.t();
         let z_t = z.t();
 
-        // S_xz = (1/n) * Z'X
-        let s_zx = z_t.dot(x) / (n as f64);
+        // S_xz = (1/n) * Z'X (use cleaned X)
+        let s_zx = z_t.dot(x_to_use) / (n as f64);
         // S_zy = (1/n) * Z'y
         let s_zy = z_t.dot(y) / (n as f64);
 
@@ -99,8 +137,8 @@ impl GMM {
         let rhs_1 = s_zx_t.dot(&w1).dot(&s_zy);
         let beta1 = lhs_1.inv()?.dot(&rhs_1);
 
-        // Step 1 Residuals
-        let pred1 = x.dot(&beta1);
+        // Step 1 Residuals (use cleaned X)
+        let pred1 = x_to_use.dot(&beta1);
         let resid1 = y - &pred1;
 
         // --- STEP 2: Optimal Weight Matrix (Hansen's S Matrix) ---
@@ -167,8 +205,9 @@ impl GMM {
             j_stat,
             j_p_value,
             n_obs: n,
-            df_model: k,
+            df_model: k_clean,
             df_overid,
+            omitted_vars: omitted_var_names,
         })
     }
 }

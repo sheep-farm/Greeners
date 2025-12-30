@@ -2,7 +2,7 @@ use crate::error::GreenersError;
 use crate::CovarianceType; // Import the new Enum
 use crate::{DataFrame, Formula};
 use ndarray::{Array1, Array2};
-use ndarray_linalg::Inverse;
+use ndarray_linalg::{Inverse, QR};
 use statrs::distribution::{ContinuousCDF, FisherSnedecor, StudentsT};
 use std::fmt;
 
@@ -27,6 +27,7 @@ pub struct OlsResult {
     pub sigma: f64,
     pub cov_type: CovarianceType,            // Store which type was used
     pub variable_names: Option<Vec<String>>, // Names of variables (from Formula)
+    pub omitted_vars: Vec<String>,           // Variables dropped due to collinearity
 }
 
 impl OlsResult {
@@ -254,6 +255,16 @@ impl fmt::Display for OlsResult {
                 self.conf_upper[i]
             )?;
         }
+
+        // Show omitted variables if any
+        if !self.omitted_vars.is_empty() {
+            writeln!(f, "{:-^78}", "")?;
+            writeln!(f, "Omitted due to collinearity:")?;
+            for var in &self.omitted_vars {
+                writeln!(f, "  o.{}", var)?;
+            }
+        }
+
         writeln!(f, "{:=^78}", "")
     }
 }
@@ -299,6 +310,50 @@ impl OLS {
         Self::fit_with_names(&y, &x, cov_type, Some(var_names))
     }
 
+    /// Detect and remove perfectly collinear columns using QR decomposition.
+    ///
+    /// Returns: (clean_x, keep_indices, omitted_indices)
+    pub fn detect_collinearity(
+        x: &Array2<f64>,
+        tolerance: f64,
+    ) -> (Array2<f64>, Vec<usize>, Vec<usize>) {
+        let n = x.nrows();
+        let k = x.ncols();
+
+        // Use QR decomposition to detect rank deficiency
+        // Columns with small R diagonal values are linearly dependent
+        match x.qr() {
+            Ok((_, r)) => {
+                let mut keep_indices = Vec::new();
+                let mut omit_indices = Vec::new();
+
+                // Check diagonal of R matrix
+                for i in 0..k.min(n) {
+                    let r_ii = r[[i, i]].abs();
+                    if r_ii > tolerance {
+                        keep_indices.push(i);
+                    } else {
+                        omit_indices.push(i);
+                    }
+                }
+
+                // If all columns kept, return original matrix
+                if omit_indices.is_empty() {
+                    return (x.clone(), keep_indices, omit_indices);
+                }
+
+                // Build reduced matrix with only independent columns
+                let x_clean = x.select(ndarray::Axis(1), &keep_indices);
+                (x_clean, keep_indices, omit_indices)
+            }
+            Err(_) => {
+                // QR failed, return original (will likely fail in OLS too)
+                let keep: Vec<usize> = (0..k).collect();
+                (x.clone(), keep, vec![])
+            }
+        }
+    }
+
     /// Fits the model. Now accepts `cov_type` and optional variable names.
     pub fn fit(
         y: &Array1<f64>,
@@ -331,20 +386,58 @@ impl OLS {
             ));
         }
 
+        // Detect and remove collinear columns ONLY when we have variable names
+        // (i.e., formula-based usage). For internal algorithmic use (variable_names = None),
+        // skip collinearity detection to preserve matrix dimensions.
+        let (x_to_use, k_clean, omitted_var_names, clean_var_names) = if variable_names.is_some() {
+            let tolerance = 1e-10;
+            let (x_clean, keep_indices, omit_indices) = Self::detect_collinearity(x, tolerance);
+
+            let mut omitted_names = Vec::new();
+            let mut clean_names = Vec::new();
+
+            if let Some(ref names) = variable_names {
+                for &idx in &omit_indices {
+                    if idx < names.len() {
+                        omitted_names.push(names[idx].clone());
+                    }
+                }
+                for &idx in &keep_indices {
+                    if idx < names.len() {
+                        clean_names.push(names[idx].clone());
+                    }
+                }
+            }
+
+            let k_clean = x_clean.ncols();
+            if n <= k_clean {
+                return Err(GreenersError::ShapeMismatch(
+                    "Degrees of freedom <= 0 after removing collinear variables".into(),
+                ));
+            }
+
+            (x_clean, k_clean, omitted_names, clean_names)
+        } else {
+            // No collinearity detection for internal use
+            (x.clone(), k, Vec::new(), Vec::new())
+        };
+
+        let x_to_use = &x_to_use;
+
         // 1. Beta Estimation (Same for Robust and Non-Robust)
-        let x_t = x.t();
-        let xt_x = x_t.dot(x);
+        let x_t = x_to_use.t();
+        let xt_x = x_t.dot(x_to_use);
         let xt_x_inv = xt_x.inv()?;
         let xt_y = x_t.dot(y);
         let beta = xt_x_inv.dot(&xt_y);
 
         // 2. Residuals
-        let predicted = x.dot(&beta);
+        let predicted = x_to_use.dot(&beta);
         let residuals = y - &predicted;
         let ssr = residuals.dot(&residuals);
 
-        let df_resid = n - k;
-        let df_model = k - 1;
+        let df_resid = n - k_clean;
+        let df_model = k_clean - 1;
 
         let sigma2 = ssr / (df_resid as f64);
         let sigma = sigma2.sqrt();
@@ -358,7 +451,7 @@ impl OLS {
                 // HC1: White's heteroscedasticity-robust SE with small-sample correction
                 // V = (X'X)^-1 * X' diag(u²) X * (X'X)^-1 * (n / (n-k))
                 let u_squared = residuals.mapv(|r| r.powi(2));
-                let mut x_weighted = x.clone();
+                let mut x_weighted = x_to_use.clone();
                 for (i, mut row) in x_weighted.axis_iter_mut(nd::Axis(0)).enumerate() {
                     row *= u_squared[i];
                 }
@@ -377,7 +470,7 @@ impl OLS {
                 // Calculate leverage values: h_i = x_i' (X'X)^-1 x_i
                 let mut leverage = Array1::<f64>::zeros(n);
                 for i in 0..n {
-                    let x_i = x.row(i);
+                    let x_i = x_to_use.row(i);
                     let temp = xt_x_inv.dot(&x_i);
                     leverage[i] = x_i.dot(&temp);
                 }
@@ -394,7 +487,7 @@ impl OLS {
                 }
 
                 // Build sandwich estimator with adjusted weights
-                let mut x_weighted = x.clone();
+                let mut x_weighted = x_to_use.clone();
                 for (i, mut row) in x_weighted.axis_iter_mut(nd::Axis(0)).enumerate() {
                     row *= u_adjusted[i];
                 }
@@ -411,7 +504,7 @@ impl OLS {
                 // Calculate leverage values
                 let mut leverage = Array1::<f64>::zeros(n);
                 for i in 0..n {
-                    let x_i = x.row(i);
+                    let x_i = x_to_use.row(i);
                     let temp = xt_x_inv.dot(&x_i);
                     leverage[i] = x_i.dot(&temp);
                 }
@@ -428,7 +521,7 @@ impl OLS {
                 }
 
                 // Build sandwich estimator with adjusted weights
-                let mut x_weighted = x.clone();
+                let mut x_weighted = x_to_use.clone();
                 for (i, mut row) in x_weighted.axis_iter_mut(nd::Axis(0)).enumerate() {
                     row *= u_adjusted[i];
                 }
@@ -446,7 +539,7 @@ impl OLS {
                 // Calculate leverage values
                 let mut leverage = Array1::<f64>::zeros(n);
                 for i in 0..n {
-                    let x_i = x.row(i);
+                    let x_i = x_to_use.row(i);
                     let temp = xt_x_inv.dot(&x_i);
                     leverage[i] = x_i.dot(&temp);
                 }
@@ -459,13 +552,13 @@ impl OLS {
                         u_adjusted[i] = residuals[i].powi(2);
                     } else {
                         // δᵢ = min(4, n * h_i / k)
-                        let delta_i = 4.0_f64.min((n as f64) * h_i / (k as f64));
+                        let delta_i = 4.0_f64.min((n as f64) * h_i / (k_clean as f64));
                         u_adjusted[i] = residuals[i].powi(2) / (1.0 - h_i).powf(delta_i);
                     }
                 }
 
                 // Build sandwich estimator
-                let mut x_weighted = x.clone();
+                let mut x_weighted = x_to_use.clone();
                 for (i, mut row) in x_weighted.axis_iter_mut(nd::Axis(0)).enumerate() {
                     row *= u_adjusted[i];
                 }
@@ -480,7 +573,7 @@ impl OLS {
 
                 // 1. Calculate Omega_0 (Same as White's Matrix "Meat")
                 let u_squared = residuals.mapv(|r| r.powi(2));
-                let mut x_weighted = x.clone();
+                let mut x_weighted = x_to_use.clone();
                 for (i, mut row) in x_weighted.axis_iter_mut(nd::Axis(0)).enumerate() {
                     row *= u_squared[i];
                 }
@@ -495,15 +588,15 @@ impl OLS {
                     // Since specific lag logic is tricky in pure matrix algebra without huge memory,
                     // we iterate carefully.
 
-                    let mut omega_l = Array2::<f64>::zeros((k, k));
+                    let mut omega_l = Array2::<f64>::zeros((k_clean, k_clean));
 
                     // Sum over t where lag exists (from l to n)
                     for t in l..n {
                         let u_t = residuals[t];
                         let u_prev = residuals[t - l];
 
-                        let x_row_t = x.row(t);
-                        let x_row_prev = x.row(t - l);
+                        let x_row_t = x_to_use.row(t);
+                        let x_row_prev = x_to_use.row(t - l);
 
                         // Outer product: (x_t * x_{t-l}') scaled by (u_t * u_{t-l})
                         // Using 'scaled_add' is efficient: matrix += alpha * (vec * vec.t)
@@ -513,8 +606,8 @@ impl OLS {
                         let scale = u_t * u_prev;
 
                         // Manual outer product addition for performance
-                        for i in 0..k {
-                            for j in 0..k {
+                        for i in 0..k_clean {
+                            for j in 0..k_clean {
                                 omega_l[[i, j]] += scale * x_row_t[i] * x_row_prev[j];
                             }
                         }
@@ -558,18 +651,18 @@ impl OLS {
                 let n_clusters = clusters.len();
 
                 // Initialize meat matrix (middle part of sandwich)
-                let mut meat = Array2::<f64>::zeros((k, k));
+                let mut meat = Array2::<f64>::zeros((k_clean, k_clean));
 
                 // For each cluster g: calculate X_g' u_g u_g' X_g
                 for (_cluster_id, obs_indices) in clusters.iter() {
                     let cluster_size = obs_indices.len();
 
                     // Extract X_g and u_g for this cluster
-                    let mut x_g = Array2::<f64>::zeros((cluster_size, k));
+                    let mut x_g = Array2::<f64>::zeros((cluster_size, k_clean));
                     let mut u_g = Array1::<f64>::zeros(cluster_size);
 
                     for (i, &obs_idx) in obs_indices.iter().enumerate() {
-                        x_g.row_mut(i).assign(&x.row(obs_idx));
+                        x_g.row_mut(i).assign(&x_to_use.row(obs_idx));
                         u_g[i] = residuals[obs_idx];
                     }
 
@@ -584,8 +677,8 @@ impl OLS {
                             let x_j = x_g.row(j);
 
                             // Add outer product: scale * (x_i ⊗ x_j)
-                            for p in 0..k {
-                                for q in 0..k {
+                            for p in 0..k_clean {
+                                for q in 0..k_clean {
                                     meat[[p, q]] += scale * x_i[p] * x_j[q];
                                 }
                             }
@@ -630,15 +723,15 @@ impl OLS {
                         clusters.entry(cluster_id).or_default().push(obs_idx);
                     }
 
-                    let mut meat = Array2::<f64>::zeros((k, k));
+                    let mut meat = Array2::<f64>::zeros((k_clean, k_clean));
 
                     for (_cluster_id, obs_indices) in clusters.iter() {
                         let cluster_size = obs_indices.len();
-                        let mut x_g = Array2::<f64>::zeros((cluster_size, k));
+                        let mut x_g = Array2::<f64>::zeros((cluster_size, k_clean));
                         let mut u_g = Array1::<f64>::zeros(cluster_size);
 
                         for (i, &obs_idx) in obs_indices.iter().enumerate() {
-                            x_g.row_mut(i).assign(&x.row(obs_idx));
+                            x_g.row_mut(i).assign(&x_to_use.row(obs_idx));
                             u_g[i] = residuals[obs_idx];
                         }
 
@@ -648,8 +741,8 @@ impl OLS {
                                 let x_i = x_g.row(i);
                                 let x_j = x_g.row(j);
 
-                                for p in 0..k {
-                                    for q in 0..k {
+                                for p in 0..k_clean {
+                                    for q in 0..k_clean {
                                         meat[[p, q]] += scale * x_i[p] * x_j[q];
                                     }
                                 }
@@ -734,8 +827,8 @@ impl OLS {
         let n_f64 = n as f64;
         let log_likelihood =
             -n_f64 / 2.0 * ((2.0 * std::f64::consts::PI).ln() + (ssr / n_f64).ln() + 1.0);
-        let aic = 2.0 * (k as f64) - 2.0 * log_likelihood;
-        let bic = (k as f64) * n_f64.ln() - 2.0 * log_likelihood;
+        let aic = 2.0 * (k_clean as f64) - 2.0 * log_likelihood;
+        let bic = (k_clean as f64) * n_f64.ln() - 2.0 * log_likelihood;
 
         Ok(OlsResult {
             params: beta,
@@ -756,7 +849,12 @@ impl OLS {
             df_model,
             sigma,
             cov_type,
-            variable_names,
+            variable_names: if !clean_var_names.is_empty() {
+                Some(clean_var_names)
+            } else {
+                variable_names
+            },
+            omitted_vars: omitted_var_names,
         })
     }
 }
