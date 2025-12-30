@@ -20,7 +20,8 @@ fn main() {
             // Display first few column types
             let cols = df.column_names();
             println!("\n   Column types (first 10):");
-            for (i, col) in cols.iter().take(10).enumerate() {
+            // for (i, col) in cols.iter().take(10).enumerate() {
+            for (i, col) in cols.iter().enumerate() {
                 if let Ok(column) = df.get_column(col) {
                     println!("      {}. {} -> {:?}", i + 1, col, column.dtype());
                 }
@@ -104,7 +105,8 @@ fn main() {
 
     // Test 4: JSON with mixed types
     println!("\n4. Testing from_json() with mixed types:");
-    let mut json_file = File::create("examples/data/test_mixed.json").expect("Failed to create file");
+    let mut json_file =
+        File::create("examples/data/test_mixed.json").expect("Failed to create file");
     writeln!(json_file, "[").unwrap();
     writeln!(
         json_file,
