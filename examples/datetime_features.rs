@@ -1,5 +1,5 @@
+use chrono::{Duration, NaiveDate, NaiveDateTime};
 use greeners::DataFrame;
-use chrono::{NaiveDate, NaiveDateTime, Duration};
 
 fn main() {
     println!("=== DATETIME FEATURES - v1.6.0 ===\n");
@@ -9,13 +9,31 @@ fn main() {
     println!("=== 1. Creating DataFrame with DateTime Columns ===\n");
 
     let time_series_df = DataFrame::builder()
-        .add_datetime("date", vec![
-            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap().and_hms_opt(9, 0, 0).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 1, 2).unwrap().and_hms_opt(9, 0, 0).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 1, 3).unwrap().and_hms_opt(9, 0, 0).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 1, 4).unwrap().and_hms_opt(9, 0, 0).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 1, 5).unwrap().and_hms_opt(9, 0, 0).unwrap(),
-        ])
+        .add_datetime(
+            "date",
+            vec![
+                NaiveDate::from_ymd_opt(2024, 1, 1)
+                    .unwrap()
+                    .and_hms_opt(9, 0, 0)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 1, 2)
+                    .unwrap()
+                    .and_hms_opt(9, 0, 0)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 1, 3)
+                    .unwrap()
+                    .and_hms_opt(9, 0, 0)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 1, 4)
+                    .unwrap()
+                    .and_hms_opt(9, 0, 0)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 1, 5)
+                    .unwrap()
+                    .and_hms_opt(9, 0, 0)
+                    .unwrap(),
+            ],
+        )
         .add_column("price", vec![100.0, 102.5, 101.8, 103.2, 104.5])
         .add_column("volume", vec![1000.0, 1200.0, 1100.0, 1300.0, 1250.0])
         .build()
@@ -31,19 +49,37 @@ fn main() {
     println!("date column details:");
     println!("  Length: {}", date_col.len());
     println!("  First date: {}", date_col[0].format("%Y-%m-%d %H:%M:%S"));
-    println!("  Last date: {}", date_col[date_col.len()-1].format("%Y-%m-%d %H:%M:%S"));
+    println!(
+        "  Last date: {}",
+        date_col[date_col.len() - 1].format("%Y-%m-%d %H:%M:%S")
+    );
     println!("  Date range: {} days\n", date_col.len());
 
     // ========== 3. DATETIME WITH DIFFERENT TIMES ==========
     println!("=== 3. DateTime with Hour/Minute/Second ===\n");
 
     let intraday_df = DataFrame::builder()
-        .add_datetime("timestamp", vec![
-            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap().and_hms_opt(9, 30, 0).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap().and_hms_opt(12, 0, 0).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap().and_hms_opt(15, 45, 30).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap().and_hms_opt(16, 0, 0).unwrap(),
-        ])
+        .add_datetime(
+            "timestamp",
+            vec![
+                NaiveDate::from_ymd_opt(2024, 1, 1)
+                    .unwrap()
+                    .and_hms_opt(9, 30, 0)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 1, 1)
+                    .unwrap()
+                    .and_hms_opt(12, 0, 0)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 1, 1)
+                    .unwrap()
+                    .and_hms_opt(15, 45, 30)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 1, 1)
+                    .unwrap()
+                    .and_hms_opt(16, 0, 0)
+                    .unwrap(),
+            ],
+        )
         .add_column("price", vec![100.0, 101.5, 102.0, 101.8])
         .build()
         .unwrap();
@@ -57,7 +93,8 @@ fn main() {
     println!("--- Descriptive Statistics ---");
     let stats = time_series_df.describe();
     for (col_name, col_stats) in &stats {
-        if col_name != "date" {  // DateTime não aparece em describe (não é numérico)
+        if col_name != "date" {
+            // DateTime não aparece em describe (não é numérico)
             println!("\n{}:", col_name);
             for (stat, value) in col_stats {
                 println!("  {}: {:.2}", stat, value);
@@ -78,10 +115,19 @@ fn main() {
     println!("=== 6. Concatenating DataFrames with DateTime ===\n");
 
     let new_data = DataFrame::builder()
-        .add_datetime("date", vec![
-            NaiveDate::from_ymd_opt(2024, 1, 6).unwrap().and_hms_opt(9, 0, 0).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 1, 7).unwrap().and_hms_opt(9, 0, 0).unwrap(),
-        ])
+        .add_datetime(
+            "date",
+            vec![
+                NaiveDate::from_ymd_opt(2024, 1, 6)
+                    .unwrap()
+                    .and_hms_opt(9, 0, 0)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 1, 7)
+                    .unwrap()
+                    .and_hms_opt(9, 0, 0)
+                    .unwrap(),
+            ],
+        )
         .add_column("price", vec![105.2, 106.0])
         .add_column("volume", vec![1400.0, 1350.0])
         .build()
@@ -117,18 +163,39 @@ fn main() {
     println!("=== 9. Practical Example: Financial Time Series ===\n");
 
     let stock_data = DataFrame::builder()
-        .add_datetime("date", vec![
-            NaiveDate::from_ymd_opt(2024, 1, 2).unwrap().and_hms_opt(0, 0, 0).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 1, 3).unwrap().and_hms_opt(0, 0, 0).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 1, 4).unwrap().and_hms_opt(0, 0, 0).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 1, 5).unwrap().and_hms_opt(0, 0, 0).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 1, 8).unwrap().and_hms_opt(0, 0, 0).unwrap(),
-        ])
+        .add_datetime(
+            "date",
+            vec![
+                NaiveDate::from_ymd_opt(2024, 1, 2)
+                    .unwrap()
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 1, 3)
+                    .unwrap()
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 1, 4)
+                    .unwrap()
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 1, 5)
+                    .unwrap()
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 1, 8)
+                    .unwrap()
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap(),
+            ],
+        )
         .add_column("open", vec![150.0, 152.0, 151.5, 153.0, 154.5])
         .add_column("high", vec![152.5, 153.0, 154.0, 155.0, 156.0])
         .add_column("low", vec![149.5, 151.0, 150.5, 152.5, 153.5])
         .add_column("close", vec![152.0, 151.5, 153.5, 154.0, 155.5])
-        .add_column("volume", vec![1000000.0, 1100000.0, 950000.0, 1200000.0, 1050000.0])
+        .add_column(
+            "volume",
+            vec![1000000.0, 1100000.0, 950000.0, 1200000.0, 1050000.0],
+        )
         .build()
         .unwrap();
 
@@ -138,36 +205,52 @@ fn main() {
     // ========== 10. EVENT STUDY EXAMPLE ==========
     println!("=== 10. Event Study: Before/After Analysis ===\n");
 
-    let event_date = NaiveDate::from_ymd_opt(2024, 6, 15).unwrap().and_hms_opt(0, 0, 0).unwrap();
+    let event_date = NaiveDate::from_ymd_opt(2024, 6, 15)
+        .unwrap()
+        .and_hms_opt(0, 0, 0)
+        .unwrap();
 
     let event_study = DataFrame::builder()
-        .add_datetime("date", vec![
-            event_date - Duration::days(3),
-            event_date - Duration::days(2),
-            event_date - Duration::days(1),
-            event_date,
-            event_date + Duration::days(1),
-            event_date + Duration::days(2),
-            event_date + Duration::days(3),
-        ])
+        .add_datetime(
+            "date",
+            vec![
+                event_date - Duration::days(3),
+                event_date - Duration::days(2),
+                event_date - Duration::days(1),
+                event_date,
+                event_date + Duration::days(1),
+                event_date + Duration::days(2),
+                event_date + Duration::days(3),
+            ],
+        )
         .add_column("returns", vec![-0.5, 0.3, -0.2, 2.5, 1.2, 0.8, -0.3])
-        .add_bool("is_after_event", vec![false, false, false, false, true, true, true])
+        .add_bool(
+            "is_after_event",
+            vec![false, false, false, false, true, true, true],
+        )
         .build()
         .unwrap();
 
-    println!("Event study around {} announcement:", event_date.format("%Y-%m-%d"));
+    println!(
+        "Event study around {} announcement:",
+        event_date.format("%Y-%m-%d")
+    );
     println!("{}\n", event_study);
 
     // Calculate average returns before/after
     let returns = event_study.get("returns").unwrap();
     let is_after = event_study.get_bool("is_after_event").unwrap();
 
-    let before_returns: Vec<f64> = returns.iter().enumerate()
+    let before_returns: Vec<f64> = returns
+        .iter()
+        .enumerate()
         .filter(|(i, _)| !is_after[*i])
         .map(|(_, &r)| r)
         .collect();
 
-    let after_returns: Vec<f64> = returns.iter().enumerate()
+    let after_returns: Vec<f64> = returns
+        .iter()
+        .enumerate()
         .filter(|(i, _)| is_after[*i])
         .map(|(_, &r)| r)
         .collect();
@@ -185,18 +268,53 @@ fn main() {
 
     let panel_data = DataFrame::builder()
         .add_int("firm_id", vec![1, 1, 1, 2, 2, 2, 3, 3, 3])
-        .add_datetime("date", vec![
-            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 2, 1).unwrap().and_hms_opt(0, 0, 0).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 3, 1).unwrap().and_hms_opt(0, 0, 0).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 2, 1).unwrap().and_hms_opt(0, 0, 0).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 3, 1).unwrap().and_hms_opt(0, 0, 0).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 2, 1).unwrap().and_hms_opt(0, 0, 0).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 3, 1).unwrap().and_hms_opt(0, 0, 0).unwrap(),
-        ])
-        .add_column("revenue", vec![1000.0, 1100.0, 1200.0, 800.0, 850.0, 900.0, 1500.0, 1550.0, 1600.0])
+        .add_datetime(
+            "date",
+            vec![
+                NaiveDate::from_ymd_opt(2024, 1, 1)
+                    .unwrap()
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 2, 1)
+                    .unwrap()
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 3, 1)
+                    .unwrap()
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 1, 1)
+                    .unwrap()
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 2, 1)
+                    .unwrap()
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 3, 1)
+                    .unwrap()
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 1, 1)
+                    .unwrap()
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 2, 1)
+                    .unwrap()
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap(),
+                NaiveDate::from_ymd_opt(2024, 3, 1)
+                    .unwrap()
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap(),
+            ],
+        )
+        .add_column(
+            "revenue",
+            vec![
+                1000.0, 1100.0, 1200.0, 800.0, 850.0, 900.0, 1500.0, 1550.0, 1600.0,
+            ],
+        )
         .build()
         .unwrap();
 
@@ -206,14 +324,18 @@ fn main() {
     // ========== 12. DATETIME RANGE EXAMPLE ==========
     println!("=== 12. Creating Date Ranges ===\n");
 
-    let start_date = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap();
-    let date_range: Vec<NaiveDateTime> = (0..7)
-        .map(|i| start_date + Duration::days(i))
-        .collect();
+    let start_date = NaiveDate::from_ymd_opt(2024, 1, 1)
+        .unwrap()
+        .and_hms_opt(0, 0, 0)
+        .unwrap();
+    let date_range: Vec<NaiveDateTime> = (0..7).map(|i| start_date + Duration::days(i)).collect();
 
     let weekly_data = DataFrame::builder()
         .add_datetime("date", date_range.clone())
-        .add_column("value", vec![100.0, 105.0, 103.0, 108.0, 110.0, 107.0, 112.0])
+        .add_column(
+            "value",
+            vec![100.0, 105.0, 103.0, 108.0, 110.0, 107.0, 112.0],
+        )
         .build()
         .unwrap();
 
