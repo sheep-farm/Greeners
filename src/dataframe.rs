@@ -3475,6 +3475,214 @@ impl DataFrame {
         Ok(new_df)
     }
 
+    /// Create lagged variable (shift values down by n periods).
+    ///
+    /// This is a convenience method for econometric analysis, equivalent to
+    /// `shift(column, periods)` with positive periods. Common for creating
+    /// lagged variables like L.x, L2.x in regression models.
+    ///
+    /// # Arguments
+    /// * `column` - Column to lag
+    /// * `periods` - Number of periods to lag (must be >= 1)
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("price", vec![100.0, 102.0, 101.0, 103.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let lagged = df.lag("price", 1).unwrap();
+    /// // Creates column "price_lag_1" with values [NaN, 100.0, 102.0, 101.0]
+    /// ```
+    pub fn lag(&self, column: &str, periods: usize) -> Result<Self, GreenersError> {
+        if periods == 0 {
+            return Err(GreenersError::InvalidOperation(
+                "Lag periods must be at least 1".to_string(),
+            ));
+        }
+
+        if !self.has_column(column) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' not found",
+                column
+            )));
+        }
+
+        let col_data = self.get(column)?;
+        let n = col_data.len();
+        let mut lagged = vec![f64::NAN; n];
+
+        for i in periods..n {
+            lagged[i] = col_data[i - periods];
+        }
+
+        let mut new_df = self.clone();
+        new_df.insert(format!("{}_lag_{}", column, periods), Array1::from(lagged))?;
+        Ok(new_df)
+    }
+
+    /// Create lead variable (shift values up by n periods).
+    ///
+    /// This is a convenience method for econometric analysis, equivalent to
+    /// `shift(column, -periods)` with negative periods. Common for forward-looking
+    /// variables or lead-lag analysis.
+    ///
+    /// # Arguments
+    /// * `column` - Column to lead
+    /// * `periods` - Number of periods to lead (must be >= 1)
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("price", vec![100.0, 102.0, 101.0, 103.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let lead_df = df.lead("price", 1).unwrap();
+    /// // Creates column "price_lead_1" with values [102.0, 101.0, 103.0, NaN]
+    /// ```
+    pub fn lead(&self, column: &str, periods: usize) -> Result<Self, GreenersError> {
+        if periods == 0 {
+            return Err(GreenersError::InvalidOperation(
+                "Lead periods must be at least 1".to_string(),
+            ));
+        }
+
+        if !self.has_column(column) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' not found",
+                column
+            )));
+        }
+
+        let col_data = self.get(column)?;
+        let n = col_data.len();
+        let mut lead_vals = vec![f64::NAN; n];
+
+        for i in 0..(n.saturating_sub(periods)) {
+            lead_vals[i] = col_data[i + periods];
+        }
+
+        let mut new_df = self.clone();
+        new_df.insert(
+            format!("{}_lead_{}", column, periods),
+            Array1::from(lead_vals),
+        )?;
+        Ok(new_df)
+    }
+
+    /// Calculate first difference (xt - xt-n).
+    ///
+    /// Computes the difference between each value and its lag. This is essential
+    /// for time series analysis, especially for achieving stationarity.
+    ///
+    /// # Arguments
+    /// * `column` - Column to difference
+    /// * `periods` - Number of periods for differencing (default = 1)
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("price", vec![100.0, 102.0, 101.0, 103.0, 105.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let diff_df = df.diff("price", 1).unwrap();
+    /// // Creates "price_diff_1" with values [NaN, 2.0, -1.0, 2.0, 2.0]
+    /// ```
+    pub fn diff(&self, column: &str, periods: usize) -> Result<Self, GreenersError> {
+        if periods == 0 {
+            return Err(GreenersError::InvalidOperation(
+                "Diff periods must be at least 1".to_string(),
+            ));
+        }
+
+        if !self.has_column(column) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' not found",
+                column
+            )));
+        }
+
+        let col_data = self.get(column)?;
+        let n = col_data.len();
+        let mut diff_vals = vec![f64::NAN; n];
+
+        for i in periods..n {
+            diff_vals[i] = col_data[i] - col_data[i - periods];
+        }
+
+        let mut new_df = self.clone();
+        new_df.insert(
+            format!("{}_diff_{}", column, periods),
+            Array1::from(diff_vals),
+        )?;
+        Ok(new_df)
+    }
+
+    /// Calculate percentage change ((xt - xt-n) / xt-n).
+    ///
+    /// Computes the percentage change between each value and its lag. This is
+    /// standard for calculating returns in finance and growth rates in economics.
+    ///
+    /// # Arguments
+    /// * `column` - Column to calculate percentage change
+    /// * `periods` - Number of periods for calculation (default = 1)
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("price", vec![100.0, 102.0, 101.0, 103.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let pct_df = df.pct_change("price", 1).unwrap();
+    /// // Creates "price_pct_1" with values [NaN, 0.02, -0.0098..., 0.0198...]
+    /// ```
+    pub fn pct_change(&self, column: &str, periods: usize) -> Result<Self, GreenersError> {
+        if periods == 0 {
+            return Err(GreenersError::InvalidOperation(
+                "pct_change periods must be at least 1".to_string(),
+            ));
+        }
+
+        if !self.has_column(column) {
+            return Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' not found",
+                column
+            )));
+        }
+
+        let col_data = self.get(column)?;
+        let n = col_data.len();
+        let mut pct_vals = vec![f64::NAN; n];
+
+        for i in periods..n {
+            let prev = col_data[i - periods];
+            if prev != 0.0 {
+                pct_vals[i] = (col_data[i] - prev) / prev;
+            } else {
+                pct_vals[i] = f64::NAN; // Avoid division by zero
+            }
+        }
+
+        let mut new_df = self.clone();
+        new_df.insert(
+            format!("{}_pct_{}", column, periods),
+            Array1::from(pct_vals),
+        )?;
+        Ok(new_df)
+    }
+
     /// Calculate quantile (percentile) for a column.
     ///
     /// # Arguments
@@ -4763,5 +4971,274 @@ mod tests {
         assert!(y[0].is_nan()); // No prior value, remains NaN
         assert_eq!(y[1], 2.0);
         assert_eq!(y[2], 2.0);
+    }
+
+    // ========== TIME SERIES OPERATIONS TESTS (Q7 v1.9.0) ==========
+
+    #[test]
+    fn test_lag_basic() {
+        let df = DataFrame::builder()
+            .add_column("price", vec![100.0, 102.0, 101.0, 103.0, 105.0])
+            .build()
+            .unwrap();
+
+        let lagged = df.lag("price", 1).unwrap();
+        let lag1 = lagged.get("price_lag_1").unwrap();
+
+        assert!(lag1[0].is_nan());
+        assert_eq!(lag1[1], 100.0);
+        assert_eq!(lag1[2], 102.0);
+        assert_eq!(lag1[3], 101.0);
+        assert_eq!(lag1[4], 103.0);
+    }
+
+    #[test]
+    fn test_lag_multiple_periods() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+            .build()
+            .unwrap();
+
+        let lagged = df.lag("x", 3).unwrap();
+        let lag3 = lagged.get("x_lag_3").unwrap();
+
+        assert!(lag3[0].is_nan());
+        assert!(lag3[1].is_nan());
+        assert!(lag3[2].is_nan());
+        assert_eq!(lag3[3], 1.0);
+        assert_eq!(lag3[4], 2.0);
+        assert_eq!(lag3[5], 3.0);
+    }
+
+    #[test]
+    fn test_lag_zero_periods_error() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0])
+            .build()
+            .unwrap();
+
+        let result = df.lag("x", 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_lag_invalid_column() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0])
+            .build()
+            .unwrap();
+
+        let result = df.lag("nonexistent", 1);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_lead_basic() {
+        let df = DataFrame::builder()
+            .add_column("price", vec![100.0, 102.0, 101.0, 103.0, 105.0])
+            .build()
+            .unwrap();
+
+        let lead_df = df.lead("price", 1).unwrap();
+        let lead1 = lead_df.get("price_lead_1").unwrap();
+
+        assert_eq!(lead1[0], 102.0);
+        assert_eq!(lead1[1], 101.0);
+        assert_eq!(lead1[2], 103.0);
+        assert_eq!(lead1[3], 105.0);
+        assert!(lead1[4].is_nan());
+    }
+
+    #[test]
+    fn test_lead_multiple_periods() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+            .build()
+            .unwrap();
+
+        let lead_df = df.lead("x", 2).unwrap();
+        let lead2 = lead_df.get("x_lead_2").unwrap();
+
+        assert_eq!(lead2[0], 3.0);
+        assert_eq!(lead2[1], 4.0);
+        assert_eq!(lead2[2], 5.0);
+        assert_eq!(lead2[3], 6.0);
+        assert!(lead2[4].is_nan());
+        assert!(lead2[5].is_nan());
+    }
+
+    #[test]
+    fn test_lead_zero_periods_error() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0])
+            .build()
+            .unwrap();
+
+        let result = df.lead("x", 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_diff_basic() {
+        let df = DataFrame::builder()
+            .add_column("price", vec![100.0, 102.0, 101.0, 103.0, 105.0])
+            .build()
+            .unwrap();
+
+        let diff_df = df.diff("price", 1).unwrap();
+        let diff1 = diff_df.get("price_diff_1").unwrap();
+
+        assert!(diff1[0].is_nan());
+        assert_eq!(diff1[1], 2.0); // 102 - 100
+        assert_eq!(diff1[2], -1.0); // 101 - 102
+        assert_eq!(diff1[3], 2.0); // 103 - 101
+        assert_eq!(diff1[4], 2.0); // 105 - 103
+    }
+
+    #[test]
+    fn test_diff_multiple_periods() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![100.0, 102.0, 104.0, 106.0, 108.0, 110.0])
+            .build()
+            .unwrap();
+
+        let diff_df = df.diff("x", 2).unwrap();
+        let diff2 = diff_df.get("x_diff_2").unwrap();
+
+        assert!(diff2[0].is_nan());
+        assert!(diff2[1].is_nan());
+        assert_eq!(diff2[2], 4.0); // 104 - 100
+        assert_eq!(diff2[3], 4.0); // 106 - 102
+        assert_eq!(diff2[4], 4.0); // 108 - 104
+        assert_eq!(diff2[5], 4.0); // 110 - 106
+    }
+
+    #[test]
+    fn test_diff_zero_periods_error() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0])
+            .build()
+            .unwrap();
+
+        let result = df.diff("x", 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pct_change_basic() {
+        let df = DataFrame::builder()
+            .add_column("price", vec![100.0, 102.0, 101.0, 103.0])
+            .build()
+            .unwrap();
+
+        let pct_df = df.pct_change("price", 1).unwrap();
+        let pct1 = pct_df.get("price_pct_1").unwrap();
+
+        assert!(pct1[0].is_nan());
+        assert!((pct1[1] - 0.02).abs() < 1e-10); // (102-100)/100 = 0.02
+        assert!((pct1[2] - (-1.0 / 102.0)).abs() < 1e-6); // (101-102)/102 = -1/102
+        assert!((pct1[3] - (2.0 / 101.0)).abs() < 1e-6); // (103-101)/101
+    }
+
+    #[test]
+    fn test_pct_change_zero_division() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![0.0, 10.0, 20.0])
+            .build()
+            .unwrap();
+
+        let pct_df = df.pct_change("x", 1).unwrap();
+        let pct1 = pct_df.get("x_pct_1").unwrap();
+
+        assert!(pct1[0].is_nan());
+        assert!(pct1[1].is_nan()); // Division by zero (10-0)/0
+        assert_eq!(pct1[2], 1.0); // (20-10)/10 = 1.0
+    }
+
+    #[test]
+    fn test_pct_change_multiple_periods() {
+        let df = DataFrame::builder()
+            .add_column("value", vec![100.0, 110.0, 121.0, 133.1])
+            .build()
+            .unwrap();
+
+        let pct_df = df.pct_change("value", 2).unwrap();
+        let pct2 = pct_df.get("value_pct_2").unwrap();
+
+        assert!(pct2[0].is_nan());
+        assert!(pct2[1].is_nan());
+        assert!((pct2[2] - 0.21).abs() < 1e-10); // (121-100)/100 = 0.21
+        assert!((pct2[3] - 0.21).abs() < 1e-10); // (133.1-110)/110 = 0.21
+    }
+
+    #[test]
+    fn test_pct_change_zero_periods_error() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0])
+            .build()
+            .unwrap();
+
+        let result = df.pct_change("x", 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_lag_lead_symmetry() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0, 4.0, 5.0])
+            .build()
+            .unwrap();
+
+        let lagged = df.lag("x", 1).unwrap();
+        let lead_df = df.lead("x", 1).unwrap();
+
+        let lag1 = lagged.get("x_lag_1").unwrap();
+        let lead1 = lead_df.get("x_lead_1").unwrap();
+
+        // lag[i] should equal original[i-1]
+        // lead[i] should equal original[i+1]
+        assert_eq!(lag1[2], 2.0); // x[2-1] = x[1] = 2.0
+        assert_eq!(lead1[1], 3.0); // x[1+1] = x[2] = 3.0
+    }
+
+    #[test]
+    fn test_diff_vs_lag() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![10.0, 12.0, 15.0, 13.0, 16.0])
+            .build()
+            .unwrap();
+
+        let diff_df = df.diff("x", 1).unwrap();
+        let lagged = df.lag("x", 1).unwrap();
+
+        let diff1 = diff_df.get("x_diff_1").unwrap();
+        let lag1 = lagged.get("x_lag_1").unwrap();
+        let x = df.get("x").unwrap();
+
+        // diff[i] should equal x[i] - lag1[i]
+        for i in 1..x.len() {
+            assert_eq!(diff1[i], x[i] - lag1[i]);
+        }
+    }
+
+    #[test]
+    fn test_pct_change_vs_diff() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![100.0, 110.0, 121.0, 108.9])
+            .build()
+            .unwrap();
+
+        let pct_df = df.pct_change("x", 1).unwrap();
+        let diff_df = df.diff("x", 1).unwrap();
+
+        let pct1 = pct_df.get("x_pct_1").unwrap();
+        let diff1 = diff_df.get("x_diff_1").unwrap();
+        let x = df.get("x").unwrap();
+
+        // pct_change[i] should equal diff1[i] / x[i-1]
+        for i in 1..x.len() {
+            let expected = diff1[i] / x[i - 1];
+            assert!((pct1[i] - expected).abs() < 1e-10);
+        }
     }
 }
