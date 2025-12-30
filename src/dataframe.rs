@@ -764,6 +764,46 @@ impl DataFrame {
             return Column::Bool(Array1::from(bools));
         }
 
+        // 1.5. Check if column has exactly 2 unique non-empty values → Binary Bool
+        // Examples: ['casado', 'solteiro'], ['aprovado', 'reprovado'], ['M', 'F']
+        let non_empty_values: Vec<&str> = values
+            .iter()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        if !non_empty_values.is_empty() {
+            let unique_values: std::collections::HashSet<&str> =
+                non_empty_values.iter().copied().collect();
+
+            if unique_values.len() == 2 {
+                // Binary variable → convert to Bool
+                // Sort to ensure consistent mapping (first alphabetically → false)
+                let mut sorted_values: Vec<&str> = unique_values.into_iter().collect();
+                sorted_values.sort();
+
+                let false_value = sorted_values[0];
+                let true_value = sorted_values[1];
+
+                let binary_bools: Vec<bool> = values
+                    .iter()
+                    .map(|s| {
+                        let trimmed = s.trim();
+                        if trimmed == true_value {
+                            true
+                        } else if trimmed == false_value {
+                            false
+                        } else {
+                            // Empty or unexpected → default to false
+                            false
+                        }
+                    })
+                    .collect();
+
+                return Column::Bool(Array1::from(binary_bools));
+            }
+        }
+
         // 2. Try parsing all values as i64 (Int) - integers without decimal part
         let int_parse: Result<Vec<i64>, _> =
             values.iter().map(|s| s.trim().parse::<i64>()).collect();
