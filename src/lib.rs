@@ -1,4 +1,5 @@
 pub mod bootstrap;
+pub mod column;
 pub mod dataframe;
 pub mod diagnostics;
 pub mod did;
@@ -24,6 +25,7 @@ pub mod varma;
 pub mod vecm;
 
 pub use bootstrap::{Bootstrap, HypothesisTest};
+pub use column::{CategoricalColumn, Column, DataType};
 pub use dataframe::DataFrame;
 pub use diagnostics::Diagnostics;
 pub use did::DiffInDiff;
