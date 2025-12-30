@@ -149,6 +149,10 @@ impl DataFrame {
                 "Column '{}' is datetime. Use get_datetime() or get_column()",
                 name
             ))),
+            Column::String(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is string. Use get_string() or get_column()",
+                name
+            ))),
         }
     }
 
@@ -180,6 +184,10 @@ impl DataFrame {
             ))),
             Column::DateTime(_) => Err(GreenersError::VariableNotFound(format!(
                 "Column '{}' is datetime. Cannot get mutable reference",
+                name
+            ))),
+            Column::String(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is string. Cannot get mutable reference",
                 name
             ))),
         }
@@ -240,6 +248,10 @@ impl DataFrame {
                 "Column '{}' is datetime, not categorical",
                 name
             ))),
+            Column::String(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is string, not categorical",
+                name
+            ))),
         }
     }
 
@@ -275,6 +287,10 @@ impl DataFrame {
             ))),
             Column::DateTime(_) => Err(GreenersError::VariableNotFound(format!(
                 "Column '{}' is datetime, not boolean",
+                name
+            ))),
+            Column::String(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is string, not boolean",
                 name
             ))),
         }
@@ -314,6 +330,10 @@ impl DataFrame {
                 "Column '{}' is datetime, not integer",
                 name
             ))),
+            Column::String(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is string, not integer",
+                name
+            ))),
         }
     }
 
@@ -336,7 +356,10 @@ impl DataFrame {
     /// let dt_col = df.get_datetime("date").unwrap();
     /// assert_eq!(dt_col.len(), 2);
     /// ```
-    pub fn get_datetime(&self, name: &str) -> Result<&Array1<chrono::NaiveDateTime>, GreenersError> {
+    pub fn get_datetime(
+        &self,
+        name: &str,
+    ) -> Result<&Array1<chrono::NaiveDateTime>, GreenersError> {
         match self.get_column(name)? {
             Column::DateTime(arr) => Ok(arr),
             Column::Float(_) => Err(GreenersError::VariableNotFound(format!(
@@ -353,6 +376,51 @@ impl DataFrame {
             ))),
             Column::Int(_) => Err(GreenersError::VariableNotFound(format!(
                 "Column '{}' is integer, not datetime",
+                name
+            ))),
+            Column::String(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is string, not datetime",
+                name
+            ))),
+        }
+    }
+
+    /// Get a string column by name.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    /// use ndarray::Array1;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_string("name", vec!["Alice".to_string(), "Bob".to_string()])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let str_col = df.get_string("name").unwrap();
+    /// assert_eq!(str_col[0], "Alice");
+    /// ```
+    pub fn get_string(&self, name: &str) -> Result<&Array1<String>, GreenersError> {
+        match self.get_column(name)? {
+            Column::String(arr) => Ok(arr),
+            Column::Float(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is float, not string",
+                name
+            ))),
+            Column::Categorical(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is categorical, not string",
+                name
+            ))),
+            Column::Bool(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is boolean, not string",
+                name
+            ))),
+            Column::Int(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is integer, not string",
+                name
+            ))),
+            Column::DateTime(_) => Err(GreenersError::VariableNotFound(format!(
+                "Column '{}' is datetime, not string",
                 name
             ))),
         }
@@ -1175,7 +1243,8 @@ impl DataFrame {
             .map(|(name, col)| {
                 let arr = col.to_float();
                 let mut sorted = arr.to_vec();
-                sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                // Handle NaN values by treating them as greater than all other values
+                sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
                 let mid = sorted.len() / 2;
                 let median = if sorted.len().is_multiple_of(2) {
                     (sorted[mid - 1] + sorted[mid]) / 2.0
@@ -1464,6 +1533,7 @@ impl DataFrame {
                         Column::Bool(arr) => arr[i].to_string(),
                         Column::Int(arr) => arr[i].to_string(),
                         Column::DateTime(arr) => arr[i].format("%Y-%m-%d %H:%M:%S").to_string(),
+                        Column::String(arr) => arr[i].clone(),
                     }
                 })
                 .collect();
@@ -1512,11 +1582,13 @@ impl DataFrame {
                 Column::Bool(arr) => serde_json::to_value(arr.to_vec()).unwrap(),
                 Column::Int(arr) => serde_json::to_value(arr.to_vec()).unwrap(),
                 Column::DateTime(arr) => {
-                    let strings: Vec<String> = arr.iter()
+                    let strings: Vec<String> = arr
+                        .iter()
                         .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
                         .collect();
                     serde_json::to_value(strings).unwrap()
-                },
+                }
+                Column::String(arr) => serde_json::to_value(arr.to_vec()).unwrap(),
             };
             data.insert(name.clone(), value);
         }
@@ -1763,6 +1835,12 @@ impl DataFrame {
                     let mut combined_vec = arr1.to_vec();
                     combined_vec.extend_from_slice(arr2.as_slice().unwrap());
                     Column::DateTime(Array1::from(combined_vec))
+                }
+                (Column::String(arr1), Column::String(arr2)) => {
+                    // Concatenate String columns
+                    let mut combined_vec = arr1.to_vec();
+                    combined_vec.extend_from_slice(arr2.as_slice().unwrap());
+                    Column::String(Array1::from(combined_vec))
                 }
                 _ => {
                     return Err(GreenersError::ShapeMismatch(format!(
@@ -2096,6 +2174,7 @@ impl DataFrame {
                 Column::Bool(_) => col_data.clone(),        // Bool unchanged
                 Column::Int(_) => col_data.clone(),         // Int unchanged
                 Column::DateTime(_) => col_data.clone(),    // DateTime unchanged
+                Column::String(_) => col_data.clone(),      // String unchanged
             };
             new_columns.insert(col_name.clone(), filled);
         }
@@ -2135,6 +2214,7 @@ impl DataFrame {
             Column::Bool(_) => col_data.clone(),        // Bool unchanged
             Column::Int(_) => col_data.clone(),         // Int unchanged
             Column::DateTime(_) => col_data.clone(),    // DateTime unchanged
+            Column::String(_) => col_data.clone(),      // String unchanged
         };
         new_columns.insert(column.to_string(), filled);
 
@@ -2182,6 +2262,7 @@ impl DataFrame {
                 Column::Bool(_) => col_data.clone(),        // Bool unchanged
                 Column::Int(_) => col_data.clone(),         // Int unchanged
                 Column::DateTime(_) => col_data.clone(),    // DateTime unchanged
+                Column::String(_) => col_data.clone(),      // String unchanged
             };
             new_columns.insert(col_name.clone(), filled);
         }
@@ -2236,6 +2317,7 @@ impl DataFrame {
                 Column::Bool(_) => col_data.clone(),        // Bool unchanged
                 Column::Int(_) => col_data.clone(),         // Int unchanged
                 Column::DateTime(_) => col_data.clone(),    // DateTime unchanged
+                Column::String(_) => col_data.clone(),      // String unchanged
             };
             new_columns.insert(col_name.clone(), filled);
         }
@@ -2269,6 +2351,7 @@ impl DataFrame {
                     Column::Bool(_) => 0,        // Bool has no NaN
                     Column::Int(_) => 0,         // Int has no NaN
                     Column::DateTime(_) => 0,    // DateTime has no NaN
+                    Column::String(_) => 0,      // String has no NaN
                 };
                 (name.clone(), count)
             })
@@ -2300,6 +2383,7 @@ impl DataFrame {
             Column::Bool(_) => false,        // Bool has no NaN
             Column::Int(_) => false,         // Int has no NaN
             Column::DateTime(_) => false,    // DateTime has no NaN
+            Column::String(_) => false,      // String has no NaN
         })
     }
 
@@ -3406,6 +3490,7 @@ impl std::fmt::Display for DataFrame {
                 Column::Bool(_) => 5, // "true" or "false" - max is 5
                 Column::Int(arr) => arr.iter().map(|v| v.to_string().len()).max().unwrap_or(0),
                 Column::DateTime(_) => 19, // "YYYY-MM-DD HH:MM:SS" format is always 19 chars
+                Column::String(arr) => arr.iter().map(|s| s.len()).max().unwrap_or(0),
             };
             widths.insert(name.clone(), name.len().max(max_value_width));
         }
@@ -3456,6 +3541,9 @@ impl std::fmt::Display for DataFrame {
                     Column::DateTime(arr) => {
                         let dt_str = arr[row_idx].format("%Y-%m-%d %H:%M:%S").to_string();
                         write!(f, "{:>width$}", dt_str, width = widths[name])?;
+                    }
+                    Column::String(arr) => {
+                        write!(f, "{:>width$}", &arr[row_idx], width = widths[name])?;
                     }
                 }
             }
@@ -3574,8 +3662,29 @@ impl DataFrameBuilder {
     ///     .unwrap();
     /// ```
     pub fn add_datetime(mut self, name: &str, values: Vec<chrono::NaiveDateTime>) -> Self {
-        self.columns
-            .insert(name.to_string(), Column::from_datetime(Array1::from(values)));
+        self.columns.insert(
+            name.to_string(),
+            Column::from_datetime(Array1::from(values)),
+        );
+        self
+    }
+
+    /// Add a String column from string values (non-categorical free text).
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_string("name", vec!["Alice".to_string(), "Bob".to_string(), "Charlie".to_string()])
+    ///     .build()
+    ///     .unwrap();
+    /// ```
+    pub fn add_string(mut self, name: &str, values: Vec<String>) -> Self {
+        self.columns.insert(
+            name.to_string(),
+            Column::from_string_array(Array1::from(values)),
+        );
         self
     }
 
