@@ -2145,6 +2145,119 @@ impl DataFrame {
         self.iloc(Some(&keep_indices), None)
     }
 
+    /// Drop rows that contain NaN values in specific columns only.
+    ///
+    /// This is useful when you only care about missing values in certain columns.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("x", vec![1.0, 2.0, f64::NAN, 4.0])
+    ///     .add_column("y", vec![5.0, f64::NAN, 7.0, 8.0])
+    ///     .add_column("z", vec![9.0, 10.0, 11.0, 12.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// // Only drop rows with NaN in column "x"
+    /// let cleaned = df.dropna_subset(&["x"]).unwrap();
+    /// assert_eq!(cleaned.n_rows(), 3); // Row 2 removed (x is NaN)
+    /// ```
+    pub fn dropna_subset(&self, subset: &[&str]) -> Result<Self, GreenersError> {
+        // Validate that all columns in subset exist
+        for col_name in subset {
+            if !self.columns.contains_key(*col_name) {
+                return Err(GreenersError::VariableNotFound(format!(
+                    "Column '{}' not found",
+                    col_name
+                )));
+            }
+        }
+
+        let mut keep_indices = Vec::new();
+
+        for i in 0..self.n_rows {
+            let mut has_nan = false;
+            for col_name in subset {
+                // Only check Float columns for NaN
+                if let Some(Column::Float(arr)) = self.columns.get(*col_name) {
+                    if arr[i].is_nan() {
+                        has_nan = true;
+                        break;
+                    }
+                }
+            }
+            if !has_nan {
+                keep_indices.push(i);
+            }
+        }
+
+        if keep_indices.is_empty() {
+            return Ok(DataFrame {
+                columns: HashMap::new(),
+                n_rows: 0,
+            });
+        }
+
+        self.iloc(Some(&keep_indices), None)
+    }
+
+    /// Drop rows where ALL values are NaN.
+    ///
+    /// Unlike `dropna()` which drops rows with ANY NaN value, this only drops
+    /// rows where every value in the row is NaN.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("x", vec![f64::NAN, 2.0, f64::NAN, 4.0])
+    ///     .add_column("y", vec![f64::NAN, f64::NAN, 7.0, 8.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let cleaned = df.dropna_all().unwrap();
+    /// assert_eq!(cleaned.n_rows(), 3); // Only row 0 removed (both x and y are NaN)
+    /// ```
+    pub fn dropna_all(&self) -> Result<Self, GreenersError> {
+        let mut keep_indices = Vec::new();
+
+        for i in 0..self.n_rows {
+            let mut all_nan = true;
+            let mut has_float_col = false;
+
+            for col in self.columns.values() {
+                if let Column::Float(arr) = col {
+                    has_float_col = true;
+                    if !arr[i].is_nan() {
+                        all_nan = false;
+                        break;
+                    }
+                } else {
+                    // Non-Float columns are never NaN, so row can't be all NaN
+                    all_nan = false;
+                    break;
+                }
+            }
+
+            // Keep row if not all values are NaN, or if there are no Float columns
+            if !all_nan || !has_float_col {
+                keep_indices.push(i);
+            }
+        }
+
+        if keep_indices.is_empty() {
+            return Ok(DataFrame {
+                columns: HashMap::new(),
+                n_rows: 0,
+            });
+        }
+
+        self.iloc(Some(&keep_indices), None)
+    }
+
     /// Fill all NaN values with a specified value.
     ///
     /// # Examples
@@ -2325,6 +2438,130 @@ impl DataFrame {
         DataFrame::from_columns(new_columns)
     }
 
+    /// Fill NaN values by propagating the last valid value forward (forward fill).
+    ///
+    /// For each NaN value, this method replaces it with the most recent non-NaN
+    /// value that appeared before it in the same column. If there is no prior
+    /// valid value, the NaN remains unchanged.
+    ///
+    /// This is particularly useful for time series data where you want to carry
+    /// forward the last observation.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("price", vec![100.0, f64::NAN, f64::NAN, 105.0, f64::NAN])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let filled = df.fillna_ffill().unwrap();
+    /// let price = filled.get("price").unwrap();
+    /// assert_eq!(price[0], 100.0);
+    /// assert_eq!(price[1], 100.0);  // Filled from price[0]
+    /// assert_eq!(price[2], 100.0);  // Filled from price[0]
+    /// assert_eq!(price[3], 105.0);
+    /// assert_eq!(price[4], 105.0);  // Filled from price[3]
+    /// ```
+    pub fn fillna_ffill(&self) -> Result<Self, GreenersError> {
+        let mut new_columns = HashMap::new();
+
+        for (col_name, col_data) in &self.columns {
+            let filled = match col_data {
+                Column::Float(arr) => {
+                    let mut filled_vec = arr.to_vec();
+                    let mut last_valid: Option<f64> = None;
+
+                    for value in &mut filled_vec {
+                        if value.is_nan() {
+                            // Use last valid value if available
+                            if let Some(val) = last_valid {
+                                *value = val;
+                            }
+                            // Otherwise, leave as NaN
+                        } else {
+                            // Update last valid value
+                            last_valid = Some(*value);
+                        }
+                    }
+
+                    Column::Float(Array1::from(filled_vec))
+                }
+                Column::Categorical(_) => col_data.clone(), // Categorical unchanged
+                Column::Bool(_) => col_data.clone(),        // Bool unchanged
+                Column::Int(_) => col_data.clone(),         // Int unchanged
+                Column::DateTime(_) => col_data.clone(),    // DateTime unchanged
+                Column::String(_) => col_data.clone(),      // String unchanged
+            };
+            new_columns.insert(col_name.clone(), filled);
+        }
+
+        DataFrame::from_columns(new_columns)
+    }
+
+    /// Fill NaN values by propagating the next valid value backward (backward fill).
+    ///
+    /// For each NaN value, this method replaces it with the next non-NaN value
+    /// that appears after it in the same column. If there is no subsequent valid
+    /// value, the NaN remains unchanged.
+    ///
+    /// This is useful when you want to use future observations to fill gaps.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("price", vec![f64::NAN, f64::NAN, 100.0, f64::NAN, 105.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let filled = df.fillna_bfill().unwrap();
+    /// let price = filled.get("price").unwrap();
+    /// assert_eq!(price[0], 100.0);  // Filled from price[2]
+    /// assert_eq!(price[1], 100.0);  // Filled from price[2]
+    /// assert_eq!(price[2], 100.0);
+    /// assert_eq!(price[3], 105.0);  // Filled from price[4]
+    /// assert_eq!(price[4], 105.0);
+    /// ```
+    pub fn fillna_bfill(&self) -> Result<Self, GreenersError> {
+        let mut new_columns = HashMap::new();
+
+        for (col_name, col_data) in &self.columns {
+            let filled = match col_data {
+                Column::Float(arr) => {
+                    let mut filled_vec = arr.to_vec();
+                    let mut next_valid: Option<f64> = None;
+
+                    // Iterate backwards
+                    for i in (0..filled_vec.len()).rev() {
+                        if filled_vec[i].is_nan() {
+                            // Use next valid value if available
+                            if let Some(val) = next_valid {
+                                filled_vec[i] = val;
+                            }
+                            // Otherwise, leave as NaN
+                        } else {
+                            // Update next valid value
+                            next_valid = Some(filled_vec[i]);
+                        }
+                    }
+
+                    Column::Float(Array1::from(filled_vec))
+                }
+                Column::Categorical(_) => col_data.clone(), // Categorical unchanged
+                Column::Bool(_) => col_data.clone(),        // Bool unchanged
+                Column::Int(_) => col_data.clone(),         // Int unchanged
+                Column::DateTime(_) => col_data.clone(),    // DateTime unchanged
+                Column::String(_) => col_data.clone(),      // String unchanged
+            };
+            new_columns.insert(col_name.clone(), filled);
+        }
+
+        DataFrame::from_columns(new_columns)
+    }
+
     /// Count the number of NaN values in each column.
     ///
     /// # Examples
@@ -2385,6 +2622,103 @@ impl DataFrame {
             Column::DateTime(_) => false,    // DateTime has no NaN
             Column::String(_) => false,      // String has no NaN
         })
+    }
+
+    /// Return a DataFrame of booleans indicating which values are NaN.
+    ///
+    /// Returns a DataFrame with the same shape as the input, where each value
+    /// is `true` if the corresponding value is NaN, and `false` otherwise.
+    ///
+    /// Note: Only Float columns can contain NaN. All other column types
+    /// (Categorical, Bool, Int, DateTime, String) will return all `false`.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("x", vec![1.0, f64::NAN, 3.0])
+    ///     .add_column("y", vec![4.0, 5.0, f64::NAN])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let na_mask = df.isna().unwrap();
+    /// let x_mask = na_mask.get_bool("x").unwrap();
+    /// assert_eq!(x_mask[0], false);
+    /// assert_eq!(x_mask[1], true);  // NaN position
+    /// assert_eq!(x_mask[2], false);
+    /// ```
+    pub fn isna(&self) -> Result<Self, GreenersError> {
+        let mut new_columns = HashMap::new();
+
+        for (col_name, col_data) in &self.columns {
+            let na_mask = match col_data {
+                Column::Float(arr) => {
+                    let mask: Vec<bool> = arr.iter().map(|v| v.is_nan()).collect();
+                    Column::from_bool(Array1::from(mask))
+                }
+                Column::Categorical(_)
+                | Column::Bool(_)
+                | Column::Int(_)
+                | Column::DateTime(_)
+                | Column::String(_) => {
+                    // Non-Float columns have no NaN concept
+                    let mask = vec![false; col_data.len()];
+                    Column::from_bool(Array1::from(mask))
+                }
+            };
+            new_columns.insert(col_name.clone(), na_mask);
+        }
+
+        DataFrame::from_columns(new_columns)
+    }
+
+    /// Return a DataFrame of booleans indicating which values are not NaN.
+    ///
+    /// Returns a DataFrame with the same shape as the input, where each value
+    /// is `true` if the corresponding value is not NaN, and `false` if it is NaN.
+    ///
+    /// This is the logical opposite of `isna()`.
+    ///
+    /// # Examples
+    /// ```
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("x", vec![1.0, f64::NAN, 3.0])
+    ///     .add_column("y", vec![4.0, 5.0, f64::NAN])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let not_na_mask = df.notna().unwrap();
+    /// let x_mask = not_na_mask.get_bool("x").unwrap();
+    /// assert_eq!(x_mask[0], true);
+    /// assert_eq!(x_mask[1], false);  // NaN position
+    /// assert_eq!(x_mask[2], true);
+    /// ```
+    pub fn notna(&self) -> Result<Self, GreenersError> {
+        let mut new_columns = HashMap::new();
+
+        for (col_name, col_data) in &self.columns {
+            let not_na_mask = match col_data {
+                Column::Float(arr) => {
+                    let mask: Vec<bool> = arr.iter().map(|v| !v.is_nan()).collect();
+                    Column::from_bool(Array1::from(mask))
+                }
+                Column::Categorical(_)
+                | Column::Bool(_)
+                | Column::Int(_)
+                | Column::DateTime(_)
+                | Column::String(_) => {
+                    // Non-Float columns have no NaN concept, all values are valid
+                    let mask = vec![true; col_data.len()];
+                    Column::from_bool(Array1::from(mask))
+                }
+            };
+            new_columns.insert(col_name.clone(), not_na_mask);
+        }
+
+        DataFrame::from_columns(new_columns)
     }
 
     /// Append a single row to the DataFrame.
@@ -4167,5 +4501,267 @@ mod tests {
 
         assert_eq!(q0, 1.0); // Minimum
         assert_eq!(q100, 5.0); // Maximum
+    }
+
+    // ========== MISSING DATA TESTS (Q6 v1.8.0) ==========
+
+    #[test]
+    fn test_isna_basic() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, f64::NAN, 3.0])
+            .add_column("y", vec![4.0, 5.0, f64::NAN])
+            .build()
+            .unwrap();
+
+        let na_mask = df.isna().unwrap();
+        let x_mask = na_mask.get_bool("x").unwrap();
+        let y_mask = na_mask.get_bool("y").unwrap();
+
+        assert_eq!(x_mask[0], false);
+        assert_eq!(x_mask[1], true);
+        assert_eq!(x_mask[2], false);
+
+        assert_eq!(y_mask[0], false);
+        assert_eq!(y_mask[1], false);
+        assert_eq!(y_mask[2], true);
+    }
+
+    #[test]
+    fn test_notna_basic() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, f64::NAN, 3.0])
+            .build()
+            .unwrap();
+
+        let not_na_mask = df.notna().unwrap();
+        let x_mask = not_na_mask.get_bool("x").unwrap();
+
+        assert_eq!(x_mask[0], true);
+        assert_eq!(x_mask[1], false);
+        assert_eq!(x_mask[2], true);
+    }
+
+    #[test]
+    fn test_isna_notna_complement() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, f64::NAN, 3.0, f64::NAN, 5.0])
+            .build()
+            .unwrap();
+
+        let na_mask = df.isna().unwrap();
+        let not_na_mask = df.notna().unwrap();
+
+        let na_x = na_mask.get_bool("x").unwrap();
+        let not_na_x = not_na_mask.get_bool("x").unwrap();
+
+        // isna and notna should be complements
+        for i in 0..5 {
+            assert_eq!(na_x[i], !not_na_x[i]);
+        }
+    }
+
+    #[test]
+    fn test_isna_non_float_columns() {
+        let df = DataFrame::builder()
+            .add_int("id", vec![1, 2, 3])
+            .add_bool("flag", vec![true, false, true])
+            .add_categorical(
+                "cat",
+                vec!["A".to_string(), "B".to_string(), "A".to_string()],
+            )
+            .build()
+            .unwrap();
+
+        let na_mask = df.isna().unwrap();
+
+        // Non-Float columns should have all false
+        let id_mask = na_mask.get_bool("id").unwrap();
+        let flag_mask = na_mask.get_bool("flag").unwrap();
+        let cat_mask = na_mask.get_bool("cat").unwrap();
+
+        assert!(id_mask.iter().all(|&v| !v));
+        assert!(flag_mask.iter().all(|&v| !v));
+        assert!(cat_mask.iter().all(|&v| !v));
+    }
+
+    #[test]
+    fn test_dropna_subset_single_column() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, f64::NAN, 4.0])
+            .add_column("y", vec![5.0, f64::NAN, 7.0, 8.0])
+            .add_column("z", vec![9.0, 10.0, 11.0, 12.0])
+            .build()
+            .unwrap();
+
+        let cleaned = df.dropna_subset(&["x"]).unwrap();
+        assert_eq!(cleaned.n_rows(), 3); // Row 2 removed (x is NaN)
+
+        let x = cleaned.get("x").unwrap();
+        assert_eq!(x[0], 1.0);
+        assert_eq!(x[1], 2.0);
+        assert_eq!(x[2], 4.0);
+    }
+
+    #[test]
+    fn test_dropna_subset_multiple_columns() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, f64::NAN, 4.0])
+            .add_column("y", vec![5.0, f64::NAN, 7.0, 8.0])
+            .add_column("z", vec![9.0, 10.0, 11.0, 12.0])
+            .build()
+            .unwrap();
+
+        let cleaned = df.dropna_subset(&["x", "y"]).unwrap();
+        assert_eq!(cleaned.n_rows(), 2); // Rows 1 and 2 removed
+
+        let x = cleaned.get("x").unwrap();
+        assert_eq!(x[0], 1.0);
+        assert_eq!(x[1], 4.0);
+    }
+
+    #[test]
+    fn test_dropna_subset_invalid_column() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, 3.0])
+            .build()
+            .unwrap();
+
+        let result = df.dropna_subset(&["nonexistent"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_dropna_all_basic() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![f64::NAN, 2.0, f64::NAN, 4.0])
+            .add_column("y", vec![f64::NAN, f64::NAN, 7.0, 8.0])
+            .build()
+            .unwrap();
+
+        let cleaned = df.dropna_all().unwrap();
+        assert_eq!(cleaned.n_rows(), 3); // Only row 0 removed (both NaN)
+
+        let x = cleaned.get("x").unwrap();
+        assert_eq!(x[0], 2.0);
+        assert_eq!(x[2], 4.0);
+    }
+
+    #[test]
+    fn test_dropna_all_vs_dropna() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, f64::NAN, f64::NAN])
+            .add_column("y", vec![f64::NAN, 2.0, f64::NAN])
+            .build()
+            .unwrap();
+
+        let dropna_result = df.dropna().unwrap();
+        let dropna_all_result = df.dropna_all().unwrap();
+
+        assert_eq!(dropna_result.n_rows(), 0); // dropna removes all rows
+        assert_eq!(dropna_all_result.n_rows(), 2); // dropna_all keeps rows 0 and 1
+    }
+
+    #[test]
+    fn test_fillna_ffill_basic() {
+        let df = DataFrame::builder()
+            .add_column("price", vec![100.0, f64::NAN, f64::NAN, 105.0, f64::NAN])
+            .build()
+            .unwrap();
+
+        let filled = df.fillna_ffill().unwrap();
+        let price = filled.get("price").unwrap();
+
+        assert_eq!(price[0], 100.0);
+        assert_eq!(price[1], 100.0);
+        assert_eq!(price[2], 100.0);
+        assert_eq!(price[3], 105.0);
+        assert_eq!(price[4], 105.0);
+    }
+
+    #[test]
+    fn test_fillna_ffill_leading_nan() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![f64::NAN, f64::NAN, 3.0, 4.0])
+            .build()
+            .unwrap();
+
+        let filled = df.fillna_ffill().unwrap();
+        let x = filled.get("x").unwrap();
+
+        // Leading NaN values remain NaN (no prior value to propagate)
+        assert!(x[0].is_nan());
+        assert!(x[1].is_nan());
+        assert_eq!(x[2], 3.0);
+        assert_eq!(x[3], 4.0);
+    }
+
+    #[test]
+    fn test_fillna_bfill_basic() {
+        let df = DataFrame::builder()
+            .add_column("price", vec![f64::NAN, f64::NAN, 100.0, f64::NAN, 105.0])
+            .build()
+            .unwrap();
+
+        let filled = df.fillna_bfill().unwrap();
+        let price = filled.get("price").unwrap();
+
+        assert_eq!(price[0], 100.0);
+        assert_eq!(price[1], 100.0);
+        assert_eq!(price[2], 100.0);
+        assert_eq!(price[3], 105.0);
+        assert_eq!(price[4], 105.0);
+    }
+
+    #[test]
+    fn test_fillna_bfill_trailing_nan() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, 2.0, f64::NAN, f64::NAN])
+            .build()
+            .unwrap();
+
+        let filled = df.fillna_bfill().unwrap();
+        let x = filled.get("x").unwrap();
+
+        assert_eq!(x[0], 1.0);
+        assert_eq!(x[1], 2.0);
+        // Trailing NaN values remain NaN (no future value to propagate)
+        assert!(x[2].is_nan());
+        assert!(x[3].is_nan());
+    }
+
+    #[test]
+    fn test_fillna_ffill_bfill_combo() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![f64::NAN, 1.0, f64::NAN, 3.0, f64::NAN])
+            .build()
+            .unwrap();
+
+        // Forward fill first, then backward fill
+        let filled = df.fillna_ffill().unwrap().fillna_bfill().unwrap();
+        let x = filled.get("x").unwrap();
+
+        assert_eq!(x[0], 1.0); // bfill filled this
+        assert_eq!(x[1], 1.0);
+        assert_eq!(x[2], 1.0); // ffill filled this
+        assert_eq!(x[3], 3.0);
+        assert_eq!(x[4], 3.0); // ffill filled this
+    }
+
+    #[test]
+    fn test_fillna_methods_multiple_columns() {
+        let df = DataFrame::builder()
+            .add_column("x", vec![1.0, f64::NAN, 3.0])
+            .add_column("y", vec![f64::NAN, 2.0, f64::NAN])
+            .build()
+            .unwrap();
+
+        let filled = df.fillna_ffill().unwrap();
+        let x = filled.get("x").unwrap();
+        let y = filled.get("y").unwrap();
+
+        assert_eq!(x[1], 1.0);
+        assert!(y[0].is_nan()); // No prior value, remains NaN
+        assert_eq!(y[1], 2.0);
+        assert_eq!(y[2], 2.0);
     }
 }
