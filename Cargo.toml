@@ -1,6 +1,6 @@
 [package]
 name = "greeners"
-version = "1.0.2"
+version = "2.0.0"
 edition = "2021"
 authors = ["Flávio de Vasconcellos Corrêa <contact@greeners.io>"]
 description = "High-performance econometrics with R/Python formulas. Two-Way Clustering, Marginal Effects (AME/MEM), HC1-4, IV Predictions, Categorical C(var), Polynomial I(x^2), Interactions, Diagnostics. OLS, IV/2SLS, DiD, Logit/Probit, Panel (FE/RE), Time Series (VAR/VECM), Quantile!"
