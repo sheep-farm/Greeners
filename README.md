@@ -12,14 +12,18 @@ Designed for academic research, heavy simulations, and production-grade economic
 
 ## 🎉 v1.3.1 ENHANCED RELEASE: Intelligent Type Detection
 
-**Greeners v1.3.1** enhances the automatic type detection system with **smart Int vs Float distinction**, **DateTime support**, and **improved Boolean detection** - making data loading even more intelligent!
+**Greeners v1.3.1** enhances the automatic type detection system with **smart Int vs Float distinction**, **DateTime support**, and **revolutionary Binary Boolean Detection** - making data loading even more intelligent!
 
 ### 🆕 What's New in v1.3.1
 
-1. **Improved Int vs Float Detection** - Now correctly distinguishes `1` from `1.0` and `1.5`
-2. **Automatic DateTime Detection** - ISO-8601 format timestamps are auto-detected
-3. **Enhanced Boolean Detection** - Supports `1/0`, `yes/no`, `true/false`, `t/f` variants
-4. **Configurable Thresholds** - Internal configuration for Categorical vs String detection
+1. **🌟 Binary Boolean Detection** - **UNIQUE TO GREENERS!** Any column with 2 unique values → Bool (works in ANY language: `['casado', 'solteiro']`, `['M', 'F']`, etc.)
+2. **Improved Int vs Float Detection** - Now correctly distinguishes `1` from `1.0` and `1.5`
+3. **Automatic DateTime Detection** - ISO-8601 format timestamps are auto-detected
+4. **Enhanced Boolean Detection** - Supports `1/0`, `yes/no`, `true/false`, `t/f` variants
+5. **Configurable Thresholds** - Internal configuration for Categorical vs String detection
+
+**Why Binary Boolean Detection is Revolutionary:**
+Unlike pandas, R, polars, or Stata which require manual conversion of binary variables (married/single, male/female, treated/control), Greeners **automatically** recognizes and converts them - saving you from repetitive data preprocessing and potential errors!
 
 ## 🎉 v1.3.0 MAJOR FEATURE RELEASE: Complete Data Handling & Time Series
 
@@ -765,11 +769,55 @@ brew install openblas lapack
 
 ## 🔍 Automatic Type Detection (v1.3.1+)
 
-Greeners automatically detects column types when loading data from CSV or JSON:
+Greeners automatically detects column types when loading data from CSV or JSON - including a **unique feature** not found in pandas, R, polars, or Stata!
+
+### 🌟 Binary Boolean Detection - **UNIQUE TO GREENERS!**
+
+**Greeners is the only econometrics library** that automatically detects any column with exactly 2 unique values as Boolean, regardless of the actual values:
+
+```rust
+// CSV with binary variables in ANY language:
+// id,estado_civil,sexo,aprovado,status
+// 1,casado,M,sim,ativo
+// 2,solteiro,F,não,inativo
+// 3,casado,M,sim,ativo
+
+let df = DataFrame::from_csv("survey.csv")?;
+
+// ✨ ALL binary columns automatically detected as Bool!
+let civil = df.get_bool("estado_civil")?;    // ['casado', 'solteiro'] → Bool ✓
+let gender = df.get_bool("sexo")?;           // ['M', 'F'] → Bool ✓
+let approved = df.get_bool("aprovado")?;     // ['sim', 'não'] → Bool ✓
+let status = df.get_bool("status")?;         // ['ativo', 'inativo'] → Bool ✓
+
+// Mapping is alphabetical: first → false, second → true
+// 'casado' → false, 'solteiro' → true
+// 'F' → false, 'M' → true
+// 'não' → false, 'sim' → true
+```
+
+**Why this matters for econometrics:**
+- 🎯 **Dummy variables are everywhere**: married/single, employed/unemployed, treated/control
+- 🌍 **Works with any language**: Portuguese, Spanish, French, etc.
+- ⚡ **Zero manual work**: No need to create dummy variables manually
+- 🐛 **No errors**: Automatic consistent mapping across all analyses
+
+**How other tools handle this:**
+
+| Tool | Binary Detection | Example |
+|------|-----------------|---------|
+| **pandas** | ❌ Manual conversion required | `df['civil'] = df['civil'].map({'casado': 0, 'solteiro': 1})` |
+| **R** | ❌ Manual conversion required | `df$civil <- as.numeric(df$civil == 'solteiro')` |
+| **polars** | ❌ Manual conversion required | `df.with_columns(pl.col('civil').cast(pl.Boolean))` # Fails! |
+| **Stata** | ❌ Manual encoding required | `encode estado_civil, gen(civil_dummy)` |
+| **Greeners** | ✅ **AUTOMATIC!** | `df.get_bool("estado_civil")?` # Just works! |
+
+📖 See `examples/test_binary_bool_detection.rs` for comprehensive demonstration.
 
 ### Detection Priority Order
 
 1. **Boolean** - `true/false`, `yes/no`, `t/f`, `1/0` → `Bool`
+   - **PLUS: Any 2-value column** - `['casado', 'solteiro']`, `['M', 'F']`, etc. → `Bool` ⭐
 2. **Integer** - `1`, `42`, `-10` → `Int` (i64)
 3. **Float** - `1.5`, `3.14`, `1.0` → `Float` (f64) or `Int` if no fractional part
 4. **DateTime** - `2024-01-15 10:30:00`, `2024-01-15T10:30:00` → `DateTime`
