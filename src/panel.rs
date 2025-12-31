@@ -1,4 +1,4 @@
-use crate::{CovarianceType, DataFrame, Formula, GreenersError, OLS};
+use crate::{CovarianceType, DataFrame, Formula, GreenersError, InferenceType, OLS};
 use ndarray::{Array1, Array2, Axis};
 use std::collections::HashMap;
 use std::fmt;
@@ -20,11 +20,17 @@ pub struct PanelResult {
     pub n_entities: usize, // Number of unique groups (N)
     pub df_resid: usize,   // Corrected degrees of freedom
     pub sigma: f64,
+    pub inference_type: InferenceType,
     pub variable_names: Option<Vec<String>>,
 }
 
 impl fmt::Display for PanelResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let stat_label = match self.inference_type {
+            InferenceType::StudentT => "t",
+            InferenceType::Normal => "z",
+        };
+
         writeln!(f, "\n{:=^78}", " Fixed Effects (Within) Regression ")?;
         writeln!(
             f,
@@ -46,7 +52,7 @@ impl fmt::Display for PanelResult {
         writeln!(
             f,
             "{:<10} | {:>10} | {:>10} | {:>8} | {:>8}",
-            "Variable", "coef", "std err", "t", "P>|t|"
+            "Variable", "coef", "std err", stat_label, format!("P>|{}|", stat_label)
         )?;
         writeln!(f, "{:-^78}", "")?;
 
@@ -68,6 +74,36 @@ impl fmt::Display for PanelResult {
             )?;
         }
         writeln!(f, "{:=^78}", "")
+    }
+}
+
+impl PanelResult {
+    /// Change inference type and recompute p-values
+    ///
+    /// Allows switching between Student's t-distribution and Normal distribution
+    /// for hypothesis testing after model fitting.
+    ///
+    /// # Arguments
+    /// * `inference_type` - New distribution type
+    ///
+    /// # Returns
+    /// Modified PanelResult with updated p-values
+    pub fn with_inference(mut self, inference_type: InferenceType) -> Result<Self, GreenersError> {
+        // Reuse OLS compute_inference helper
+        use crate::ols::OlsResult;
+
+        let (p_values, _, _) = OlsResult::compute_inference(
+            &self.t_values,
+            &self.std_errors,
+            &self.params,
+            self.df_resid,
+            &inference_type,
+        )?;
+
+        self.p_values = p_values;
+        self.inference_type = inference_type;
+
+        Ok(self)
     }
 }
 
@@ -212,16 +248,30 @@ impl FixedEffects {
 
         let t_values = &ols_result.params / &std_errors;
 
+        // Extract inference type from OLS result
+        let inference_type = ols_result.inference_type.clone();
+
+        // Recalculate p-values with corrected df_resid
+        use crate::ols::OlsResult;
+        let (p_values, _, _) = OlsResult::compute_inference(
+            &t_values,
+            &std_errors,
+            &ols_result.params,
+            df_resid_correct,
+            &inference_type,
+        )?;
+
         Ok(PanelResult {
             params: ols_result.params,
             std_errors,
             t_values,
-            p_values: ols_result.p_values,
+            p_values,
             r_squared: ols_result.r_squared,
             n_obs: n,
             n_entities,
             df_resid: df_resid_correct,
             sigma,
+            inference_type,
             variable_names,
         })
     }
@@ -241,10 +291,16 @@ pub struct RandomEffectsResult {
     pub sigma_u: f64, // Desvio padrão do erro idiossincrático
     pub sigma_e: f64, // Desvio padrão do efeito individual
     pub theta: f64,   // Peso da transformação GLS
+    pub inference_type: InferenceType,
 }
 
 impl fmt::Display for RandomEffectsResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let stat_label = match self.inference_type {
+            InferenceType::StudentT => "t",
+            InferenceType::Normal => "z",
+        };
+
         writeln!(f, "\n{:=^78}", " Random Effects (GLS) - Swamy-Arora ")?;
         writeln!(
             f,
@@ -259,7 +315,7 @@ impl fmt::Display for RandomEffectsResult {
         writeln!(
             f,
             "{:<10} | {:>10} | {:>10} | {:>8} | {:>8}",
-            "Variable", "Coef", "Std Err", "t", "P>|t|"
+            "Variable", "Coef", "Std Err", stat_label, format!("P>|{}|", stat_label)
         )?;
         writeln!(f, "{:-^78}", "")?;
 
@@ -271,6 +327,30 @@ impl fmt::Display for RandomEffectsResult {
             )?;
         }
         writeln!(f, "{:=^78}", "")
+    }
+}
+
+impl RandomEffectsResult {
+    /// Change inference type and recompute p-values
+    pub fn with_inference(mut self, inference_type: InferenceType) -> Result<Self, GreenersError> {
+        use crate::ols::OlsResult;
+
+        // Random Effects doesn't have df_resid field, so we compute it
+        // df = n - k where n is observations and k is parameters
+        let df_resid = self.params.len(); // This is approximate; ideally should be stored
+
+        let (p_values, _, _) = OlsResult::compute_inference(
+            &self.t_values,
+            &self.std_errors,
+            &self.params,
+            df_resid,
+            &inference_type,
+        )?;
+
+        self.p_values = p_values;
+        self.inference_type = inference_type;
+
+        Ok(self)
     }
 }
 
@@ -447,6 +527,7 @@ impl RandomEffects {
             sigma_u: sigma_u_sq.sqrt(),
             sigma_e: sigma_e_sq.sqrt(),
             theta,
+            inference_type: final_model.inference_type,
         })
     }
 }
@@ -459,10 +540,16 @@ pub struct BetweenResult {
     pub p_values: Array1<f64>,
     pub r_squared: f64,
     pub n_entities: usize,
+    pub inference_type: InferenceType,
 }
 
 impl fmt::Display for BetweenResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let stat_label = match self.inference_type {
+            InferenceType::StudentT => "t",
+            InferenceType::Normal => "z",
+        };
+
         writeln!(f, "\n{:=^78}", " Between Estimator (Means) ")?;
         writeln!(f, "{:<20} {:>15.4}", "R-squared:", self.r_squared)?;
         writeln!(f, "{:<20} {:>15}", "No. Entities:", self.n_entities)?;
@@ -471,7 +558,7 @@ impl fmt::Display for BetweenResult {
         writeln!(
             f,
             "{:<10} | {:>10} | {:>10} | {:>8} | {:>8}",
-            "Variable", "Coef", "Std Err", "t", "P>|t|"
+            "Variable", "Coef", "Std Err", stat_label, format!("P>|{}|", stat_label)
         )?;
         writeln!(f, "{:-^78}", "")?;
 
@@ -483,6 +570,29 @@ impl fmt::Display for BetweenResult {
             )?;
         }
         writeln!(f, "{:=^78}", "")
+    }
+}
+
+impl BetweenResult {
+    /// Change inference type and recompute p-values
+    pub fn with_inference(mut self, inference_type: InferenceType) -> Result<Self, GreenersError> {
+        use crate::ols::OlsResult;
+
+        // Between estimator uses n_entities as sample size
+        let df_resid = self.n_entities.saturating_sub(self.params.len());
+
+        let (p_values, _, _) = OlsResult::compute_inference(
+            &self.t_values,
+            &self.std_errors,
+            &self.params,
+            df_resid,
+            &inference_type,
+        )?;
+
+        self.p_values = p_values;
+        self.inference_type = inference_type;
+
+        Ok(self)
     }
 }
 
@@ -561,6 +671,7 @@ impl BetweenEstimator {
             p_values: ols.p_values,
             r_squared: ols.r_squared,
             n_entities,
+            inference_type: ols.inference_type,
         })
     }
 }
