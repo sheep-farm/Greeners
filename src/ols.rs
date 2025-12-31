@@ -6,6 +6,9 @@ use ndarray_linalg::{Inverse, QR};
 use statrs::distribution::{ContinuousCDF, FisherSnedecor, Normal, StudentsT};
 use std::fmt;
 
+/// Type alias for inference computation results: (p_values, conf_lower, conf_upper)
+type InferenceResult = (Array1<f64>, Array1<f64>, Array1<f64>);
+
 #[derive(Debug, Clone)]
 pub struct OlsResult {
     pub params: Array1<f64>,
@@ -183,7 +186,7 @@ impl OlsResult {
         params: &Array1<f64>,
         df_resid: usize,
         inference_type: &InferenceType,
-    ) -> Result<(Array1<f64>, Array1<f64>, Array1<f64>), GreenersError> {
+    ) -> Result<InferenceResult, GreenersError> {
         let (p_values, critical_value) = match inference_type {
             InferenceType::StudentT => {
                 let t_dist = StudentsT::new(0.0, 1.0, df_resid as f64)

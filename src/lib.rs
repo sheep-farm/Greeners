@@ -94,7 +94,7 @@ pub enum CovarianceType {
 ///
 /// Determines which statistical distribution to use when computing p-values
 /// and confidence intervals for coefficient estimates.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum InferenceType {
     /// Student's t-distribution (default for finite samples)
     ///
@@ -107,6 +107,7 @@ pub enum InferenceType {
     /// - Conservative hypothesis testing
     ///
     /// **Used by:** OLS, IV/2SLS, Panel models (default)
+    #[default]
     StudentT,
 
     /// Standard Normal distribution (z-distribution)
@@ -123,10 +124,4 @@ pub enum InferenceType {
     ///
     /// **Note:** For large samples (df > 30), t and z distributions are nearly identical.
     Normal,
-}
-
-impl Default for InferenceType {
-    fn default() -> Self {
-        InferenceType::StudentT
-    }
 }
