@@ -1,10 +1,11 @@
+
 # Greeners Development Roadmap
 
 ## 📊 Competitive Position Analysis
 
 ### Current Status: v1.3.1
 
-**Overall Score: 8.2/10** - Top 5 worldwide econometrics library
+**Overall Score: 8.2/10**
 
 Greeners competes directly with:
 - **Stata** (Commercial, $595-$1,995) - 9.5/10
@@ -45,7 +46,7 @@ Greeners competes directly with:
 
 ## 🎯 Development Priorities
 
-### Phase 1: Feature Parity (Q1-Q2 2025)
+### Phase 1: Feature Parity (Q1-Q2 2026)
 *Goal: Match core capabilities of Stata/fixest for 95% of use cases*
 
 #### 1.1 High-Dimensional Fixed Effects ⭐⭐⭐⭐⭐ CRITICAL
@@ -220,7 +221,7 @@ let ame = mlogit.marginal_effects_by_category(&x)?;
 
 ---
 
-### Phase 2: Causal Inference Toolkit (Q3 2025)
+### Phase 2: Causal Inference Toolkit (Q3 2026)
 *Goal: Become go-to library for modern applied microeconomics*
 
 #### 2.1 Event Study / Dynamic DiD ⭐⭐⭐⭐⭐ CRITICAL
@@ -253,7 +254,6 @@ let cs_estimator = EventStudy::callaway_santanna(&df, ...)?;
 ```
 
 **Why Critical:**
-- Standard in modern applied micro (Autor, 2003)
 - Visualizes parallel trends assumption
 - Essential for DiD credibility
 - Recent advances: Callaway & Sant'Anna (2021), Sun & Abraham (2021)
@@ -439,7 +439,7 @@ let dcdh = StaggeredDiD::de_chaisemartin(&df, ...)?;
 
 ---
 
-### Phase 3: Time Series & Finance (Q4 2025)
+### Phase 3: Time Series & Finance (Q4 2026)
 *Goal: Compete with specialized time series packages*
 
 #### 3.1 GARCH Family Models ⭐⭐⭐⭐
@@ -575,7 +575,7 @@ let cf_filter = Filter::christiano_fitzgerald(&series, low_freq: 6, high_freq: 3
 
 ---
 
-### Phase 4: Performance & Usability (2026)
+### Phase 4: Performance & Usability (2027)
 *Goal: Best-in-class performance and developer experience*
 
 #### 4.1 Parallel Computing ⭐⭐⭐⭐⭐
@@ -707,7 +707,7 @@ online_ols.set_forgetting_factor(0.95);
 
 ---
 
-### Phase 5: Ecosystem & Integration (2026-2027)
+### Phase 5: Ecosystem & Integration (2027-2028)
 
 #### 5.1 Python Bindings (PyO3) ⭐⭐⭐⭐⭐
 **Priority: CRITICAL for adoption**
@@ -771,7 +771,7 @@ microbenchmark::microbenchmark(
 **Priority: MEDIUM**
 
 **Implementation:**
-```bash
+```sh
 # Quick regression from command line
 greeners ols "wage ~ education + experience" --data data.csv --vcov HC3
 
@@ -795,7 +795,7 @@ greeners ols "..." --data data.csv --output results.json --format json
 **Priority: LOW (future exploration)**
 
 **Implementation:**
-```javascript
+```js
 // Run econometrics in the browser!
 import init, { OLS } from './greeners.js';
 
@@ -941,6 +941,7 @@ All implementations will follow peer-reviewed methods:
 
 ---
 
-**Last Updated:** 2025-01-30
+**Last Updated:** 2025-12-30
 **Version:** 1.3.1
 **Next Milestone:** v1.4.0 (High-Dimensional Fixed Effects)
+
