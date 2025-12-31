@@ -192,8 +192,8 @@ impl OlsResult {
                 (p_vals, t_dist.inverse_cdf(0.975))
             }
             InferenceType::Normal => {
-                let normal_dist = Normal::new(0.0, 1.0)
-                    .map_err(|_| GreenersError::OptimizationFailed)?;
+                let normal_dist =
+                    Normal::new(0.0, 1.0).map_err(|_| GreenersError::OptimizationFailed)?;
                 let p_vals = t_values.mapv(|t| 2.0 * (1.0 - normal_dist.cdf(t.abs())));
                 (p_vals, normal_dist.inverse_cdf(0.975))
             }
@@ -326,7 +326,12 @@ impl fmt::Display for OlsResult {
         writeln!(
             f,
             "{:<10} | {:>10} | {:>10} | {:>8} | {:>8} | {:>18}",
-            "Variable", "coef", "std err", stat_label, format!("P>|{}|", stat_label), "[0.025      0.975]"
+            "Variable",
+            "coef",
+            "std err",
+            stat_label,
+            format!("P>|{}|", stat_label),
+            "[0.025      0.975]"
         )?;
         writeln!(f, "{:-^78}", "")?;
 

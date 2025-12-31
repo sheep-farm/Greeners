@@ -52,7 +52,11 @@ impl fmt::Display for PanelResult {
         writeln!(
             f,
             "{:<10} | {:>10} | {:>10} | {:>8} | {:>8}",
-            "Variable", "coef", "std err", stat_label, format!("P>|{}|", stat_label)
+            "Variable",
+            "coef",
+            "std err",
+            stat_label,
+            format!("P>|{}|", stat_label)
         )?;
         writeln!(f, "{:-^78}", "")?;
 
@@ -315,7 +319,11 @@ impl fmt::Display for RandomEffectsResult {
         writeln!(
             f,
             "{:<10} | {:>10} | {:>10} | {:>8} | {:>8}",
-            "Variable", "Coef", "Std Err", stat_label, format!("P>|{}|", stat_label)
+            "Variable",
+            "Coef",
+            "Std Err",
+            stat_label,
+            format!("P>|{}|", stat_label)
         )?;
         writeln!(f, "{:-^78}", "")?;
 
@@ -558,7 +566,11 @@ impl fmt::Display for BetweenResult {
         writeln!(
             f,
             "{:<10} | {:>10} | {:>10} | {:>8} | {:>8}",
-            "Variable", "Coef", "Std Err", stat_label, format!("P>|{}|", stat_label)
+            "Variable",
+            "Coef",
+            "Std Err",
+            stat_label,
+            format!("P>|{}|", stat_label)
         )?;
         writeln!(f, "{:-^78}", "")?;
 
