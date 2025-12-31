@@ -1,12 +1,12 @@
 use crate::error::GreenersError;
-use crate::CovarianceType; // Import the new Enum
+use crate::{CovarianceType, InferenceType};
 use crate::{DataFrame, Formula};
 use ndarray::{Array1, Array2};
 use ndarray_linalg::{Inverse, QR};
-use statrs::distribution::{ContinuousCDF, FisherSnedecor, StudentsT};
+use statrs::distribution::{ContinuousCDF, FisherSnedecor, Normal, StudentsT};
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OlsResult {
     pub params: Array1<f64>,
     pub std_errors: Array1<f64>,
@@ -26,6 +26,7 @@ pub struct OlsResult {
     pub df_model: usize,
     pub sigma: f64,
     pub cov_type: CovarianceType,            // Store which type was used
+    pub inference_type: InferenceType,       // Distribution for hypothesis testing
     pub variable_names: Option<Vec<String>>, // Names of variables (from Formula)
     pub omitted_vars: Vec<String>,           // Variables dropped due to collinearity
 }
@@ -161,10 +162,107 @@ impl OlsResult {
             0.0 // Singular matrix
         }
     }
+
+    /// Helper function to compute p-values and confidence intervals
+    ///
+    /// This function computes statistical inference quantities using either
+    /// Student's t-distribution or standard Normal distribution.
+    ///
+    /// # Arguments
+    /// * `t_values` - Test statistics (coefficients / standard errors)
+    /// * `std_errors` - Standard errors of coefficient estimates
+    /// * `params` - Coefficient estimates
+    /// * `df_resid` - Residual degrees of freedom (only used for StudentT)
+    /// * `inference_type` - Distribution type to use
+    ///
+    /// # Returns
+    /// Tuple of (p_values, conf_lower, conf_upper)
+    pub(crate) fn compute_inference(
+        t_values: &Array1<f64>,
+        std_errors: &Array1<f64>,
+        params: &Array1<f64>,
+        df_resid: usize,
+        inference_type: &InferenceType,
+    ) -> Result<(Array1<f64>, Array1<f64>, Array1<f64>), GreenersError> {
+        let (p_values, critical_value) = match inference_type {
+            InferenceType::StudentT => {
+                let t_dist = StudentsT::new(0.0, 1.0, df_resid as f64)
+                    .map_err(|_| GreenersError::OptimizationFailed)?;
+                let p_vals = t_values.mapv(|t| 2.0 * (1.0 - t_dist.cdf(t.abs())));
+                (p_vals, t_dist.inverse_cdf(0.975))
+            }
+            InferenceType::Normal => {
+                let normal_dist = Normal::new(0.0, 1.0)
+                    .map_err(|_| GreenersError::OptimizationFailed)?;
+                let p_vals = t_values.mapv(|t| 2.0 * (1.0 - normal_dist.cdf(t.abs())));
+                (p_vals, normal_dist.inverse_cdf(0.975))
+            }
+        };
+
+        let margin_error = std_errors * critical_value;
+        let conf_lower = params - &margin_error;
+        let conf_upper = params + &margin_error;
+
+        Ok((p_values, conf_lower, conf_upper))
+    }
+
+    /// Change inference type and recompute p-values and confidence intervals
+    ///
+    /// This method allows you to switch between Student's t-distribution and
+    /// Normal distribution for hypothesis testing after the model has been fitted.
+    /// The coefficient estimates and standard errors remain unchanged.
+    ///
+    /// # Arguments
+    /// * `inference_type` - New distribution type to use
+    ///
+    /// # Returns
+    /// Modified OlsResult with updated p-values and confidence intervals
+    ///
+    /// # Example
+    /// ```
+    /// use greeners::{OLS, CovarianceType, InferenceType};
+    /// use ndarray::{Array1, Array2};
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let y = Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
+    /// let x = Array2::from_shape_vec((5, 2), vec![1.0, 1.0, 1.0, 2.0, 1.0, 3.0, 1.0, 4.0, 1.0, 5.0])?;
+    ///
+    /// // Fit with default (Student's t)
+    /// let result = OLS::fit(&y, &x, CovarianceType::NonRobust)?;
+    ///
+    /// // Switch to Normal distribution for large sample asymptotics
+    /// let result_z = result.with_inference(InferenceType::Normal)?;
+    ///
+    /// // Coefficients are identical, but p-values differ
+    /// assert_eq!(result.params, result_z.params);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_inference(mut self, inference_type: InferenceType) -> Result<Self, GreenersError> {
+        let (p_values, conf_lower, conf_upper) = Self::compute_inference(
+            &self.t_values,
+            &self.std_errors,
+            &self.params,
+            self.df_resid,
+            &inference_type,
+        )?;
+
+        self.p_values = p_values;
+        self.conf_lower = conf_lower;
+        self.conf_upper = conf_upper;
+        self.inference_type = inference_type;
+
+        Ok(self)
+    }
 }
 
 impl fmt::Display for OlsResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let stat_label = match self.inference_type {
+            InferenceType::StudentT => "t",
+            InferenceType::Normal => "z",
+        };
+
         let cov_str = match &self.cov_type {
             CovarianceType::NonRobust => "Non-Robust".to_string(),
             CovarianceType::HC1 => "Robust (HC1)".to_string(),
@@ -228,7 +326,7 @@ impl fmt::Display for OlsResult {
         writeln!(
             f,
             "{:<10} | {:>10} | {:>10} | {:>8} | {:>8} | {:>18}",
-            "Variable", "coef", "std err", "t", "P>|t|", "[0.025      0.975]"
+            "Variable", "coef", "std err", stat_label, format!("P>|{}|", stat_label), "[0.025      0.975]"
         )?;
         writeln!(f, "{:-^78}", "")?;
 
@@ -794,14 +892,15 @@ impl OLS {
         let std_errors = cov_matrix.diag().mapv(f64::sqrt);
         let t_values = &beta / &std_errors;
 
-        let t_dist = StudentsT::new(0.0, 1.0, df_resid as f64)
-            .map_err(|_| GreenersError::OptimizationFailed)?;
-        let p_values = t_values.mapv(|t| 2.0 * (1.0 - t_dist.cdf(t.abs())));
-
-        let t_crit = t_dist.inverse_cdf(0.975);
-        let margin_error = &std_errors * t_crit;
-        let conf_lower = &beta - &margin_error;
-        let conf_upper = &beta + &margin_error;
+        // Use default inference type (StudentT)
+        let default_inference = InferenceType::default();
+        let (p_values, conf_lower, conf_upper) = OlsResult::compute_inference(
+            &t_values,
+            &std_errors,
+            &beta,
+            df_resid,
+            &default_inference,
+        )?;
 
         // 5. Statistics
         let y_mean = y.mean().unwrap_or(0.0);
@@ -849,6 +948,7 @@ impl OLS {
             df_model,
             sigma,
             cov_type,
+            inference_type: InferenceType::default(),
             variable_names: if !clean_var_names.is_empty() {
                 Some(clean_var_names)
             } else {
