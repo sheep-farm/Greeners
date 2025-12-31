@@ -80,7 +80,11 @@ impl fmt::Display for IvResult {
         writeln!(
             f,
             "{:<10} | {:>10} | {:>10} | {:>8} | {:>8}",
-            "Variable", "coef", "std err", stat_label, format!("P>|{}|", stat_label)
+            "Variable",
+            "coef",
+            "std err",
+            stat_label,
+            format!("P>|{}|", stat_label)
         )?;
         writeln!(f, "{:-^78}", "")?;
 
@@ -192,8 +196,8 @@ impl IvResult {
                 t_values.mapv(|t| 2.0 * (1.0 - t_dist.cdf(t.abs())))
             }
             InferenceType::Normal => {
-                let normal_dist = Normal::new(0.0, 1.0)
-                    .map_err(|_| GreenersError::OptimizationFailed)?;
+                let normal_dist =
+                    Normal::new(0.0, 1.0).map_err(|_| GreenersError::OptimizationFailed)?;
                 t_values.mapv(|t| 2.0 * (1.0 - normal_dist.cdf(t.abs())))
             }
         };
