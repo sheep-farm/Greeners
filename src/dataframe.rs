@@ -20,6 +20,26 @@ pub struct DataFrame {
     n_rows: usize,
 }
 
+/// Configuration for automatic type inference in DataFrame loading
+#[derive(Debug, Clone)]
+struct TypeInferenceConfig {
+    /// Threshold for categorical vs string (default: 0.5)
+    /// Values with unique_ratio < threshold → Categorical
+    /// Values with unique_ratio >= threshold → String
+    categorical_threshold: f64,
+    /// Enable DateTime detection (default: true)
+    detect_datetime: bool,
+}
+
+impl Default for TypeInferenceConfig {
+    fn default() -> Self {
+        TypeInferenceConfig {
+            categorical_threshold: 0.5,
+            detect_datetime: true,
+        }
+    }
+}
+
 impl DataFrame {
     /// Create a new DataFrame from a HashMap of column names to data arrays.
     ///
@@ -451,7 +471,8 @@ impl DataFrame {
             if var_name.starts_with("C(") && var_name.ends_with(')') {
                 // Categorical: count unique values - 1 (drop first)
                 let var = var_name[2..var_name.len() - 1].trim();
-                let col_data = self.get(var)?;
+                let column = self.get_column(var)?;
+                let col_data = column.to_float();
 
                 use std::collections::BTreeSet;
                 let unique_vals: BTreeSet<i32> =
@@ -500,8 +521,9 @@ impl DataFrame {
         &self,
         formula: &Formula,
     ) -> Result<(Array1<f64>, Array2<f64>), GreenersError> {
-        // Extract y (dependent variable)
-        let y = self.get(&formula.dependent)?.clone();
+        // Extract y (dependent variable) - convert any type to float
+        let y_column = self.get_column(&formula.dependent)?;
+        let y = y_column.to_float();
 
         // Build X matrix
         let n_rows = self.n_rows;
@@ -526,7 +548,8 @@ impl DataFrame {
             if var_name.starts_with("C(") && var_name.ends_with(')') {
                 // Extract variable name from C(var)
                 let var = var_name[2..var_name.len() - 1].trim();
-                let col_data = self.get(var)?;
+                let column = self.get_column(var)?;
+                let col_data = column.to_float();
 
                 // Get unique values (categories)
                 use std::collections::BTreeSet;
@@ -592,7 +615,8 @@ impl DataFrame {
                         power_part = parts[1].trim();
                     }
 
-                    let col_data = self.get(var_part)?;
+                    let column = self.get_column(var_part)?;
+                    let col_data = column.to_float();
                     let power: i32 = power_part.parse().map_err(|_| {
                         GreenersError::FormulaError(format!(
                             "Invalid power in expression '{}'",
@@ -622,16 +646,19 @@ impl DataFrame {
                     )));
                 }
 
-                let var1 = self.get(parts[0].trim())?;
-                let var2 = self.get(parts[1].trim())?;
+                let column1 = self.get_column(parts[0].trim())?;
+                let var1 = column1.to_float();
+                let column2 = self.get_column(parts[1].trim())?;
+                let var2 = column2.to_float();
 
                 // Compute interaction: elementwise multiplication
                 for i in 0..n_rows {
                     x_mat[[i, col_idx]] = var1[i] * var2[i];
                 }
             } else {
-                // Regular variable
-                let col_data = self.get(var_name)?;
+                // Regular variable - convert any type to float
+                let column = self.get_column(var_name)?;
+                let col_data = column.to_float();
                 for i in 0..n_rows {
                     x_mat[[i, col_idx]] = col_data[i];
                 }
@@ -694,7 +721,163 @@ impl DataFrame {
         self.insert_column(name, column)
     }
 
+    /// Helper function to convert serde_json::Value to String
+    fn json_value_to_string(value: &serde_json::Value) -> String {
+        match value {
+            serde_json::Value::String(s) => s.clone(),
+            serde_json::Value::Number(n) => n.to_string(),
+            serde_json::Value::Bool(b) => b.to_string(),
+            serde_json::Value::Null => String::new(),
+            _ => value.to_string(),
+        }
+    }
+
+    /// Helper function to infer column type from string values
+    ///
+    /// # Type Detection Strategy (improved):
+    /// 1. Try parsing as i64 (Int) - integers without decimal part
+    /// 2. Try parsing as f64 (Float) - numbers with decimal part
+    /// 3. Try parsing as bool (Bool) - true/false variants
+    /// 4. Try parsing as DateTime (if enabled) - ISO-8601 format
+    /// 5. Check if categorical (< threshold unique values)
+    /// 6. Otherwise, treat as String
+    fn infer_column_type(values: &[String]) -> Column {
+        Self::infer_column_type_with_config(values, &TypeInferenceConfig::default())
+    }
+
+    /// Helper function to infer column type with custom configuration
+    fn infer_column_type_with_config(values: &[String], config: &TypeInferenceConfig) -> Column {
+        if values.is_empty() {
+            return Column::Float(Array1::from(vec![]));
+        }
+
+        // 1. Try parsing all values as bool FIRST (before numeric types)
+        // This ensures "1/0" and "yes/no" are detected as Bool, not Int
+        let bool_parse: Result<Vec<bool>, _> = values
+            .iter()
+            .map(|s| {
+                let trimmed = s.trim().to_lowercase();
+                match trimmed.as_str() {
+                    "true" | "t" | "yes" | "y" => Ok(true),
+                    "false" | "f" | "no" | "n" => Ok(false),
+                    "1" => Ok(true),
+                    "0" => Ok(false),
+                    _ => Err(()),
+                }
+            })
+            .collect();
+
+        if let Ok(bools) = bool_parse {
+            return Column::Bool(Array1::from(bools));
+        }
+
+        // 1.5. Check if column has exactly 2 unique non-empty values → Binary Bool
+        // Examples: ['casado', 'solteiro'], ['aprovado', 'reprovado'], ['M', 'F']
+        let non_empty_values: Vec<&str> = values
+            .iter()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        if !non_empty_values.is_empty() {
+            let unique_values: std::collections::HashSet<&str> =
+                non_empty_values.iter().copied().collect();
+
+            if unique_values.len() == 2 {
+                // Binary variable → convert to Bool
+                // Sort to ensure consistent mapping (first alphabetically → false)
+                let mut sorted_values: Vec<&str> = unique_values.into_iter().collect();
+                sorted_values.sort();
+
+                let false_value = sorted_values[0];
+                let true_value = sorted_values[1];
+
+                let binary_bools: Vec<bool> = values
+                    .iter()
+                    .map(|s| {
+                        let trimmed = s.trim();
+                        if trimmed == true_value {
+                            true
+                        } else if trimmed == false_value {
+                            false
+                        } else {
+                            // Empty or unexpected → default to false
+                            false
+                        }
+                    })
+                    .collect();
+
+                return Column::Bool(Array1::from(binary_bools));
+            }
+        }
+
+        // 2. Try parsing all values as i64 (Int) - integers without decimal part
+        let int_parse: Result<Vec<i64>, _> =
+            values.iter().map(|s| s.trim().parse::<i64>()).collect();
+
+        if let Ok(ints) = int_parse {
+            return Column::Int(Array1::from(ints));
+        }
+
+        // 3. Try parsing all values as f64 (Float)
+        // This catches both pure floats and integers written as "1.0"
+        let float_parse: Result<Vec<f64>, _> =
+            values.iter().map(|s| s.trim().parse::<f64>()).collect();
+
+        if let Ok(floats) = float_parse {
+            // Additional check: if all floats have no fractional part, treat as Int
+            let all_integers = floats.iter().all(|&f| f.fract() == 0.0 && f.is_finite());
+            if all_integers {
+                // Convert to integers
+                let ints: Vec<i64> = floats.iter().map(|&f| f as i64).collect();
+                return Column::Int(Array1::from(ints));
+            }
+            return Column::Float(Array1::from(floats));
+        }
+
+        // 4. Try parsing as DateTime (ISO-8601 format) if enabled
+        if config.detect_datetime {
+            use chrono::NaiveDateTime;
+
+            let datetime_parse: Result<Vec<NaiveDateTime>, _> = values
+                .iter()
+                .map(|s| {
+                    let trimmed = s.trim();
+                    // Try different datetime formats
+                    NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%d %H:%M:%S")
+                        .or_else(|_| NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%dT%H:%M:%S"))
+                        .or_else(|_| NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%d %H:%M:%S%.f"))
+                        .or_else(|_| NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%dT%H:%M:%S%.f"))
+                })
+                .collect();
+
+            if let Ok(datetimes) = datetime_parse {
+                return Column::DateTime(Array1::from(datetimes));
+            }
+        }
+
+        // 5. Decide between Categorical and String based on uniqueness threshold
+        let unique_count: std::collections::HashSet<_> = values.iter().collect();
+        let unique_ratio = unique_count.len() as f64 / values.len() as f64;
+
+        if unique_ratio < config.categorical_threshold {
+            // Low uniqueness ratio → treat as Categorical
+            Column::from_strings(values.to_vec())
+        } else {
+            // High uniqueness ratio → treat as String
+            Column::from_string_array(Array1::from(values.to_vec()))
+        }
+    }
+
     /// Read a DataFrame from a CSV file with headers.
+    ///
+    /// Automatically detects column types (improved in v1.3.1):
+    /// - Integer columns (i64) if all values parse as integers or floats without fractional part
+    /// - Float columns (f64) if all values parse as numbers with decimal parts
+    /// - Boolean columns if all values are true/false/yes/no/1/0 variants
+    /// - DateTime columns if all values match ISO-8601 format (YYYY-MM-DD HH:MM:SS)
+    /// - Categorical columns if < 50% unique string values (efficient encoding)
+    /// - String columns otherwise (free text)
     ///
     /// # Arguments
     /// * `path` - Path to the CSV file
@@ -721,13 +904,13 @@ impl DataFrame {
             .map_err(|e| GreenersError::FormulaError(format!("Failed to read headers: {}", e)))?
             .clone();
 
-        // Initialize column vectors
-        let mut columns: HashMap<String, Vec<f64>> = HashMap::new();
+        // Initialize column vectors for raw string data
+        let mut raw_columns: HashMap<String, Vec<String>> = HashMap::new();
         for header in headers.iter() {
-            columns.insert(header.to_string(), Vec::new());
+            raw_columns.insert(header.to_string(), Vec::new());
         }
 
-        // Read all records
+        // Read all records as strings first
         for result in reader.records() {
             let record = result.map_err(|e| {
                 GreenersError::FormulaError(format!("Failed to read record: {}", e))
@@ -735,27 +918,28 @@ impl DataFrame {
 
             for (i, field) in record.iter().enumerate() {
                 let header = &headers[i];
-                let value: f64 = field.trim().parse().map_err(|_| {
-                    GreenersError::FormulaError(format!(
-                        "Failed to parse '{}' as f64 in column '{}'",
-                        field, header
-                    ))
-                })?;
-
-                columns.get_mut(header).unwrap().push(value);
+                raw_columns.get_mut(header).unwrap().push(field.to_string());
             }
         }
 
-        // Convert Vec<f64> to Array1<f64>
-        let mut data = HashMap::new();
-        for (name, values) in columns {
-            data.insert(name, Array1::from(values));
+        // Infer type for each column and create typed columns
+        let mut typed_columns: HashMap<String, Column> = HashMap::new();
+        for (name, values) in raw_columns {
+            typed_columns.insert(name, Self::infer_column_type(&values));
         }
 
-        DataFrame::new(data)
+        DataFrame::from_columns(typed_columns)
     }
 
     /// Read a DataFrame from a CSV file via URL.
+    ///
+    /// Automatically detects column types (improved in v1.3.1):
+    /// - Integer columns (i64) if all values parse as integers or floats without fractional part
+    /// - Float columns (f64) if all values parse as numbers with decimal parts
+    /// - Boolean columns if all values are true/false/yes/no/1/0 variants
+    /// - DateTime columns if all values match ISO-8601 format (YYYY-MM-DD HH:MM:SS)
+    /// - Categorical columns if < 50% unique string values (efficient encoding)
+    /// - String columns otherwise (free text)
     ///
     /// # Arguments
     /// * `url` - URL to the CSV file
@@ -796,13 +980,13 @@ impl DataFrame {
             .map_err(|e| GreenersError::FormulaError(format!("Failed to read headers: {}", e)))?
             .clone();
 
-        // Initialize column vectors
-        let mut columns: HashMap<String, Vec<f64>> = HashMap::new();
+        // Initialize column vectors for raw string data
+        let mut raw_columns: HashMap<String, Vec<String>> = HashMap::new();
         for header in headers.iter() {
-            columns.insert(header.to_string(), Vec::new());
+            raw_columns.insert(header.to_string(), Vec::new());
         }
 
-        // Read all records
+        // Read all records as strings first
         for result in reader.records() {
             let record = result.map_err(|e| {
                 GreenersError::FormulaError(format!("Failed to read record: {}", e))
@@ -810,34 +994,28 @@ impl DataFrame {
 
             for (i, field) in record.iter().enumerate() {
                 let header = &headers[i];
-                let value: f64 = field.trim().parse().map_err(|_| {
-                    GreenersError::FormulaError(format!(
-                        "Failed to parse '{}' as f64 in column '{}'",
-                        field, header
-                    ))
-                })?;
-
-                columns.get_mut(header).unwrap().push(value);
+                raw_columns.get_mut(header).unwrap().push(field.to_string());
             }
         }
 
-        // Convert Vec<f64> to Array1<f64>
-        let mut data = HashMap::new();
-        for (name, values) in columns {
-            data.insert(name, Array1::from(values));
+        // Infer type for each column and create typed columns
+        let mut typed_columns: HashMap<String, Column> = HashMap::new();
+        for (name, values) in raw_columns {
+            typed_columns.insert(name, Self::infer_column_type(&values));
         }
 
-        DataFrame::new(data)
+        DataFrame::from_columns(typed_columns)
     }
 
     /// Read a DataFrame from a JSON file.
     ///
+    /// Automatically detects column types from JSON values.
+    ///
     /// Expected JSON format (records orientation):
     /// ```json
     /// [
-    ///   {"x": 1.0, "y": 2.0},
-    ///   {"x": 2.0, "y": 4.0},
-    ///   {"x": 3.0, "y": 6.0}
+    ///   {"x": 1.0, "y": "hello", "z": true},
+    ///   {"x": 2.0, "y": "world", "z": false}
     /// ]
     /// ```
     ///
@@ -845,7 +1023,8 @@ impl DataFrame {
     /// ```json
     /// {
     ///   "x": [1.0, 2.0, 3.0],
-    ///   "y": [2.0, 4.0, 6.0]
+    ///   "y": ["hello", "world", "!"],
+    ///   "z": [true, false, true]
     /// }
     /// ```
     ///
@@ -866,58 +1045,76 @@ impl DataFrame {
             .map_err(|e| GreenersError::FormulaError(format!("Failed to open JSON file: {}", e)))?;
 
         let reader = BufReader::new(file);
-
-        // Try to parse as column-oriented first
-        if let Ok(columns) = serde_json::from_reader::<_, HashMap<String, Vec<f64>>>(reader) {
-            let mut data = HashMap::new();
-            for (name, values) in columns {
-                data.insert(name, Array1::from(values));
-            }
-            return DataFrame::new(data);
-        }
-
-        let file = File::open(path_ref).map_err(|e| {
-            GreenersError::FormulaError(format!("Failed to reopen JSON file: {}", e))
-        })?;
-
-        let reader = BufReader::new(file);
-        let records: Vec<HashMap<String, f64>> = serde_json::from_reader(reader)
+        let json_value: serde_json::Value = serde_json::from_reader(reader)
             .map_err(|e| GreenersError::FormulaError(format!("Failed to parse JSON: {}", e)))?;
 
-        if records.is_empty() {
-            return DataFrame::new(HashMap::new());
-        }
+        // Try to parse as column-oriented (object with arrays)
+        if let serde_json::Value::Object(obj) = &json_value {
+            let mut raw_columns: HashMap<String, Vec<String>> = HashMap::new();
 
-        // Get column names from first record
-        let first_record = &records[0];
-        let mut columns: HashMap<String, Vec<f64>> = HashMap::new();
-        for key in first_record.keys() {
-            columns.insert(key.clone(), Vec::new());
-        }
+            for (key, value) in obj {
+                if let serde_json::Value::Array(arr) = value {
+                    let string_values: Vec<String> =
+                        arr.iter().map(Self::json_value_to_string).collect();
+                    raw_columns.insert(key.clone(), string_values);
+                }
+            }
 
-        // Fill columns
-        for record in records {
-            for (key, value) in record {
-                columns.get_mut(&key).unwrap().push(value);
+            if !raw_columns.is_empty() {
+                let mut typed_columns: HashMap<String, Column> = HashMap::new();
+                for (name, values) in raw_columns {
+                    typed_columns.insert(name, Self::infer_column_type(&values));
+                }
+                return DataFrame::from_columns(typed_columns);
             }
         }
 
-        // Convert to Array1
-        let mut data = HashMap::new();
-        for (name, values) in columns {
-            data.insert(name, Array1::from(values));
+        // Try to parse as record-oriented (array of objects)
+        if let serde_json::Value::Array(records) = &json_value {
+            if records.is_empty() {
+                return DataFrame::new(HashMap::new());
+            }
+
+            // Get column names from first record
+            let mut raw_columns: HashMap<String, Vec<String>> = HashMap::new();
+            if let serde_json::Value::Object(first_record) = &records[0] {
+                for key in first_record.keys() {
+                    raw_columns.insert(key.clone(), Vec::new());
+                }
+            }
+
+            // Fill columns
+            for record in records {
+                if let serde_json::Value::Object(obj) = record {
+                    for (key, value) in obj {
+                        if let Some(col) = raw_columns.get_mut(key) {
+                            col.push(Self::json_value_to_string(value));
+                        }
+                    }
+                }
+            }
+
+            let mut typed_columns: HashMap<String, Column> = HashMap::new();
+            for (name, values) in raw_columns {
+                typed_columns.insert(name, Self::infer_column_type(&values));
+            }
+            return DataFrame::from_columns(typed_columns);
         }
 
-        DataFrame::new(data)
+        Err(GreenersError::FormulaError(
+            "JSON must be either an object with arrays or an array of objects".to_string(),
+        ))
     }
 
     /// Read a DataFrame from a JSON file via URL.
     ///
+    /// Automatically detects column types from JSON values.
+    ///
     /// Expected JSON format (records orientation):
     /// ```json
     /// [
-    ///   {"x": 1.0, "y": 2.0},
-    ///   {"x": 2.0, "y": 4.0}
+    ///   {"x": 1.0, "y": "hello", "z": true},
+    ///   {"x": 2.0, "y": "world", "z": false}
     /// ]
     /// ```
     ///
@@ -925,7 +1122,8 @@ impl DataFrame {
     /// ```json
     /// {
     ///   "x": [1.0, 2.0],
-    ///   "y": [2.0, 4.0]
+    ///   "y": ["hello", "world"],
+    ///   "z": [true, false]
     /// }
     /// ```
     ///
@@ -952,44 +1150,65 @@ impl DataFrame {
             .text()
             .map_err(|e| GreenersError::FormulaError(format!("Failed to read response: {}", e)))?;
 
-        // Try to parse as column-oriented first
-        if let Ok(columns) = serde_json::from_str::<HashMap<String, Vec<f64>>>(&json_text) {
-            let mut data = HashMap::new();
-            for (name, values) in columns {
-                data.insert(name, Array1::from(values));
-            }
-            return DataFrame::new(data);
-        }
-
-        // If that fails, try record-oriented
-        let records: Vec<HashMap<String, f64>> = serde_json::from_str(&json_text)
+        let json_value: serde_json::Value = serde_json::from_str(&json_text)
             .map_err(|e| GreenersError::FormulaError(format!("Failed to parse JSON: {}", e)))?;
 
-        if records.is_empty() {
-            return DataFrame::new(HashMap::new());
-        }
+        // Try to parse as column-oriented (object with arrays)
+        if let serde_json::Value::Object(obj) = &json_value {
+            let mut raw_columns: HashMap<String, Vec<String>> = HashMap::new();
 
-        // Get column names from first record
-        let first_record = &records[0];
-        let mut columns: HashMap<String, Vec<f64>> = HashMap::new();
-        for key in first_record.keys() {
-            columns.insert(key.clone(), Vec::new());
-        }
+            for (key, value) in obj {
+                if let serde_json::Value::Array(arr) = value {
+                    let string_values: Vec<String> =
+                        arr.iter().map(Self::json_value_to_string).collect();
+                    raw_columns.insert(key.clone(), string_values);
+                }
+            }
 
-        // Fill columns
-        for record in records {
-            for (key, value) in record {
-                columns.get_mut(&key).unwrap().push(value);
+            if !raw_columns.is_empty() {
+                let mut typed_columns: HashMap<String, Column> = HashMap::new();
+                for (name, values) in raw_columns {
+                    typed_columns.insert(name, Self::infer_column_type(&values));
+                }
+                return DataFrame::from_columns(typed_columns);
             }
         }
 
-        // Convert to Array1
-        let mut data = HashMap::new();
-        for (name, values) in columns {
-            data.insert(name, Array1::from(values));
+        // Try to parse as record-oriented (array of objects)
+        if let serde_json::Value::Array(records) = &json_value {
+            if records.is_empty() {
+                return DataFrame::new(HashMap::new());
+            }
+
+            // Get column names from first record
+            let mut raw_columns: HashMap<String, Vec<String>> = HashMap::new();
+            if let serde_json::Value::Object(first_record) = &records[0] {
+                for key in first_record.keys() {
+                    raw_columns.insert(key.clone(), Vec::new());
+                }
+            }
+
+            // Fill columns
+            for record in records {
+                if let serde_json::Value::Object(obj) = record {
+                    for (key, value) in obj {
+                        if let Some(col) = raw_columns.get_mut(key) {
+                            col.push(Self::json_value_to_string(value));
+                        }
+                    }
+                }
+            }
+
+            let mut typed_columns: HashMap<String, Column> = HashMap::new();
+            for (name, values) in raw_columns {
+                typed_columns.insert(name, Self::infer_column_type(&values));
+            }
+            return DataFrame::from_columns(typed_columns);
         }
 
-        DataFrame::new(data)
+        Err(GreenersError::FormulaError(
+            "JSON must be either an object with arrays or an array of objects".to_string(),
+        ))
     }
 
     /// Create a DataFrame from a builder pattern for convenient construction.

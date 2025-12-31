@@ -1,5 +1,5 @@
 use crate::error::GreenersError;
-use crate::{DataFrame, Formula};
+use crate::{DataFrame, Formula, OLS};
 use ndarray::{Array1, Array2, Axis};
 use ndarray_linalg::Inverse;
 use statrs::distribution::{Continuous, ContinuousCDF, Normal};
@@ -19,6 +19,7 @@ pub struct BinaryModelResult {
     // Store X for marginal effects calculations
     _x_data: Option<Array2<f64>>,
     pub variable_names: Option<Vec<String>>,
+    pub omitted_vars: Vec<String>,
 }
 
 impl fmt::Display for BinaryModelResult {
@@ -69,6 +70,16 @@ impl fmt::Display for BinaryModelResult {
                 var_name, self.params[i], self.std_errors[i], self.z_values[i], self.p_values[i]
             )?;
         }
+
+        // Show omitted variables if any
+        if !self.omitted_vars.is_empty() {
+            writeln!(f, "{:-^78}", "")?;
+            writeln!(f, "Omitted due to collinearity:")?;
+            for var in &self.omitted_vars {
+                writeln!(f, "  o.{}", var)?;
+            }
+        }
+
         writeln!(f, "{:=^78}", "")
     }
 }
@@ -106,9 +117,38 @@ impl Logit {
         variable_names: Option<Vec<String>>,
     ) -> Result<BinaryModelResult, GreenersError> {
         let n = x.nrows();
-        let k = x.ncols();
 
-        let mut beta = Array1::<f64>::zeros(k);
+        // Detect collinearity
+        let tolerance = 1e-10;
+        let (x_clean, keep_indices, omit_indices) = OLS::detect_collinearity(x, tolerance);
+
+        let mut omitted_var_names = Vec::new();
+        let mut clean_var_names = Vec::new();
+
+        if let Some(ref names) = variable_names {
+            for &idx in &omit_indices {
+                if idx < names.len() {
+                    omitted_var_names.push(names[idx].clone());
+                }
+            }
+            for &idx in &keep_indices {
+                if idx < names.len() {
+                    clean_var_names.push(names[idx].clone());
+                }
+            }
+        }
+
+        // Use cleaned matrix
+        let x_to_use = &x_clean;
+        let k_clean = x_to_use.ncols();
+
+        if n <= k_clean {
+            return Err(GreenersError::ShapeMismatch(
+                "Degrees of freedom <= 0 after removing collinear variables".into(),
+            ));
+        }
+
+        let mut beta = Array1::<f64>::zeros(k_clean);
 
         let tol = 1e-6;
         let max_iter = 100;
@@ -118,23 +158,23 @@ impl Logit {
 
         while diff > tol && iter < max_iter {
             // A. Linear Predictor
-            let xb = x.dot(&beta);
+            let xb = x_to_use.dot(&beta);
 
             // B. Sigmoid (Probabilities)
             let p = xb.mapv(|val| 1.0 / (1.0 + (-val).exp()));
 
             // C. Gradient
             let error = y - &p;
-            let gradient = x.t().dot(&error);
+            let gradient = x_to_use.t().dot(&error);
 
             // D. Hessian (W = p * (1-p))
             let w_diag = &p * &(1.0 - &p);
 
-            let mut x_weighted = x.clone();
+            let mut x_weighted = x_to_use.clone();
             for (i, mut row) in x_weighted.axis_iter_mut(Axis(0)).enumerate() {
                 row *= w_diag[i];
             }
-            let hessian = -x.t().dot(&x_weighted);
+            let hessian = -x_to_use.t().dot(&x_weighted);
 
             // E. Update
             let neg_hessian = -hessian;
@@ -166,15 +206,15 @@ impl Logit {
         }
 
         // Post-Estimation
-        let xb = x.dot(&beta);
+        let xb = x_to_use.dot(&beta);
         let p = xb.mapv(|val| 1.0 / (1.0 + (-val).exp()));
         let w_diag = &p * &(1.0 - &p);
 
-        let mut x_weighted = x.clone();
+        let mut x_weighted = x_to_use.clone();
         for (i, mut row) in x_weighted.axis_iter_mut(Axis(0)).enumerate() {
             row *= w_diag[i];
         }
-        let neg_hessian = x.t().dot(&x_weighted);
+        let neg_hessian = x_to_use.t().dot(&x_weighted);
         let cov_matrix = neg_hessian.inv()?;
 
         let std_errors = cov_matrix.diag().mapv(f64::sqrt);
@@ -196,8 +236,13 @@ impl Logit {
             iterations: iter,
             log_likelihood,
             pseudo_r2,
-            _x_data: Some(x.clone()),
-            variable_names,
+            _x_data: Some(x_to_use.clone()),
+            variable_names: if !clean_var_names.is_empty() {
+                Some(clean_var_names)
+            } else {
+                variable_names
+            },
+            omitted_vars: omitted_var_names,
         })
     }
 }
@@ -419,9 +464,38 @@ impl Probit {
         variable_names: Option<Vec<String>>,
     ) -> Result<BinaryModelResult, GreenersError> {
         let n = x.nrows();
-        let k = x.ncols();
 
-        let mut beta = Array1::<f64>::zeros(k);
+        // Detect collinearity
+        let tolerance = 1e-10;
+        let (x_clean, keep_indices, omit_indices) = OLS::detect_collinearity(x, tolerance);
+
+        let mut omitted_var_names = Vec::new();
+        let mut clean_var_names = Vec::new();
+
+        if let Some(ref names) = variable_names {
+            for &idx in &omit_indices {
+                if idx < names.len() {
+                    omitted_var_names.push(names[idx].clone());
+                }
+            }
+            for &idx in &keep_indices {
+                if idx < names.len() {
+                    clean_var_names.push(names[idx].clone());
+                }
+            }
+        }
+
+        // Use cleaned matrix
+        let x_to_use = &x_clean;
+        let k_clean = x_to_use.ncols();
+
+        if n <= k_clean {
+            return Err(GreenersError::ShapeMismatch(
+                "Degrees of freedom <= 0 after removing collinear variables".into(),
+            ));
+        }
+
+        let mut beta = Array1::<f64>::zeros(k_clean);
         let normal_dist = Normal::new(0.0, 1.0).unwrap();
 
         let tol = 1e-6;
@@ -431,7 +505,7 @@ impl Probit {
         let mut log_likelihood = 0.0;
 
         while diff > tol && iter < max_iter {
-            let xb = x.dot(&beta);
+            let xb = x_to_use.dot(&beta);
 
             // 1. Probabilities (p) & Densities (f)
             let mut p = Array1::<f64>::zeros(n);
@@ -450,16 +524,16 @@ impl Probit {
 
             let error = y - &p;
             let score_term = &error * &weight_factor;
-            let gradient = x.t().dot(&score_term);
+            let gradient = x_to_use.t().dot(&score_term);
 
             // 3. Hessian Weight: W = f^2 / (p*(1-p))
             let w_diag = (&f * &f) / &denominator;
 
-            let mut x_weighted = x.clone();
+            let mut x_weighted = x_to_use.clone();
             for (i, mut row) in x_weighted.axis_iter_mut(Axis(0)).enumerate() {
                 row *= w_diag[i];
             }
-            let hessian = -x.t().dot(&x_weighted);
+            let hessian = -x_to_use.t().dot(&x_weighted);
 
             // 4. Update
             let neg_hessian = -hessian;
@@ -490,7 +564,7 @@ impl Probit {
         }
 
         // Post-Estimation Stats
-        let xb = x.dot(&beta);
+        let xb = x_to_use.dot(&beta);
         let mut w_diag = Array1::<f64>::zeros(n);
 
         for i in 0..n {
@@ -500,11 +574,11 @@ impl Probit {
             w_diag[i] = (f_val * f_val) / (p_val * (1.0 - p_val));
         }
 
-        let mut x_weighted = x.clone();
+        let mut x_weighted = x_to_use.clone();
         for (i, mut row) in x_weighted.axis_iter_mut(Axis(0)).enumerate() {
             row *= w_diag[i];
         }
-        let neg_hessian = x.t().dot(&x_weighted);
+        let neg_hessian = x_to_use.t().dot(&x_weighted);
         let cov_matrix = neg_hessian.inv()?;
 
         let std_errors = cov_matrix.diag().mapv(f64::sqrt);
@@ -524,8 +598,13 @@ impl Probit {
             iterations: iter,
             log_likelihood,
             pseudo_r2,
-            _x_data: Some(x.clone()),
-            variable_names,
+            _x_data: Some(x_to_use.clone()),
+            variable_names: if !clean_var_names.is_empty() {
+                Some(clean_var_names)
+            } else {
+                variable_names
+            },
+            omitted_vars: omitted_var_names,
         })
     }
 }
