@@ -2,13 +2,45 @@
 # Greeners: High-Performance Econometrics in Rust
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
-![Version](https://img.shields.io/badge/version-1.3.1-blue)
+![Version](https://img.shields.io/badge/version-1.3.2-blue)
 ![License](https://img.shields.io/badge/license-GPLv3-green)
 ![Stability](https://img.shields.io/badge/stability-stable-green)
 
 **Greeners** is a lightning-fast, type-safe econometrics library written in pure Rust. It provides a comprehensive suite of estimators for Cross-Sectional, Time-Series, and Panel Data analysis, leveraging linear algebra backends (LAPACK/BLAS) for maximum performance.
 
 Designed for academic research, heavy simulations, and production-grade economic modeling.
+
+## 🎉 v1.3.2 RELEASE: Flexible Statistical Inference (t vs z)
+
+**Greeners v1.3.2** adds **flexible statistical inference**, allowing users to choose between Student's t-distribution and Normal (z) distribution for hypothesis testing - bringing statsmodels-compatible inference while maintaining exact finite-sample theory!
+
+### 🆕 What's New in v1.3.2
+
+1. **🌟 InferenceType Support** - Choose between `StudentT` (default, exact) and `Normal` (asymptotic, statsmodels-compatible)
+2. **🌟 Non-Breaking API** - Simple `.with_inference()` method on all linear models
+3. **Dynamic Display** - Tables automatically show "t" or "z" based on inference type
+4. **Full Coverage** - OLS, IV/2SLS, Fixed Effects, Random Effects, Between Estimator
+5. **Bug Fix** - Panel models now correctly recalculate p-values with adjusted degrees of freedom
+
+### Quick Example
+
+```rust
+use greeners::{OLS, CovarianceType, InferenceType};
+
+// Default: Student's t (exact finite-sample)
+let result = OLS::fit(&y, &x, CovarianceType::HC1)?;
+println!("{}", result); // Shows "t | P>|t|"
+
+// Switch to Normal/z (large-sample asymptotics, like statsmodels)
+let result_z = result.with_inference(InferenceType::Normal)?;
+println!("{}", result_z); // Shows "z | P>|z|"
+```
+
+**When to use each:**
+- **StudentT** (default): Small/medium samples (n < 100), exact inference, conservative
+- **Normal**: Large samples (n > 1000), compatibility with Python/statsmodels, asymptotic theory
+
+---
 
 ## 🎉 v1.3.1 ENHANCED RELEASE: Intelligent Type Detection + Automatic Collinearity Handling
 

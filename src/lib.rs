@@ -89,3 +89,39 @@ pub enum CovarianceType {
     /// Essential for panel data with both cross-sectional and time correlation
     ClusteredTwoWay(Vec<usize>, Vec<usize>),
 }
+
+/// Inference distribution type for hypothesis testing and confidence intervals
+///
+/// Determines which statistical distribution to use when computing p-values
+/// and confidence intervals for coefficient estimates.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum InferenceType {
+    /// Student's t-distribution (default for finite samples)
+    ///
+    /// Uses t(df) distribution for hypothesis testing and confidence intervals.
+    /// This is the exact finite-sample distribution under normality assumptions.
+    ///
+    /// **Recommended for:**
+    /// - Small to medium samples (n < 100)
+    /// - When exact finite-sample inference is desired
+    /// - Conservative hypothesis testing
+    ///
+    /// **Used by:** OLS, IV/2SLS, Panel models (default)
+    #[default]
+    StudentT,
+
+    /// Standard Normal distribution (z-distribution)
+    ///
+    /// Uses N(0,1) distribution for hypothesis testing and confidence intervals.
+    /// This is the asymptotic distribution (as n → ∞).
+    ///
+    /// **Recommended for:**
+    /// - Large samples (n > 1000)
+    /// - Asymptotic theory contexts (MLE, GMM)
+    /// - Compatibility with statsmodels/Python
+    ///
+    /// **Used by:** Logit, Probit, GMM, Quantile Regression (always)
+    ///
+    /// **Note:** For large samples (df > 30), t and z distributions are nearly identical.
+    Normal,
+}
