@@ -1,9 +1,9 @@
 use crate::error::GreenersError;
-use crate::CovarianceType;
+use crate::{CovarianceType, InferenceType};
 use crate::{DataFrame, Formula, OLS};
 use ndarray::{Array1, Array2};
 use ndarray_linalg::Inverse;
-use statrs::distribution::{ContinuousCDF, StudentsT};
+use statrs::distribution::{ContinuousCDF, Normal, StudentsT};
 use std::fmt;
 // Alias to facilitate Axis usage in Newey-West loop
 use ndarray as nd;
@@ -19,12 +19,18 @@ pub struct IvResult {
     pub df_resid: usize,
     pub sigma: f64,
     pub cov_type: CovarianceType,
+    pub inference_type: InferenceType,
     pub variable_names: Option<Vec<String>>,
     pub omitted_vars: Vec<String>,
 }
 
 impl fmt::Display for IvResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let stat_label = match self.inference_type {
+            InferenceType::StudentT => "t",
+            InferenceType::Normal => "z",
+        };
+
         // FIX 1: Added NeweyWest option in Display
         let cov_str = match &self.cov_type {
             CovarianceType::NonRobust => "Non-Robust".to_string(),
@@ -74,7 +80,11 @@ impl fmt::Display for IvResult {
         writeln!(
             f,
             "{:<10} | {:>10} | {:>10} | {:>8} | {:>8}",
-            "Variable", "coef", "std err", "t", "P>|t|"
+            "Variable",
+            "coef",
+            "std err",
+            stat_label,
+            format!("P>|{}|", stat_label)
         )?;
         writeln!(f, "{:-^78}", "")?;
 
@@ -163,6 +173,74 @@ impl IvResult {
     pub fn residuals(&self, y: &Array1<f64>, x: &Array2<f64>) -> Array1<f64> {
         let y_hat = x.dot(&self.params);
         y - &y_hat
+    }
+
+    /// Helper function to compute p-values using specified distribution
+    ///
+    /// # Arguments
+    /// * `t_values` - Test statistics
+    /// * `df_resid` - Residual degrees of freedom
+    /// * `inference_type` - Distribution type to use
+    ///
+    /// # Returns
+    /// p-values array
+    fn compute_p_values(
+        t_values: &Array1<f64>,
+        df_resid: usize,
+        inference_type: &InferenceType,
+    ) -> Result<Array1<f64>, GreenersError> {
+        let p_values = match inference_type {
+            InferenceType::StudentT => {
+                let t_dist = StudentsT::new(0.0, 1.0, df_resid as f64)
+                    .map_err(|_| GreenersError::OptimizationFailed)?;
+                t_values.mapv(|t| 2.0 * (1.0 - t_dist.cdf(t.abs())))
+            }
+            InferenceType::Normal => {
+                let normal_dist =
+                    Normal::new(0.0, 1.0).map_err(|_| GreenersError::OptimizationFailed)?;
+                t_values.mapv(|t| 2.0 * (1.0 - normal_dist.cdf(t.abs())))
+            }
+        };
+
+        Ok(p_values)
+    }
+
+    /// Change inference type and recompute p-values
+    ///
+    /// Allows switching between Student's t-distribution and Normal distribution
+    /// for hypothesis testing after model fitting.
+    ///
+    /// # Arguments
+    /// * `inference_type` - New distribution type
+    ///
+    /// # Returns
+    /// Modified IvResult with updated p-values
+    ///
+    /// # Example
+    /// ```
+    /// use greeners::{IV, CovarianceType, InferenceType};
+    /// use ndarray::{Array1, Array2};
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let y = Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
+    /// let x = Array2::from_shape_vec((5, 2), vec![1.0, 1.0, 1.0, 2.0, 1.0, 3.0, 1.0, 4.0, 1.0, 5.0])?;
+    /// let z = x.clone();
+    ///
+    /// // Fit with default (Student's t)
+    /// let result = IV::fit(&y, &x, &z, CovarianceType::NonRobust)?;
+    ///
+    /// // Switch to Normal distribution
+    /// let result_z = result.with_inference(InferenceType::Normal)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_inference(mut self, inference_type: InferenceType) -> Result<Self, GreenersError> {
+        let p_values = Self::compute_p_values(&self.t_values, self.df_resid, &inference_type)?;
+
+        self.p_values = p_values;
+        self.inference_type = inference_type;
+
+        Ok(self)
     }
 }
 
@@ -613,9 +691,9 @@ impl IV {
         let std_errors = cov_matrix.diag().mapv(f64::sqrt);
         let t_values = &beta / &std_errors;
 
-        let t_dist = StudentsT::new(0.0, 1.0, df_resid as f64)
-            .map_err(|_| GreenersError::OptimizationFailed)?;
-        let p_values = t_values.mapv(|t| 2.0 * (1.0 - t_dist.cdf(t.abs())));
+        // Use default inference type (StudentT)
+        let default_inference = InferenceType::default();
+        let p_values = IvResult::compute_p_values(&t_values, df_resid, &default_inference)?;
 
         let y_mean = y.mean().unwrap_or(0.0);
         let sst = y.mapv(|val| (val - y_mean).powi(2)).sum();
@@ -631,6 +709,7 @@ impl IV {
             df_resid,
             sigma,
             cov_type,
+            inference_type: InferenceType::default(),
             variable_names: if !clean_var_names.is_empty() {
                 Some(clean_var_names)
             } else {

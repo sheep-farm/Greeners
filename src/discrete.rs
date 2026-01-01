@@ -1,5 +1,5 @@
 use crate::error::GreenersError;
-use crate::{DataFrame, Formula, OLS};
+use crate::{DataFrame, Formula, InferenceType, OLS};
 use ndarray::{Array1, Array2, Axis};
 use ndarray_linalg::Inverse;
 use statrs::distribution::{Continuous, ContinuousCDF, Normal};
@@ -18,6 +18,7 @@ pub struct BinaryModelResult {
     pub pseudo_r2: f64, // McFadden's R2
     // Store X for marginal effects calculations
     _x_data: Option<Array2<f64>>,
+    pub inference_type: InferenceType, // Always Normal for MLE
     pub variable_names: Option<Vec<String>>,
     pub omitted_vars: Vec<String>,
 }
@@ -237,6 +238,7 @@ impl Logit {
             log_likelihood,
             pseudo_r2,
             _x_data: Some(x_to_use.clone()),
+            inference_type: InferenceType::Normal, // MLE always uses Normal
             variable_names: if !clean_var_names.is_empty() {
                 Some(clean_var_names)
             } else {
@@ -599,6 +601,7 @@ impl Probit {
             log_likelihood,
             pseudo_r2,
             _x_data: Some(x_to_use.clone()),
+            inference_type: InferenceType::Normal, // MLE always uses Normal
             variable_names: if !clean_var_names.is_empty() {
                 Some(clean_var_names)
             } else {
