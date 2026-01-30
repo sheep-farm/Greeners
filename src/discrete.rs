@@ -119,6 +119,13 @@ impl Logit {
     ) -> Result<BinaryModelResult, GreenersError> {
         let n = x.nrows();
 
+        // Check for NaN/Inf in input data
+        if y.iter().any(|v| !v.is_finite()) || x.iter().any(|v| !v.is_finite()) {
+            return Err(GreenersError::InvalidOperation(
+                "Input data contains NaN or Inf values".into(),
+            ));
+        }
+
         // Detect collinearity
         let tolerance = 1e-10;
         let (x_clean, keep_indices, omit_indices) = OLS::detect_collinearity(x, tolerance);
@@ -466,6 +473,13 @@ impl Probit {
         variable_names: Option<Vec<String>>,
     ) -> Result<BinaryModelResult, GreenersError> {
         let n = x.nrows();
+
+        // Check for NaN/Inf in input data
+        if y.iter().any(|v| !v.is_finite()) || x.iter().any(|v| !v.is_finite()) {
+            return Err(GreenersError::InvalidOperation(
+                "Input data contains NaN or Inf values".into(),
+            ));
+        }
 
         // Detect collinearity
         let tolerance = 1e-10;

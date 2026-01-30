@@ -104,6 +104,19 @@ impl QuantileReg {
             return Err(GreenersError::OptimizationFailed); // "Tau must be in (0, 1)"
         }
 
+        if n_boot == 0 {
+            return Err(GreenersError::InvalidOperation(
+                "n_boot must be at least 1".into(),
+            ));
+        }
+
+        // Check for NaN/Inf in input data
+        if y.iter().any(|v| !v.is_finite()) || x.iter().any(|v| !v.is_finite()) {
+            return Err(GreenersError::InvalidOperation(
+                "Input data contains NaN or Inf values".into(),
+            ));
+        }
+
         // 1. Estimação Pontual (IRLS)
         let (params, iter) = Self::irls_solver(y, x, tau)?;
 

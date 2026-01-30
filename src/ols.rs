@@ -492,6 +492,13 @@ impl OLS {
             ));
         }
 
+        // Check for NaN/Inf in input data
+        if y.iter().any(|v| !v.is_finite()) || x.iter().any(|v| !v.is_finite()) {
+            return Err(GreenersError::InvalidOperation(
+                "Input data contains NaN or Inf values".into(),
+            ));
+        }
+
         // Detect and remove collinear columns ONLY when we have variable names
         // (i.e., formula-based usage). For internal algorithmic use (variable_names = None),
         // skip collinearity detection to preserve matrix dimensions.

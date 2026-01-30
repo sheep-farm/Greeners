@@ -62,18 +62,8 @@ fn test_ols_nan_in_y_does_not_panic() {
     )
     .unwrap();
 
-    // KNOWN BUG: statrs panics with XOutOfRange when computing p-values from NaN t-stats.
-    // The library should catch NaN before calling into statrs distributions.
-    let result = catch_panic(|| OLS::fit(&y, &x, CovarianceType::NonRobust));
-    match result {
-        Ok(Err(_)) => {}
-        Ok(Ok(res)) => {
-            assert!(res.params.iter().any(|p| p.is_nan()));
-        }
-        Err(msg) => {
-            eprintln!("KNOWN BUG: OLS panics on NaN in y: {}", msg);
-        }
-    }
+    let result = OLS::fit(&y, &x, CovarianceType::NonRobust);
+    assert!(result.is_err(), "OLS with NaN in y should return Err");
 }
 
 #[test]
@@ -85,16 +75,8 @@ fn test_ols_nan_in_x_does_not_panic() {
     )
     .unwrap();
 
-    let result = catch_panic(|| OLS::fit(&y, &x, CovarianceType::NonRobust));
-    match result {
-        Ok(Err(_)) => {}
-        Ok(Ok(res)) => {
-            assert!(res.params.iter().any(|p| p.is_nan()));
-        }
-        Err(msg) => {
-            eprintln!("KNOWN BUG: OLS panics on NaN in X: {}", msg);
-        }
-    }
+    let result = OLS::fit(&y, &x, CovarianceType::NonRobust);
+    assert!(result.is_err(), "OLS with NaN in X should return Err");
 }
 
 #[test]
@@ -177,13 +159,8 @@ fn test_ols_inf_in_y_does_not_panic() {
     )
     .unwrap();
 
-    let result = catch_panic(|| OLS::fit(&y, &x, CovarianceType::NonRobust));
-    match result {
-        Ok(_) => {}
-        Err(msg) => {
-            eprintln!("KNOWN BUG: OLS panics on Inf in y: {}", msg);
-        }
-    }
+    let result = OLS::fit(&y, &x, CovarianceType::NonRobust);
+    assert!(result.is_err(), "OLS with Inf in y should return Err");
 }
 
 // ============================================================================
@@ -216,16 +193,8 @@ fn test_iv_nan_does_not_panic() {
     .unwrap();
     let z = x.clone();
 
-    let result = catch_panic(|| IV::fit(&y, &x, &z, CovarianceType::NonRobust));
-    match result {
-        Ok(Err(_)) => {}
-        Ok(Ok(res)) => {
-            assert!(res.params.iter().any(|p| p.is_nan()));
-        }
-        Err(msg) => {
-            eprintln!("KNOWN BUG: IV panics on NaN: {}", msg);
-        }
-    }
+    let result = IV::fit(&y, &x, &z, CovarianceType::NonRobust);
+    assert!(result.is_err(), "IV with NaN should return Err");
 }
 
 // ============================================================================
@@ -289,11 +258,8 @@ fn test_logit_nan_does_not_panic() {
     )
     .unwrap();
 
-    let result = catch_panic(|| Logit::fit(&y, &x));
-    match result {
-        Ok(_) => {} // error or NaN propagation
-        Err(msg) => panic!("Panicked on NaN in logit: {}", msg),
-    }
+    let result = Logit::fit(&y, &x);
+    assert!(result.is_err(), "Logit with NaN should return Err");
 }
 
 #[test]
@@ -372,8 +338,7 @@ fn test_quantile_n_less_than_k() {
 }
 
 #[test]
-fn test_quantile_nboot_zero_known_bug() {
-    // Known bug: n_boot=0 causes subtraction overflow at quantile.rs:256
+fn test_quantile_nboot_zero_returns_error() {
     let y = Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
     let x = Array2::from_shape_vec(
         (5, 2),
@@ -381,17 +346,11 @@ fn test_quantile_nboot_zero_known_bug() {
     )
     .unwrap();
 
-    let result = catch_panic(|| QuantileReg::fit(&y, &x, 0.5, 0));
-    match result {
-        Ok(Err(_)) => {}
-        Ok(Ok(res)) => {
-            assert!(res.params.iter().all(|p| p.is_finite()));
-        }
-        Err(msg) => {
-            // Documents the known overflow bug
-            eprintln!("KNOWN BUG: QuantileReg panics with n_boot=0: {}", msg);
-        }
-    }
+    let result = QuantileReg::fit(&y, &x, 0.5, 0);
+    assert!(
+        result.is_err(),
+        "QuantileReg with n_boot=0 should return Err"
+    );
 }
 
 #[test]
@@ -431,11 +390,8 @@ fn test_wls_negative_weights_does_not_panic() {
 
     let result = catch_panic(|| FGLS::wls(&y, &x, &w));
     match result {
-        Ok(_) => {} // error or garbage, both ok
-        Err(msg) => eprintln!(
-            "KNOWN BUG: WLS with negative weights panics in statrs: {}",
-            msg
-        ),
+        Ok(_) => {} // error or NaN from sqrt of negative, both ok
+        Err(msg) => panic!("WLS with negative weights should not panic: {}", msg),
     }
 }
 
