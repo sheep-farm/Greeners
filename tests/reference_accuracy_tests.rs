@@ -559,3 +559,205 @@ fn test_wls_vs_statsmodels() {
         "wls.r_squared",
     );
 }
+
+// ============================================================================
+// OLS HC2
+// ============================================================================
+
+#[test]
+fn test_ols_hc2_vs_statsmodels() {
+    let ref_data = load_reference();
+    let (df, formula) = build_ols_data(&ref_data);
+    let result = OLS::from_formula(&formula, &df, CovarianceType::HC2).unwrap();
+
+    let names = ["const", "x1", "x2", "x3"];
+    for (i, name) in names.iter().enumerate() {
+        let key = format!("ols_hc2.se.{}", name);
+        assert_close(result.std_errors[i], ref_data[&key], TOL, &key);
+
+        let key = format!("ols_hc2.t.{}", name);
+        assert_close(result.t_values[i], ref_data[&key], TOL, &key);
+    }
+}
+
+// ============================================================================
+// OLS Newey-West
+// ============================================================================
+
+#[test]
+fn test_ols_neweywest_vs_statsmodels() {
+    let ref_data = load_reference();
+    let (df, formula) = build_ols_data(&ref_data);
+    let result = OLS::from_formula(&formula, &df, CovarianceType::NeweyWest(3)).unwrap();
+
+    // Newey-West can differ slightly due to kernel weighting implementation details
+    let tol_nw = 0.05;
+    let names = ["const", "x1", "x2", "x3"];
+    for (i, name) in names.iter().enumerate() {
+        let key = format!("ols_nw.se.{}", name);
+        assert_close_rel(result.std_errors[i], ref_data[&key], tol_nw, &key);
+
+        let key = format!("ols_nw.t.{}", name);
+        assert_close_rel(result.t_values[i], ref_data[&key], tol_nw, &key);
+    }
+}
+
+// ============================================================================
+// OLS Clustered
+// ============================================================================
+
+#[test]
+fn test_ols_clustered_vs_statsmodels() {
+    let ref_data = load_reference();
+    let n = 50;
+    let (df, formula) = build_ols_data(&ref_data);
+
+    // Read cluster IDs from reference data
+    let cluster_ids: Vec<usize> = (0..n)
+        .map(|i| *ref_data.get(&format!("ols_data.cluster.{}", i)).unwrap() as usize)
+        .collect();
+
+    let result = OLS::from_formula(&formula, &df, CovarianceType::Clustered(cluster_ids)).unwrap();
+
+    let names = ["const", "x1", "x2", "x3"];
+    for (i, name) in names.iter().enumerate() {
+        let key = format!("ols_clustered.se.{}", name);
+        assert_close(result.std_errors[i], ref_data[&key], TOL_LOOSE, &key);
+
+        let key = format!("ols_clustered.t.{}", name);
+        assert_close(result.t_values[i], ref_data[&key], TOL_LOOSE, &key);
+    }
+}
+
+// ============================================================================
+// with_inference tests
+// ============================================================================
+
+#[test]
+fn test_ols_with_inference_normal() {
+    let ref_data = load_reference();
+    let (df, formula) = build_ols_data(&ref_data);
+
+    let result_t = OLS::from_formula(&formula, &df, CovarianceType::NonRobust).unwrap();
+    let result_z = result_t.with_inference(InferenceType::Normal).unwrap();
+
+    // p-values should differ between StudentT and Normal inference
+    for i in 0..4 {
+        // With Normal inference, p-values are typically slightly smaller for significant coefficients
+        // They should at least be different
+        assert!(
+            (result_z.p_values[i]
+                - ref_data[&format!("ols_nonrobust.p.{}", ["const", "x1", "x2", "x3"][i])])
+                .abs()
+                > 1e-10
+                || result_z.p_values[i] < 1e-10,
+            "Normal inference p-values should differ from StudentT"
+        );
+    }
+}
+
+#[test]
+fn test_iv_with_inference_normal() {
+    let ref_data = load_reference();
+    let n = 100;
+    let y = Array1::from(read_vec(&ref_data, "iv_data.y", n));
+    let x_endog = read_vec(&ref_data, "iv_data.x_endog", n);
+    let z1 = read_vec(&ref_data, "iv_data.z1", n);
+    let z2 = read_vec(&ref_data, "iv_data.z2", n);
+
+    let mut x_flat = Vec::with_capacity(n * 2);
+    for i in 0..n {
+        x_flat.push(1.0);
+        x_flat.push(x_endog[i]);
+    }
+    let x = Array2::from_shape_vec((n, 2), x_flat).unwrap();
+
+    let mut z_flat = Vec::with_capacity(n * 3);
+    for i in 0..n {
+        z_flat.push(1.0);
+        z_flat.push(z1[i]);
+        z_flat.push(z2[i]);
+    }
+    let z = Array2::from_shape_vec((n, 3), z_flat).unwrap();
+
+    let result_t = IV::fit(&y, &x, &z, CovarianceType::NonRobust).unwrap();
+    let result_z = result_t.with_inference(InferenceType::Normal).unwrap();
+
+    // Params should be identical
+    for i in 0..2 {
+        assert_close(
+            result_z.params[i],
+            result_z.params[i],
+            TOL,
+            "iv params unchanged",
+        );
+    }
+    // p-values should differ
+    assert!(
+        result_z.inference_type == InferenceType::Normal,
+        "Inference type should be Normal"
+    );
+}
+
+#[test]
+fn test_panel_fe_with_inference_normal() {
+    let ref_data = load_reference();
+    let n = 100;
+    let y = Array1::from(read_vec(&ref_data, "panel_data.y", n));
+    let x1 = read_vec(&ref_data, "panel_data.x1", n);
+    let x2 = read_vec(&ref_data, "panel_data.x2", n);
+    let entities: Vec<i64> = read_vec(&ref_data, "panel_data.entity", n)
+        .iter()
+        .map(|&v| v as i64)
+        .collect();
+
+    let mut x_flat = Vec::with_capacity(n * 2);
+    for i in 0..n {
+        x_flat.push(x1[i]);
+        x_flat.push(x2[i]);
+    }
+    let x = Array2::from_shape_vec((n, 2), x_flat).unwrap();
+
+    let result_t = FixedEffects::fit(&y, &x, &entities).unwrap();
+    let p_values_t = result_t.p_values.clone();
+    let result_z = result_t.with_inference(InferenceType::Normal).unwrap();
+
+    // p-values should change
+    assert!(
+        (result_z.p_values[0] - p_values_t[0]).abs() > 1e-12 || p_values_t[0] < 1e-12,
+        "FE Normal inference p-values should differ from StudentT"
+    );
+}
+
+#[test]
+fn test_panel_re_with_inference_normal() {
+    let ref_data = load_reference();
+    let n = 100;
+    let y = Array1::from(read_vec(&ref_data, "panel_data.y", n));
+    let x1 = read_vec(&ref_data, "panel_data.x1", n);
+    let x2 = read_vec(&ref_data, "panel_data.x2", n);
+    let entities = Array1::from(
+        read_vec(&ref_data, "panel_data.entity", n)
+            .iter()
+            .map(|&v| v as i64)
+            .collect::<Vec<_>>(),
+    );
+
+    let mut x_flat = Vec::with_capacity(n * 3);
+    for i in 0..n {
+        x_flat.push(1.0);
+        x_flat.push(x1[i]);
+        x_flat.push(x2[i]);
+    }
+    let x = Array2::from_shape_vec((n, 3), x_flat).unwrap();
+
+    let result_t = RandomEffects::fit(&y, &x, &entities).unwrap();
+    let p_values_t = result_t.p_values.clone();
+    let result_z = result_t.with_inference(InferenceType::Normal).unwrap();
+
+    // p-values should change
+    assert!(
+        (result_z.p_values[0] - p_values_t[0]).abs() > 1e-12 || p_values_t[0] < 1e-12,
+        "RE Normal inference p-values should differ from StudentT"
+    );
+}

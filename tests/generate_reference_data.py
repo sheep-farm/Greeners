@@ -77,6 +77,33 @@ for i, name in enumerate(["const", "x1", "x2", "x3"]):
     add(f"ols_normal.z.{name}", res_norm.tvalues[i])
     add(f"ols_normal.p.{name}", res_norm.pvalues[i])
 
+# OLS HC2
+res_hc2 = sm.OLS(y, X).fit(cov_type="HC2")
+for i, name in enumerate(["const", "x1", "x2", "x3"]):
+    add(f"ols_hc2.se.{name}", res_hc2.bse[i])
+    add(f"ols_hc2.t.{name}", res_hc2.tvalues[i])
+    add(f"ols_hc2.p.{name}", res_hc2.pvalues[i])
+
+# Note: HC4 is not supported by statsmodels, so no reference values for it.
+
+# OLS Newey-West (HAC)
+res_nw = sm.OLS(y, X).fit(cov_type="HAC", cov_kwds={"maxlags": 3})
+for i, name in enumerate(["const", "x1", "x2", "x3"]):
+    add(f"ols_nw.se.{name}", res_nw.bse[i])
+    add(f"ols_nw.t.{name}", res_nw.tvalues[i])
+    add(f"ols_nw.p.{name}", res_nw.pvalues[i])
+
+# OLS Clustered (create cluster IDs: 10 clusters of 5 obs each)
+cluster_ids = np.repeat(np.arange(10), 5)
+res_cl = sm.OLS(y, X).fit(cov_type="cluster", cov_kwds={"groups": cluster_ids})
+for i, name in enumerate(["const", "x1", "x2", "x3"]):
+    add(f"ols_clustered.se.{name}", res_cl.bse[i])
+    add(f"ols_clustered.t.{name}", res_cl.tvalues[i])
+    add(f"ols_clustered.p.{name}", res_cl.pvalues[i])
+# Save cluster IDs for Rust test
+for i in range(n):
+    add(f"ols_data.cluster.{i}", float(cluster_ids[i]))
+
 # ============================================================================
 # DATASET 2: IV / 2SLS (n=100)
 # ============================================================================
