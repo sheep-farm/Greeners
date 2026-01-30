@@ -6,8 +6,8 @@
 //! The library should add n>0 guards before calling into LAPACK.
 
 use greeners::{
-    CovarianceType, DataFrame, FGLS, FixedEffects, Formula, Logit, OLS, Probit,
-    QuantileReg, RandomEffects, SurEquation, TimeSeries, IV, SUR,
+    CovarianceType, DataFrame, FixedEffects, Formula, Logit, Probit, QuantileReg, RandomEffects,
+    SurEquation, TimeSeries, FGLS, IV, OLS, SUR,
 };
 use ndarray::{Array1, Array2};
 use std::collections::HashMap;
@@ -100,10 +100,7 @@ fn test_ols_nan_in_x_does_not_panic() {
 #[test]
 fn test_ols_perfect_collinearity_with_formula_drops_variable() {
     let mut data = HashMap::new();
-    data.insert(
-        "y".to_string(),
-        Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]),
-    );
+    data.insert("y".to_string(), Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]));
     data.insert(
         "x1".to_string(),
         Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]),
@@ -144,7 +141,7 @@ fn test_ols_perfect_collinearity_without_names_singular() {
     let result = catch_panic(|| OLS::fit(&y, &x, CovarianceType::NonRobust));
     match result {
         Ok(Err(_)) => {} // SingularMatrix — good
-        Ok(Ok(_)) => {} // some LAPACK may return garbage — at least no panic
+        Ok(Ok(_)) => {}  // some LAPACK may return garbage — at least no panic
         Err(msg) => panic!("Panicked on singular matrix: {}", msg),
     }
 }
@@ -435,7 +432,10 @@ fn test_wls_negative_weights_does_not_panic() {
     let result = catch_panic(|| FGLS::wls(&y, &x, &w));
     match result {
         Ok(_) => {} // error or garbage, both ok
-        Err(msg) => eprintln!("KNOWN BUG: WLS with negative weights panics in statrs: {}", msg),
+        Err(msg) => eprintln!(
+            "KNOWN BUG: WLS with negative weights panics in statrs: {}",
+            msg
+        ),
     }
 }
 

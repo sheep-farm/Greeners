@@ -3,7 +3,7 @@
 
 use greeners::{
     ArellanoBond, Equation, FixedEffects, HausmanTest, PanelThreshold, RandomEffects, SurEquation,
-    ThreeSLS, TimeSeries, VAR, VARMA, VECM, SUR,
+    ThreeSLS, TimeSeries, SUR, VAR, VARMA, VECM,
 };
 use ndarray::{Array1, Array2};
 
@@ -205,9 +205,7 @@ fn test_three_sls_two_equations() {
 
     // Exogenous variables
     let z1: Vec<f64> = (0..n).map(|i| (i as f64) * 0.2 + 1.0).collect();
-    let z2: Vec<f64> = (0..n)
-        .map(|i| ((i * 7 + 3) % 20) as f64 * 0.5)
-        .collect();
+    let z2: Vec<f64> = (0..n).map(|i| ((i * 7 + 3) % 20) as f64 * 0.5).collect();
 
     // Endogenous: y1 depends on z1 and y2
     // y2 depends on z2 and y1 (simultaneous)
@@ -296,9 +294,7 @@ fn test_arellano_bond_basic() {
     );
 
     // Generate y with autoregressive structure: y_it = 0.5 * y_{i,t-1} + x_it + alpha_i + e_it
-    let x_vals: Vec<f64> = (0..n)
-        .map(|i| ((i * 7 + 3) % 13) as f64 * 0.3)
-        .collect();
+    let x_vals: Vec<f64> = (0..n).map(|i| ((i * 7 + 3) % 13) as f64 * 0.3).collect();
     let x = Array2::from_shape_vec((n, 1), x_vals.clone()).unwrap();
 
     let mut y_vals = vec![0.0; n];
@@ -363,8 +359,10 @@ fn test_var_bivariate() {
     data[[0, 0]] = 1.0;
     data[[0, 1]] = 0.5;
     for i in 1..t {
-        data[[i, 0]] = 0.5 * data[[i - 1, 0]] + 0.1 * data[[i - 1, 1]] + (i as f64 * 0.1).sin() * 0.1;
-        data[[i, 1]] = 0.2 * data[[i - 1, 0]] + 0.3 * data[[i - 1, 1]] + (i as f64 * 0.15).cos() * 0.1;
+        data[[i, 0]] =
+            0.5 * data[[i - 1, 0]] + 0.1 * data[[i - 1, 1]] + (i as f64 * 0.1).sin() * 0.1;
+        data[[i, 1]] =
+            0.2 * data[[i - 1, 0]] + 0.3 * data[[i - 1, 1]] + (i as f64 * 0.15).cos() * 0.1;
     }
 
     let result = VAR::fit(&data, 1, Some(vec!["y1".to_string(), "y2".to_string()])).unwrap();
@@ -387,7 +385,8 @@ fn test_var_irf() {
     data[[0, 0]] = 1.0;
     for i in 1..t {
         data[[i, 0]] = 0.5 * data[[i - 1, 0]] + (i as f64 * 0.1).sin() * 0.1;
-        data[[i, 1]] = 0.3 * data[[i - 1, 0]] + 0.2 * data[[i - 1, 1]] + (i as f64 * 0.15).cos() * 0.1;
+        data[[i, 1]] =
+            0.3 * data[[i - 1, 0]] + 0.2 * data[[i - 1, 1]] + (i as f64 * 0.15).cos() * 0.1;
     }
 
     let result = VAR::fit(&data, 1, None).unwrap();
@@ -424,10 +423,12 @@ fn test_var_higher_order() {
     data[[1, 0]] = 0.8;
     data[[2, 0]] = 0.6;
     for i in 3..t {
-        data[[i, 0]] = 0.3 * data[[i - 1, 0]] + 0.1 * data[[i - 2, 0]] + 0.05 * data[[i - 3, 0]]
+        data[[i, 0]] = 0.3 * data[[i - 1, 0]]
+            + 0.1 * data[[i - 2, 0]]
+            + 0.05 * data[[i - 3, 0]]
             + (i as f64 * 0.1).sin() * 0.05;
-        data[[i, 1]] = 0.2 * data[[i - 1, 1]] + 0.1 * data[[i - 1, 0]]
-            + (i as f64 * 0.2).cos() * 0.05;
+        data[[i, 1]] =
+            0.2 * data[[i - 1, 1]] + 0.1 * data[[i - 1, 0]] + (i as f64 * 0.2).cos() * 0.05;
     }
 
     let result = VAR::fit(&data, 3, None).unwrap();
@@ -443,7 +444,10 @@ fn test_var_granger_causality_not_implemented() {
     let result = VAR::fit(&data, 1, None).unwrap();
 
     let gc = result.granger_causality(0, 1);
-    assert!(gc.is_err(), "Granger causality should return error (not yet implemented)");
+    assert!(
+        gc.is_err(),
+        "Granger causality should return error (not yet implemented)"
+    );
 }
 
 // ============================================================================
@@ -457,8 +461,8 @@ fn test_varma_basic() {
     data[[0, 0]] = 1.0;
     for i in 1..t {
         data[[i, 0]] = 0.4 * data[[i - 1, 0]] + (i as f64 * 0.05).sin() * 0.2;
-        data[[i, 1]] = 0.3 * data[[i - 1, 1]] + 0.15 * data[[i - 1, 0]]
-            + (i as f64 * 0.07).cos() * 0.2;
+        data[[i, 1]] =
+            0.3 * data[[i - 1, 1]] + 0.15 * data[[i - 1, 0]] + (i as f64 * 0.07).cos() * 0.2;
     }
 
     let result = VARMA::fit(&data, 1, 1).unwrap();
