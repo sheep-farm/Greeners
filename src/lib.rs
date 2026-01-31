@@ -1,3 +1,4 @@
+pub mod arima;
 pub mod bootstrap;
 pub mod column;
 pub mod dataframe;
@@ -7,6 +8,7 @@ pub mod discrete;
 pub mod dynamic_panel;
 pub mod error;
 pub mod formula;
+pub mod glm;
 pub mod gls;
 pub mod gmm;
 pub mod hausman;
@@ -24,6 +26,7 @@ pub mod var;
 pub mod varma;
 pub mod vecm;
 
+pub use arima::{ArimaOrder, ArimaResult, SeasonalOrder, ARIMA};
 pub use bootstrap::{Bootstrap, HypothesisTest};
 pub use column::{CategoricalColumn, Column, DataType};
 pub use dataframe::DataFrame;
@@ -33,6 +36,7 @@ pub use discrete::{Logit, Probit};
 pub use dynamic_panel::ArellanoBond;
 pub use error::GreenersError;
 pub use formula::Formula;
+pub use glm::{Family, GlmResult, Link, GLM};
 pub use gls::FGLS;
 pub use gmm::GMM;
 pub use hausman::HausmanTest;
