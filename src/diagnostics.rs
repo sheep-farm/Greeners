@@ -309,6 +309,59 @@ impl Diagnostics {
     ///
     /// # Returns
     /// Condition number (scalar)
+    /// D'Agostino-Pearson omnibus test for normality.
+    ///
+    /// Combines skewness and kurtosis z-scores: K^2 = Z1^2 + Z2^2 ~ chi2(2).
+    /// More powerful than Jarque-Bera for small samples.
+    ///
+    /// Returns: (omnibus-statistic, p-value)
+    pub fn omnibus(residuals: &Array1<f64>) -> Result<(f64, f64), GreenersError> {
+        let n = residuals.len() as f64;
+        if n < 20.0 {
+            return Err(GreenersError::ShapeMismatch(
+                "Omnibus test requires at least 20 observations".into(),
+            ));
+        }
+
+        let mean = residuals.mean().unwrap_or(0.0);
+        let m2 = residuals.mapv(|r| (r - mean).powi(2)).sum() / n;
+        let m3 = residuals.mapv(|r| (r - mean).powi(3)).sum() / n;
+        let m4 = residuals.mapv(|r| (r - mean).powi(4)).sum() / n;
+
+        let skewness = m3 / m2.powf(1.5);
+        let kurtosis = m4 / m2.powi(2);
+
+        // D'Agostino skewness z-score
+        let y = skewness * ((n + 1.0) * (n + 3.0) / (6.0 * (n - 2.0))).sqrt();
+        let beta2_s = 3.0 * (n * n + 27.0 * n - 70.0) * (n + 1.0) * (n + 3.0)
+            / ((n - 2.0) * (n + 5.0) * (n + 7.0) * (n + 9.0));
+        let w2 = (2.0 * (beta2_s - 1.0)).sqrt() - 1.0;
+        let _w = w2.max(1e-10).sqrt();
+        let delta = 1.0 / (0.5 * w2.max(1e-10).ln()).sqrt();
+        let alpha_s = (2.0 / (w2 - 1.0)).max(1e-10).sqrt();
+        let z1 = delta * (y / alpha_s + ((y / alpha_s).powi(2) + 1.0).sqrt()).ln();
+
+        // D'Agostino kurtosis z-score
+        let e_k = 3.0 * (n - 1.0) / (n + 1.0);
+        let var_k = 24.0 * n * (n - 2.0) * (n - 3.0) / ((n + 1.0).powi(2) * (n + 3.0) * (n + 5.0));
+        let x_k = (kurtosis - e_k) / var_k.max(1e-10).sqrt();
+
+        let beta1 = 6.0 * (n * n - 5.0 * n + 2.0) / ((n + 7.0) * (n + 9.0))
+            * (6.0 * (n + 3.0) * (n + 5.0) / (n * (n - 2.0) * (n - 3.0))).sqrt();
+        let a = 6.0 + 8.0 / beta1 * (2.0 / beta1 + (1.0 + 4.0 / (beta1 * beta1)).sqrt());
+        let z2 = ((1.0 - 2.0 / (9.0 * a))
+            - ((1.0 - 2.0 / a) / (1.0 + x_k * (2.0 / (a - 4.0)).max(1e-10).sqrt()))
+                .powf(1.0 / 3.0))
+            / (2.0 / (9.0 * a)).sqrt();
+
+        let k2 = z1 * z1 + z2 * z2;
+
+        let chi2 = ChiSquared::new(2.0).map_err(|_| GreenersError::OptimizationFailed)?;
+        let p_value = 1.0 - chi2.cdf(k2);
+
+        Ok((k2, p_value))
+    }
+
     pub fn condition_number(x: &Array2<f64>) -> Result<f64, GreenersError> {
         // Use Singular Value Decomposition to get singular values
         let (_u, s, _vt) = x.svd(false, false)?;

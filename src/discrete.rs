@@ -17,7 +17,7 @@ pub struct BinaryModelResult {
     pub log_likelihood: f64,
     pub pseudo_r2: f64, // McFadden's R2
     // Store X for marginal effects calculations
-    _x_data: Option<Array2<f64>>,
+    pub(crate) _x_data: Option<Array2<f64>>,
     pub inference_type: InferenceType, // Always Normal for MLE
     pub variable_names: Option<Vec<String>>,
     pub omitted_vars: Vec<String>,

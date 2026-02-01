@@ -9,6 +9,15 @@ use std::fmt;
 /// Type alias for inference computation results: (p_values, conf_lower, conf_upper)
 type InferenceResult = (Array1<f64>, Array1<f64>, Array1<f64>);
 
+/// Prediction with standard errors and confidence intervals.
+#[derive(Debug, Clone)]
+pub struct PredictionResult {
+    pub mean: Array1<f64>,
+    pub se: Array1<f64>,
+    pub ci_lower: Array1<f64>,
+    pub ci_upper: Array1<f64>,
+}
+
 #[derive(Debug, Clone)]
 pub struct OlsResult {
     pub params: Array1<f64>,
@@ -164,6 +173,178 @@ impl OlsResult {
         } else {
             0.0 // Singular matrix
         }
+    }
+
+    /// Compute confidence intervals at a custom significance level.
+    ///
+    /// Returns a vector of (lower, upper) tuples, one per coefficient.
+    pub fn conf_int(&self, alpha: f64) -> Result<Vec<(f64, f64)>, GreenersError> {
+        let critical_value = match self.inference_type {
+            InferenceType::StudentT => {
+                let t_dist = StudentsT::new(0.0, 1.0, self.df_resid as f64)
+                    .map_err(|_| GreenersError::OptimizationFailed)?;
+                t_dist.inverse_cdf(1.0 - alpha / 2.0)
+            }
+            InferenceType::Normal => {
+                let normal_dist =
+                    Normal::new(0.0, 1.0).map_err(|_| GreenersError::OptimizationFailed)?;
+                normal_dist.inverse_cdf(1.0 - alpha / 2.0)
+            }
+        };
+
+        Ok((0..self.params.len())
+            .map(|i| {
+                let margin = self.std_errors[i] * critical_value;
+                (self.params[i] - margin, self.params[i] + margin)
+            })
+            .collect())
+    }
+
+    /// Prediction with standard errors and confidence intervals.
+    ///
+    /// Returns predictions for `x_new` with associated uncertainty.
+    /// Requires the covariance matrix, so `x_orig` (the original design matrix) must be provided.
+    ///
+    /// SE(pred) = sqrt(x_new * (X'X)^-1 * x_new' * sigma^2)
+    pub fn get_prediction(
+        &self,
+        x_new: &Array2<f64>,
+        x_orig: &Array2<f64>,
+        alpha: f64,
+    ) -> Result<PredictionResult, GreenersError> {
+        let mean = x_new.dot(&self.params);
+
+        // (X'X)^-1
+        let xt_x = x_orig.t().dot(x_orig);
+        let xt_x_inv = xt_x.inv()?;
+
+        let sigma2 = self.sigma * self.sigma;
+
+        // SE for each prediction
+        let n_pred = x_new.nrows();
+        let mut se = Array1::<f64>::zeros(n_pred);
+        for i in 0..n_pred {
+            let xi = x_new.row(i);
+            let var_i = xi.dot(&xt_x_inv.dot(&xi)) * sigma2;
+            se[i] = var_i.max(0.0).sqrt();
+        }
+
+        let critical_value = match self.inference_type {
+            InferenceType::StudentT => {
+                let t_dist = StudentsT::new(0.0, 1.0, self.df_resid as f64)
+                    .map_err(|_| GreenersError::OptimizationFailed)?;
+                t_dist.inverse_cdf(1.0 - alpha / 2.0)
+            }
+            InferenceType::Normal => {
+                let normal_dist =
+                    Normal::new(0.0, 1.0).map_err(|_| GreenersError::OptimizationFailed)?;
+                normal_dist.inverse_cdf(1.0 - alpha / 2.0)
+            }
+        };
+
+        let margin = &se * critical_value;
+        let ci_lower = &mean - &margin;
+        let ci_upper = &mean + &margin;
+
+        Ok(PredictionResult {
+            mean,
+            se,
+            ci_lower,
+            ci_upper,
+        })
+    }
+
+    /// Wald test for linear restrictions R*beta = q.
+    ///
+    /// H0: R*beta = q
+    /// F = (R*b - q)' * [R * V * R']^-1 * (R*b - q) / J
+    ///
+    /// Returns (F-statistic, p-value, df_num).
+    pub fn wald_test(
+        &self,
+        r_matrix: &Array2<f64>,
+        q: &Array1<f64>,
+        x: &Array2<f64>,
+    ) -> Result<(f64, f64), GreenersError> {
+        let j = r_matrix.nrows();
+        let rb = r_matrix.dot(&self.params);
+        let diff = &rb - q;
+
+        // Reconstruct covariance matrix from std_errors (diagonal approx)
+        // For full covariance we need the original X
+        let xt_x = x.t().dot(x);
+        let xt_x_inv = xt_x.inv()?;
+        let sigma2 = self.sigma * self.sigma;
+        let cov = &xt_x_inv * sigma2;
+
+        let r_cov_r = r_matrix.dot(&cov).dot(&r_matrix.t());
+        let r_cov_r_inv = r_cov_r.inv()?;
+
+        let wald_stat = diff.dot(&r_cov_r_inv.dot(&diff)) / j as f64;
+
+        let f_dist = FisherSnedecor::new(j as f64, self.df_resid as f64)
+            .map_err(|_| GreenersError::OptimizationFailed)?;
+        let p_value = 1.0 - f_dist.cdf(wald_stat);
+
+        Ok((wald_stat, p_value))
+    }
+
+    /// F-test for joint significance of a subset of coefficients.
+    ///
+    /// `indices`: indices of coefficients to test (H0: all are zero).
+    pub fn f_test(&self, indices: &[usize], x: &Array2<f64>) -> Result<(f64, f64), GreenersError> {
+        let j = indices.len();
+        let k = self.params.len();
+
+        let mut r_matrix = Array2::<f64>::zeros((j, k));
+        for (row, &col) in indices.iter().enumerate() {
+            r_matrix[[row, col]] = 1.0;
+        }
+        let q = Array1::<f64>::zeros(j);
+
+        self.wald_test(&r_matrix, &q, x)
+    }
+
+    /// t-test for a single linear restriction r'*beta = q.
+    ///
+    /// Returns (t-statistic, p-value).
+    pub fn t_test(
+        &self,
+        r_vector: &Array1<f64>,
+        q: f64,
+        x: &Array2<f64>,
+    ) -> Result<(f64, f64), GreenersError> {
+        let rb = r_vector.dot(&self.params);
+        let diff = rb - q;
+
+        let xt_x = x.t().dot(x);
+        let xt_x_inv = xt_x.inv()?;
+        let sigma2 = self.sigma * self.sigma;
+        let cov = &xt_x_inv * sigma2;
+
+        let se = r_vector.dot(&cov.dot(r_vector)).max(0.0).sqrt();
+        if se < 1e-15 {
+            return Err(GreenersError::InvalidOperation(
+                "Standard error is zero".into(),
+            ));
+        }
+
+        let t_stat = diff / se;
+
+        let p_value = match self.inference_type {
+            InferenceType::StudentT => {
+                let t_dist = StudentsT::new(0.0, 1.0, self.df_resid as f64)
+                    .map_err(|_| GreenersError::OptimizationFailed)?;
+                2.0 * (1.0 - t_dist.cdf(t_stat.abs()))
+            }
+            InferenceType::Normal => {
+                let normal_dist =
+                    Normal::new(0.0, 1.0).map_err(|_| GreenersError::OptimizationFailed)?;
+                2.0 * (1.0 - normal_dist.cdf(t_stat.abs()))
+            }
+        };
+
+        Ok((t_stat, p_value))
     }
 
     /// Helper function to compute p-values and confidence intervals

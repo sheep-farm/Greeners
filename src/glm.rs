@@ -33,6 +33,14 @@ pub enum Link {
     Probit,
     InversePower,
     InverseSquared,
+    /// Complementary log-log: g(μ) = log(-log(1-μ))
+    CLogLog,
+    /// Power link: g(μ) = μ^power (power=0 is Log)
+    Power(f64),
+    /// Negative binomial link: g(μ) = log(μ / (μ + 1/alpha))
+    NegativeBinomial(f64),
+    /// Cauchy (quantile) link: g(μ) = tan(π(μ - 0.5))
+    Cauchy,
 }
 
 impl Family {
@@ -197,6 +205,25 @@ impl Link {
             }
             Link::InversePower => 1.0 / mu.max(1e-10),
             Link::InverseSquared => 1.0 / (mu * mu).max(1e-10),
+            Link::CLogLog => {
+                let mu_c = mu.clamp(1e-10, 1.0 - 1e-10);
+                (-(1.0 - mu_c).ln()).max(1e-10).ln()
+            }
+            Link::Power(p) => {
+                if p.abs() < 1e-10 {
+                    mu.max(1e-10).ln() // Power(0) = Log
+                } else {
+                    mu.max(1e-10).powf(*p)
+                }
+            }
+            Link::NegativeBinomial(alpha) => {
+                let inv_alpha = 1.0 / alpha;
+                (mu.max(1e-10) / (mu.max(1e-10) + inv_alpha)).ln()
+            }
+            Link::Cauchy => {
+                let mu_c = mu.clamp(1e-10, 1.0 - 1e-10);
+                (std::f64::consts::PI * (mu_c - 0.5)).tan()
+            }
         }
     }
 
@@ -215,6 +242,27 @@ impl Link {
             }
             Link::InversePower => 1.0 / eta.max(1e-10),
             Link::InverseSquared => 1.0 / eta.max(1e-10).sqrt(),
+            Link::CLogLog => {
+                // g^-1(eta) = 1 - exp(-exp(eta))
+                1.0 - (-eta.clamp(-30.0, 30.0).exp()).exp()
+            }
+            Link::Power(p) => {
+                if p.abs() < 1e-10 {
+                    eta.clamp(-30.0, 30.0).exp()
+                } else {
+                    eta.max(1e-10).powf(1.0 / p)
+                }
+            }
+            Link::NegativeBinomial(alpha) => {
+                // mu = (1/alpha) * exp(eta) / (1 - exp(eta))
+                let inv_alpha = 1.0 / alpha;
+                let e = eta.clamp(-30.0, 30.0).exp();
+                inv_alpha * e / (1.0 - e).max(1e-10)
+            }
+            Link::Cauchy => {
+                // mu = 0.5 + arctan(eta) / pi
+                0.5 + eta.atan() / std::f64::consts::PI
+            }
         }
     }
 
@@ -236,6 +284,29 @@ impl Link {
             }
             Link::InversePower => -1.0 / (mu * mu).max(1e-10),
             Link::InverseSquared => -2.0 / (mu * mu * mu).max(1e-10),
+            Link::CLogLog => {
+                // g'(mu) = 1 / ((1-mu) * log(1-mu))  [with sign]
+                let mu_c = mu.clamp(1e-10, 1.0 - 1e-10);
+                -1.0 / ((1.0 - mu_c) * (1.0 - mu_c).ln()).abs().max(1e-10)
+            }
+            Link::Power(p) => {
+                if p.abs() < 1e-10 {
+                    1.0 / mu.max(1e-10)
+                } else {
+                    p * mu.max(1e-10).powf(p - 1.0)
+                }
+            }
+            Link::NegativeBinomial(alpha) => {
+                let inv_alpha = 1.0 / alpha;
+                // d/dmu log(mu/(mu + 1/alpha)) = 1/mu - 1/(mu + 1/alpha) = (1/alpha) / (mu * (mu + 1/alpha))
+                inv_alpha / (mu.max(1e-10) * (mu.max(1e-10) + inv_alpha))
+            }
+            Link::Cauchy => {
+                // g'(mu) = pi / cos^2(pi*(mu-0.5))
+                let mu_c = mu.clamp(1e-10, 1.0 - 1e-10);
+                let cos_val = (std::f64::consts::PI * (mu_c - 0.5)).cos();
+                std::f64::consts::PI / (cos_val * cos_val).max(1e-10)
+            }
         }
     }
 
@@ -247,6 +318,10 @@ impl Link {
             Link::Probit => "Probit",
             Link::InversePower => "InversePower",
             Link::InverseSquared => "InverseSquared",
+            Link::CLogLog => "CLogLog",
+            Link::Power(_) => "Power",
+            Link::NegativeBinomial(_) => "NegativeBinomial",
+            Link::Cauchy => "Cauchy",
         }
     }
 }
@@ -279,8 +354,8 @@ pub struct GlmResult {
     pub variable_names: Option<Vec<String>>,
     pub omitted_vars: Vec<String>,
     // Store design matrix and y for predict/residuals
-    _x_data: Array2<f64>,
-    _y_data: Array1<f64>,
+    pub(crate) _x_data: Array2<f64>,
+    pub(crate) _y_data: Array1<f64>,
 }
 
 impl GlmResult {
@@ -333,6 +408,75 @@ impl GlmResult {
             resid[i] = (self._y_data[i] - mu[i]) * self.link.deriv(mu[i]);
         }
         resid
+    }
+
+    /// Compute confidence intervals at a custom significance level.
+    pub fn conf_int(&self, alpha: f64) -> Vec<(f64, f64)> {
+        let normal_dist = Normal::new(0.0, 1.0).unwrap();
+        let z_crit = normal_dist.inverse_cdf(1.0 - alpha / 2.0);
+
+        (0..self.params.len())
+            .map(|i| {
+                let margin = self.std_errors[i] * z_crit;
+                (self.params[i] - margin, self.params[i] + margin)
+            })
+            .collect()
+    }
+
+    /// Prediction with standard errors and confidence intervals (on the mean response scale).
+    ///
+    /// Uses the delta method: SE(mu) = |dmu/deta| * SE(eta)
+    pub fn get_prediction(&self, x_new: &Array2<f64>, alpha: f64) -> crate::ols::PredictionResult {
+        let eta = x_new.dot(&self.params);
+        let mu = eta.mapv(|e| self.link.linkinv(e));
+
+        // SE on the linear predictor scale
+        // Requires (X'WX)^-1 which we approximate from stored data
+        let xw = {
+            let n = self._x_data.nrows();
+            let mut xw = self._x_data.clone();
+            for i in 0..n {
+                let mu_i = self.link.linkinv(self._x_data.row(i).dot(&self.params));
+                let v = self.family.variance(mu_i);
+                let g_prime = self.link.deriv(mu_i);
+                let w = 1.0 / (v * g_prime * g_prime).max(1e-10);
+                xw.row_mut(i).mapv_inplace(|x| x * w);
+            }
+            xw
+        };
+        let xtwx = self._x_data.t().dot(&xw);
+        let inv_xtwx = xtwx
+            .inv()
+            .unwrap_or_else(|_| ndarray::Array2::eye(self.params.len()));
+
+        let n_pred = x_new.nrows();
+        let mut se_eta = ndarray::Array1::<f64>::zeros(n_pred);
+        for i in 0..n_pred {
+            let xi = x_new.row(i);
+            let var_i = xi.dot(&inv_xtwx.dot(&xi)) * self.dispersion;
+            se_eta[i] = var_i.max(0.0).sqrt();
+        }
+
+        // Transform to mean scale via delta method
+        let se_mu: ndarray::Array1<f64> = (0..n_pred)
+            .map(|i| {
+                let dmu_deta = 1.0 / self.link.deriv(self.link.linkinv(eta[i])).abs().max(1e-10);
+                se_eta[i] * dmu_deta
+            })
+            .collect();
+
+        let normal_dist = Normal::new(0.0, 1.0).unwrap();
+        let z_crit = normal_dist.inverse_cdf(1.0 - alpha / 2.0);
+        let margin = &se_mu * z_crit;
+        let ci_lower = &mu - &margin;
+        let ci_upper = &mu + &margin;
+
+        crate::ols::PredictionResult {
+            mean: mu,
+            se: se_mu,
+            ci_lower,
+            ci_upper,
+        }
     }
 
     /// Change inference type and recompute p-values and confidence intervals.
