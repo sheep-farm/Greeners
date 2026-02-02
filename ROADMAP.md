@@ -15,10 +15,10 @@ Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 | OLS | `sm.OLS` | `OLS` | ✅ | HC1-HC4, NeweyWest, Clustered, TwoWay |
 | WLS | `sm.WLS` | `WLS` | ✅ | Interface dedicada com pesos explicitos |
 | GLS | `sm.GLS` | `FGLS` | ✅ | |
-| GLSAR | `sm.GLSAR` | — | ❌ | GLS com erros AR |
-| RecursiveLS | `RecursiveLS` | — | ❌ | Minimos quadrados recursivos |
-| RollingOLS | `RollingOLS` | — | ❌ | OLS com janela movel |
-| RollingWLS | `RollingWLS` | — | ❌ | WLS com janela movel |
+| GLSAR | `sm.GLSAR` | `GLSAR` | ✅ | GLS com erros AR |
+| RecursiveLS | `RecursiveLS` | `RecursiveLS` | ✅ | Minimos quadrados recursivos |
+| RollingOLS | `RollingOLS` | `RollingOLS` | ✅ | OLS com janela movel |
+| RollingWLS | `RollingWLS` | `RollingWLS` | ✅ | WLS com janela movel |
 | QuantReg | `QuantReg` | `QuantileReg` | ✅ | |
 
 ## 2. Generalized Linear Models (statsmodels.genmod)
@@ -30,7 +30,7 @@ Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 | GEE | `GEE` | `GEE` | ✅ | Exchangeable, AR(1), unstructured, independence |
 | NominalGEE | `NominalGEE` | `NominalGEE` | ✅ | Baseline-category logit |
 | OrdinalGEE | `OrdinalGEE` | `OrdinalGEE` | ✅ | Cumulative logit |
-| GLMGam | `GLMGam` | — | ❌ | GAM via penalized splines |
+| GLMGam | `GLMGam` | `GLMGam` | ✅ | GAM via penalized B-splines |
 | BayesMixedGLM | `BinomialBayesMixedGLM` | `BayesMixedGLM` | ✅ | Laplace approximation |
 
 ## 3. Discrete Choice (statsmodels.discrete)
@@ -58,31 +58,45 @@ Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 | Feature | statsmodels | Greeners | Status | Notas |
 |---|---|---|---|---|
 | ARIMA/SARIMAX | `ARIMA`, `SARIMAX` | `ARIMA` | 🔶 | Basico com seasonal; faltam exog completo, simulate, predict com IC |
-| AutoReg | `AutoReg` | — | ❌ | |
-| ARDL | `ARDL` | — | ❌ | |
-| ExponentialSmoothing | `ExponentialSmoothing` | — | ❌ | Holt-Winters |
-| SimpleExpSmoothing | `SimpleExpSmoothing` | — | ❌ | |
-| Holt | `Holt` | — | ❌ | |
-| ETSModel | `ETSModel` | — | ❌ | Error-Trend-Seasonality |
-| VAR | `VAR` | `VAR` | ✅ | |
+| AutoReg | `AutoReg` | `AutoReg` | ✅ | |
+| ARDL | `ARDL` | `ARDL` | ✅ | |
+| ExponentialSmoothing | `ExponentialSmoothing` | `ExponentialSmoothing` | ✅ | Holt-Winters (SES, Holt, HW additive/multiplicative) |
+| ETSModel | `ETSModel` | — | ❌ | Error-Trend-Seasonality framework completo |
+| VAR | `VAR` | `VAR` | ✅ | IRF, FEVD |
 | VARMAX | `VARMAX` | `VARMA` | 🔶 | Falta exog (o X do VARMAX) |
 | VECM | `VECM` | `VECM` | ✅ | |
-| SVAR | `SVAR` | — | ❌ | VAR Estrutural |
+| SVAR | `SVAR` | `SVAR` | ✅ | VAR Estrutural |
 | DynamicFactor | `DynamicFactor` | — | ❌ | |
 | UnobservedComponents | `UnobservedComponents` | — | ❌ | Local level, tendencia, sazonalidade |
-| MarkovRegression | `MarkovRegression` | — | ❌ | Regime switching |
-| MarkovAutoregression | `MarkovAutoregression` | — | ❌ | |
+| MarkovRegression | `MarkovRegression` | `MarkovSwitching` | ✅ | Regime switching |
+| MarkovAutoregression | `MarkovAutoregression` | — | ❌ | Markov com componente AR |
 
-### 4.2 State Space Framework
+### 4.2 Volatility Models (arch package)
+
+| Feature | arch | Greeners | Status | Notas |
+|---|---|---|---|---|
+| GARCH(p,q) | `arch_model(vol='GARCH')` | `GARCH` | ✅ | Normal + Student-t, BFGS optimizer |
+| ARCH(q) | `arch_model(vol='ARCH')` | `GARCH` (p=0) | ✅ | Caso especial de GARCH(0,q) |
+| EGARCH | `arch_model(vol='EGARCH')` | `EGARCH` | ✅ | Normal + Student-t, log-variance |
+| GJR-GARCH | `arch_model(vol='GARCH', o=1)` | `GJRGARCH` | ✅ | Normal + Student-t, leverage effect |
+| FIGARCH | `arch_model(vol='FIGARCH')` | — | ❌ | Fractionally integrated GARCH |
+| APARCH | `arch_model(vol='APARCH')` | — | ❌ | Asymmetric Power ARCH |
+| HARCH | `arch_model(vol='HARCH')` | — | ❌ | Heterogeneous ARCH |
+| ConstantVariance | `ConstantVariance` | — | ❌ | Baseline/benchmark |
+| SkewStudent | `SkewStudent` | — | ❌ | Distribuicao skew-t |
+| GED | `GeneralizedError` | — | ❌ | Distribuicao generalizada de erros |
+
+### 4.3 State Space Framework
 
 | Feature | statsmodels | Greeners | Status | Notas |
 |---|---|---|---|---|
-| MLEModel | `MLEModel` | — | ❌ | Framework generico (Kalman filter) — base para todos os modelos acima |
-| KalmanFilter | `KalmanFilter` | — | ❌ | |
-| KalmanSmoother | `KalmanSmoother` | — | ❌ | |
+| MLEModel | `MLEModel` | — | ❌ | Framework generico (Kalman filter) — base para DynamicFactor, UC |
+| KalmanFilter | `KalmanFilter` | `KalmanFilter` | ✅ | Filtro de Kalman basico |
+| KalmanSmoother | `KalmanSmoother` | `KalmanSmoother` | ✅ | RTS smoother |
+| StateSpaceModel | `MLEModel` | `StateSpaceModel` | ✅ | Estimacao via MLE |
 | Simulation smoother | `SimulationSmoother` | — | ❌ | |
 
-### 4.3 Testes e Ferramentas de Series Temporais
+### 4.4 Testes e Ferramentas de Series Temporais
 
 | Feature | statsmodels | Greeners | Status | Notas |
 |---|---|---|---|---|
@@ -96,9 +110,9 @@ Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 | Ljung-Box | `acorr_ljungbox` | `TimeSeries::ljung_box` | ✅ | |
 | ACF | `acf` | `TimeSeries::acf` | ✅ | |
 | PACF | `pacf` | `TimeSeries::pacf` | ✅ | |
-| seasonal_decompose | `seasonal_decompose` | `TimeSeries::seasonal_decompose` | ✅ | Additive + multiplicative |
+| seasonal_decompose | `seasonal_decompose` | `Decomposition` | ✅ | Additive + multiplicative |
 | STL | `STL` | `TimeSeries::stl` | ✅ | LOESS-based decomposition |
-| MSTL | `MSTL` | — | ❌ | |
+| MSTL | `MSTL` | — | ❌ | Multi-seasonal STL |
 | HP filter | `hpfilter` | `TimeSeries::hp_filter` | ✅ | Hodrick-Prescott |
 | BK filter | `bkfilter` | `TimeSeries::bk_filter` | ✅ | Baxter-King |
 | CF filter | `cffilter` | `TimeSeries::cf_filter` | ✅ | Christiano-Fitzgerald |
@@ -116,10 +130,11 @@ Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 
 ## 6. Mixed/Multilevel Models
 
-| Feature | statsmodels | Greeners | Status |
-|---|---|---|---|
+| Feature | statsmodels | Greeners | Status | Notas |
+|---|---|---|---|---|
 | MixedLM | `MixedLM` | `MixedLM` | ✅ | Random intercepts, REML |
-| BetaModel | `BetaModel` | — | ❌ |
+| BayesMixedGLM | `BayesMixedGLM` | `BayesMixedGLM` | ✅ | Laplace approximation |
+| BetaModel | `BetaModel` | `BetaModel` | ✅ | Beta regression |
 
 ## 7. Multivariate (statsmodels.multivariate)
 
@@ -134,17 +149,17 @@ Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 
 | Feature | statsmodels | Greeners | Status |
 |---|---|---|---|
-| KDEUnivariate | `KDEUnivariate` | `KDE` | ✅ | Gaussian, Epanechnikov, Silverman/Scott |
+| KDEUnivariate | `KDEUnivariate` | `KDEUnivariate` | ✅ | Gaussian, Epanechnikov, Silverman/Scott |
 | KDEMultivariate | `KDEMultivariate` | `KDEMultivariate` | ✅ | Product kernel, Silverman per-dim |
-| KernelReg | `KernelReg` | — | ❌ |
+| KernelReg | `KernelReg` | `KernelReg` | ✅ | Nadaraya-Watson |
 | Lowess | `lowess` | `Lowess` | ✅ | Local weighted regression |
 
 ## 9. Duration/Survival (statsmodels.duration)
 
-| Feature | statsmodels | Greeners | Status |
-|---|---|---|---|
-| Kaplan-Meier | `SurvfuncRight` | — | ❌ |
-| Cox PH | `PHReg` | — | ❌ |
+| Feature | statsmodels | Greeners | Status | Notas |
+|---|---|---|---|---|
+| Kaplan-Meier | `SurvfuncRight` | `KaplanMeier` | ✅ | Survival function, CI |
+| Cox PH | `PHReg` | `CoxPH` | ✅ | Proportional hazards |
 
 ## 10. Imputation (statsmodels.imputation)
 
@@ -175,7 +190,7 @@ Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 | Harvey-Collier | `linear_harvey_collier` | `Diagnostics::harvey_collier` | ✅ | t-test on recursive residuals |
 | DFBetas | `OLSInfluence` | `Influence::dfbetas` | ✅ | Per-observation influence |
 | DFFITS | `OLSInfluence` | `Influence::dffits` | ✅ | Per-observation influence |
-| CUSUM | `OLSInfluence` | — | ❌ |
+| CUSUM | `OLSInfluence` | `CUSUMTest` | ✅ | Recursive CUSUM + bounds |
 | Wald test | `.wald_test()` | `OlsResult::wald_test` | ✅ |
 | F test | `.f_test()` | `OlsResult::f_test` | ✅ |
 | t test (restricoes) | `.t_test()` | `OlsResult::t_test` | ✅ |
@@ -212,14 +227,14 @@ Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 |---|---|---|---|
 | `DescrStatsW` | descriptive stats com pesos | `DescrStatsW` | ✅ | Weighted mean, var, std, CI, t-test |
 | `CompareMeans` | testes de medias | `Stats::compare_means` | ✅ | Welch t-test, Cohen's d, CI |
-| `anova_lm` | ANOVA | — | ❌ |
+| `anova_lm` | ANOVA | `Stats::anova_oneway` | ✅ | One-way ANOVA + regression ANOVA |
 | `multipletests` | correcao de multiplos testes | — | ❌ |
-| `diagnostic` (vários) | Anderson-Darling, Lilliefors, etc. | `Diagnostics` | ✅ | Anderson-Darling, Lilliefors |
+| `diagnostic` (varios) | Anderson-Darling, Lilliefors, etc. | `Diagnostics` | ✅ | Anderson-Darling, Lilliefors |
 | `proportion` | testes de proporcao | — | ❌ |
 | `weightstats` | estatisticas ponderadas | `DescrStatsW` | ✅ | Via descrstatsw module |
 | `moment_helpers` | skew, kurtosis | — | ❌ |
 | `sandwich_covariance` | HAC, kernel covariance | parcial | 🔶 | NeweyWest existe em CovarianceType |
-| `stattools` | varios testes | parcial | 🔶 | ADF existe |
+| `stattools` | varios testes | parcial | 🔶 | ADF, KPSS, PP, ZA |
 
 ## 15. Datasets (statsmodels.datasets)
 
@@ -252,59 +267,27 @@ Estas sao vantagens competitivas do Greeners (via linearmodels ou proprias):
 
 ---
 
-## Prioridades de Implementacao
+## O que falta (❌) — Prioridades
 
-### Fase 1 — Completar o core existente
-Itens que adicionam valor imediato aos modelos ja implementados.
+### Alta prioridade
+1. **ARIMA melhorias** — exog completo, simulate, predict com IC (🔶 → ✅)
+2. **VARMAX** — adicionar exog ao VARMA (🔶 → ✅)
+3. **Export** LaTeX / HTML / CSV de resultados
+4. **Formulas avancadas** — `x1:x2`, `poly()`, `bs()`, `log()`
 
-1. **`conf_int()` e `get_prediction()` em OLS/GLM** — intervalos de confianca para coeficientes e predicoes
-2. **ACF / PACF** — funcoes basicas essenciais para time series
-3. **KPSS test** — complemento ao ADF
-4. **Ljung-Box test** — diagnostico de autocorrelacao residual
-5. **IRF e FEVD** no VAR — analise de impulso-resposta ja esperada pelo usuario do VAR
-6. **Cointegration tests** (Engle-Granger, Johansen)
-7. **Granger causality test**
-8. **WLS dedicado** com interface de pesos
-9. **Links adicionais** no GLM (CLogLog, Power)
-10. **Wald/F/t tests** genericos nos resultados
-11. **Omnibus test**
-12. **ARCH test**
+### Media prioridade
+5. **ETSModel** — Error-Trend-Seasonality framework
+6. **DynamicFactor** — Dynamic Factor models
+7. **UnobservedComponents** — Local level, trend, seasonal
+8. **MarkovAutoregression** — Markov com AR
+9. **MSTL** — Multi-seasonal STL
+10. **multipletests** — Bonferroni, FDR, Holm
+11. **proportion** — testes de proporcao
 
-### Fase 2 — Modelos discretos e contagem
-1. **Poisson dedicado** (interface separada do GLM, com overdispersion test)
-2. **NegativeBinomial dedicado**
-3. **MNLogit** (Multinomial Logit)
-4. **OrderedModel** (Ordered Logit/Probit)
-5. **Zero-Inflated** (ZIP, ZINB)
-6. **Conditional models** (ConditionalLogit, ConditionalPoisson)
-
-### Fase 3 — Time series avancado
-1. **ExponentialSmoothing** (Holt-Winters)
-2. **State Space framework** (Kalman filter) — base para DynamicFactor, UnobservedComponents
-3. **seasonal_decompose / STL**
-4. **Filtros** (HP, BK, CF)
-5. **Markov Switching**
-6. **ARDL / AutoReg**
-7. **SVAR**
-8. **VARMAX** (adicionar exog ao VARMA)
-
-### Fase 4 — Extensoes
-1. **RLM** (Robust Linear Model — M-estimation)
-2. **MixedLM** (Mixed Effects)
-3. **Nonparametric** (KDE, Lowess, Kernel Regression)
-4. **PCA / Factor Analysis / MANOVA**
-5. **Survival** (Kaplan-Meier, Cox PH)
-6. **GEE**
-7. **MICE** (Multiple Imputation)
-8. **BetaModel**
-9. **RecursiveLS, RollingOLS, RollingWLS**
-10. **GLSAR, GLMGam**
-
-### Fase 5 — Infraestrutura e polish
-1. **summary_col** (comparacao de modelos lado-a-lado)
-2. **Export** LaTeX / HTML / CSV de resultados
-3. **Formulas avancadas** (`:`, `poly()`, `bs()`, `log()`)
-4. **Influence diagnostics** completos (DFBetas, DFFITS, CUSUM)
-5. **Stats module** (ANOVA, testes de proporcao, multipletests)
-6. **Datasets embutidos**
-7. **DescrStatsW** (estatisticas descritivas com pesos)
+### Baixa prioridade (nice-to-have)
+12. **MLEModel generico** — Framework state space unificado
+13. **SimulationSmoother**
+14. **moment_helpers** — skew, kurtosis centralizados
+15. **FIGARCH, APARCH, HARCH** — variantes GARCH adicionais
+16. **SkewStudent, GED** — distribuicoes adicionais para GARCH
+17. **summary2** — LaTeX/HTML summaries avancados
