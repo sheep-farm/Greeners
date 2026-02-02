@@ -3,6 +3,7 @@ use crate::glm::{Family, GLM};
 use crate::ols::PredictionResult;
 use crate::{CovarianceType, DataFrame, Formula, InferenceType};
 use ndarray::{Array1, Array2};
+use ndarray_linalg::Inverse;
 use statrs::distribution::{ContinuousCDF, Normal};
 use std::fmt;
 
@@ -215,6 +216,141 @@ impl NegBinResult {
     }
 }
 
+/// Result from Generalized Poisson regression.
+#[derive(Debug, Clone)]
+pub struct GenPoissonResult {
+    pub params: Array1<f64>,
+    pub alpha: f64,
+    pub std_errors: Array1<f64>,
+    pub z_values: Array1<f64>,
+    pub p_values: Array1<f64>,
+    pub conf_lower: Array1<f64>,
+    pub conf_upper: Array1<f64>,
+    pub log_likelihood: f64,
+    pub aic: f64,
+    pub bic: f64,
+    pub n_obs: usize,
+    pub n_iter: usize,
+    pub converged: bool,
+    pub variable_names: Option<Vec<String>>,
+}
+
+impl fmt::Display for GenPoissonResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(
+            f,
+            "\n{:=^78}",
+            format!(" Generalized Poisson (alpha={:.4}) ", self.alpha)
+        )?;
+        writeln!(
+            f,
+            "{:<20} {:>15} || {:<20} {:>15.4}",
+            "No. Observations:", self.n_obs, "Log-Likelihood:", self.log_likelihood
+        )?;
+        writeln!(
+            f,
+            "{:<20} {:>15.4} || {:<20} {:>15.4}",
+            "AIC:", self.aic, "BIC:", self.bic
+        )?;
+        writeln!(f, "\n{:-^78}", "")?;
+        writeln!(
+            f,
+            "{:<12} {:>10} {:>10} {:>8} {:>8} {:>10} {:>10}",
+            "", "coef", "std err", "z", "P>|z|", "[0.025", "0.975]"
+        )?;
+        writeln!(f, "{:-^78}", "")?;
+        for i in 0..self.params.len() {
+            let name = self
+                .variable_names
+                .as_ref()
+                .and_then(|n| n.get(i).cloned())
+                .unwrap_or_else(|| format!("x{}", i));
+            writeln!(
+                f,
+                "{:<12} {:>10.4} {:>10.4} {:>8.3} {:>8.3} {:>10.3} {:>10.3}",
+                name,
+                self.params[i],
+                self.std_errors[i],
+                self.z_values[i],
+                self.p_values[i],
+                self.conf_lower[i],
+                self.conf_upper[i]
+            )?;
+        }
+        writeln!(f, "{:=^78}", "")
+    }
+}
+
+/// Result from NegBinP regression.
+#[derive(Debug, Clone)]
+pub struct NegBinPResult {
+    pub params: Array1<f64>,
+    pub std_errors: Array1<f64>,
+    pub z_values: Array1<f64>,
+    pub p_values: Array1<f64>,
+    pub conf_lower: Array1<f64>,
+    pub conf_upper: Array1<f64>,
+    pub log_likelihood: f64,
+    pub deviance: f64,
+    pub aic: f64,
+    pub bic: f64,
+    pub alpha: f64,
+    pub p_param: f64,
+    pub n_obs: usize,
+    pub n_iter: usize,
+    pub converged: bool,
+    pub variable_names: Option<Vec<String>>,
+}
+
+impl fmt::Display for NegBinPResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(
+            f,
+            "\n{:=^78}",
+            format!(
+                " NegBinP (p={:.1}, alpha={:.4}) ",
+                self.p_param, self.alpha
+            )
+        )?;
+        writeln!(
+            f,
+            "{:<20} {:>15} || {:<20} {:>15.4}",
+            "No. Observations:", self.n_obs, "Log-Likelihood:", self.log_likelihood
+        )?;
+        writeln!(
+            f,
+            "{:<20} {:>15.4} || {:<20} {:>15.4}",
+            "AIC:", self.aic, "BIC:", self.bic
+        )?;
+        writeln!(f, "\n{:-^78}", "")?;
+        writeln!(
+            f,
+            "{:<12} {:>10} {:>10} {:>8} {:>8} {:>10} {:>10}",
+            "", "coef", "std err", "z", "P>|z|", "[0.025", "0.975]"
+        )?;
+        writeln!(f, "{:-^78}", "")?;
+        for i in 0..self.params.len() {
+            let name = self
+                .variable_names
+                .as_ref()
+                .and_then(|n| n.get(i).cloned())
+                .unwrap_or_else(|| format!("x{}", i));
+            writeln!(
+                f,
+                "{:<12} {:>10.4} {:>10.4} {:>8.3} {:>8.3} {:>10.3} {:>10.3}",
+                name,
+                self.params[i],
+                self.std_errors[i],
+                self.z_values[i],
+                self.p_values[i],
+                self.conf_lower[i],
+                self.conf_upper[i]
+            )?;
+        }
+        writeln!(f, "{:=^78}", "")
+    }
+}
+
 /// Negative Binomial regression estimator.
 pub struct NegBin;
 
@@ -405,5 +541,359 @@ impl NegBin {
 
         // Step 5: Final fit with optimal alpha and requested cov_type
         Self::fit_with_alpha(y, x, best_alpha, cov_type, variable_names)
+    }
+}
+
+/// NegBinP: Negative Binomial with flexible P parameter.
+///
+/// Variance function: Var(Y) = mu + alpha * mu^p
+/// - p=1 gives NB1 (linear variance)
+/// - p=2 gives NB2 (quadratic variance, standard NegBin)
+pub struct NegBinP;
+
+impl NegBinP {
+    /// Fit NegBinP model via IRLS with given p parameter.
+    pub fn fit(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        p_param: f64,
+    ) -> Result<NegBinPResult, GreenersError> {
+        Self::fit_with_names(y, x, p_param, None)
+    }
+
+    pub fn fit_with_names(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        p_param: f64,
+        variable_names: Option<Vec<String>>,
+    ) -> Result<NegBinPResult, GreenersError> {
+        let n = y.len();
+        let k = x.ncols();
+
+        // Initialize with Poisson (via OLS on log(y+0.5))
+        let log_y: Array1<f64> = y.mapv(|v| (v + 0.5).ln());
+        let ols = crate::OLS::fit(&log_y, x, CovarianceType::NonRobust)?;
+        let mut beta = ols.params.clone();
+
+        // Estimate initial alpha from method of moments
+        let mu_init = x.dot(&beta).mapv(f64::exp);
+        let mut alpha = {
+            let mut s = 0.0;
+            for i in 0..n {
+                let m = mu_init[i].max(1e-10);
+                s += ((y[i] - m).powi(2) - m) / m.powf(p_param);
+            }
+            (s / n as f64).max(0.01)
+        };
+
+        let max_iter = 100;
+        let tol = 1e-6;
+        let mut converged = false;
+        let mut n_iter = 0;
+
+        for iter in 0..max_iter {
+            n_iter = iter + 1;
+            let eta = x.dot(&beta);
+            let mu: Array1<f64> = eta.mapv(|e| e.exp().max(1e-10));
+
+            // IRLS weights: w_i = mu_i^2 / V(mu_i), where V = mu + alpha*mu^p
+            let mut w = Array1::<f64>::zeros(n);
+            let mut z = Array1::<f64>::zeros(n);
+            for i in 0..n {
+                let m = mu[i];
+                let v = (m + alpha * m.powf(p_param)).max(1e-10);
+                w[i] = m * m / v;
+                z[i] = eta[i] + (y[i] - m) / m;
+            }
+
+            // Weighted least squares: beta = (X'WX)^-1 X'Wz
+            let mut xtwx = Array2::<f64>::zeros((k, k));
+            let mut xtwz = Array1::<f64>::zeros(k);
+            for i in 0..n {
+                let xi = x.row(i);
+                for a in 0..k {
+                    xtwz[a] += w[i] * xi[a] * z[i];
+                    for b in 0..k {
+                        xtwx[[a, b]] += w[i] * xi[a] * xi[b];
+                    }
+                }
+            }
+
+            let xtwx_inv: Array2<f64> = match xtwx.inv() {
+                Ok(inv) => inv,
+                Err(_) => break,
+            };
+            let new_beta = xtwx_inv.dot(&xtwz);
+
+            // Update alpha via moment estimator
+            let eta_new = x.dot(&new_beta);
+            let mu_new: Array1<f64> = eta_new.mapv(|e: f64| e.exp().max(1e-10));
+            let mut alpha_num = 0.0;
+            for i in 0..n {
+                let m = mu_new[i];
+                alpha_num += ((y[i] - m).powi(2) - m) / m.powf(p_param);
+            }
+            alpha = (alpha_num / n as f64).max(1e-6);
+
+            let change = &new_beta - &beta;
+            let diff = change
+                .mapv(|d: f64| d.abs())
+                .iter()
+                .copied()
+                .fold(0.0_f64, f64::max);
+            beta = new_beta;
+
+            if diff < tol {
+                converged = true;
+                break;
+            }
+        }
+
+        // Log-likelihood for NegBinP
+        let mu: Array1<f64> = x.dot(&beta).mapv(|e| e.exp().max(1e-10));
+        let mut ll = 0.0;
+        for i in 0..n {
+            let m = mu[i];
+            let yi = y[i];
+            let r = 1.0 / (alpha * m.powf(p_param - 1.0)).max(1e-10);
+            // NB log-likelihood with r = 1/(alpha * mu^(p-1))
+            ll += statrs::function::gamma::ln_gamma(yi + r)
+                - statrs::function::gamma::ln_gamma(r)
+                - statrs::function::gamma::ln_gamma(yi + 1.0)
+                + r * (r / (r + m)).max(1e-15).ln()
+                + yi * (m / (r + m)).max(1e-15).ln();
+        }
+
+        // Deviance
+        let mut deviance = 0.0;
+        for i in 0..n {
+            let m = mu[i];
+            let yi = y[i];
+            if yi > 1e-10 {
+                deviance += 2.0 * yi * (yi / m).ln();
+            }
+            deviance -= 2.0 * (yi - m);
+        }
+
+        // Standard errors from Fisher information
+        let mut fisher = Array2::<f64>::zeros((k, k));
+        for i in 0..n {
+            let m = mu[i];
+            let v = (m + alpha * m.powf(p_param)).max(1e-10);
+            let wi = m * m / v;
+            let xi = x.row(i);
+            for a in 0..k {
+                for b in 0..k {
+                    fisher[[a, b]] += wi * xi[a] * xi[b];
+                }
+            }
+        }
+
+        let cov = fisher.inv().unwrap_or(Array2::eye(k) * 1e-4);
+        let std_errors: Array1<f64> =
+            (0..k).map(|i| cov[[i, i]].max(0.0).sqrt()).collect();
+
+        let normal = Normal::new(0.0, 1.0).unwrap();
+        let z_values = &beta / std_errors.mapv(|s| if s > 1e-15 { s } else { 1.0 });
+        let p_values = z_values.mapv(|z| 2.0 * (1.0 - normal.cdf(z.abs())));
+        let z_crit = normal.inverse_cdf(0.975);
+        let conf_lower = &beta - z_crit * &std_errors;
+        let conf_upper = &beta + z_crit * &std_errors;
+
+        let k_f = (k + 1) as f64; // +1 for alpha
+        let aic = -2.0 * ll + 2.0 * k_f;
+        let bic = -2.0 * ll + k_f * (n as f64).ln();
+
+        Ok(NegBinPResult {
+            params: beta,
+            std_errors,
+            z_values,
+            p_values,
+            conf_lower,
+            conf_upper,
+            log_likelihood: ll,
+            deviance,
+            aic,
+            bic,
+            alpha,
+            p_param,
+            n_obs: n,
+            n_iter,
+            converged,
+            variable_names,
+        })
+    }
+}
+
+/// Generalized Poisson regression.
+///
+/// P(Y=y) = mu*(mu + alpha*y)^(y-1) * exp(-(mu + alpha*y)) / y!
+pub struct GenPoisson;
+
+impl GenPoisson {
+    pub fn fit(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+    ) -> Result<GenPoissonResult, GreenersError> {
+        Self::fit_with_names(y, x, None)
+    }
+
+    pub fn fit_with_names(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        variable_names: Option<Vec<String>>,
+    ) -> Result<GenPoissonResult, GreenersError> {
+        let n = y.len();
+        let k = x.ncols();
+
+        // Initialize beta from Poisson (log-linear)
+        let log_y: Array1<f64> = y.mapv(|v| (v + 0.5).ln());
+        let ols = crate::OLS::fit(&log_y, x, CovarianceType::NonRobust)?;
+        let mut beta = ols.params.clone();
+        let mut alpha = 0.1_f64;
+
+        let max_iter = 100;
+        let tol = 1e-6;
+        let mut converged = false;
+        let mut n_iter = 0;
+
+        // Newton-Raphson on full (beta, alpha) log-likelihood
+        for iter in 0..max_iter {
+            n_iter = iter + 1;
+            let mu: Array1<f64> = x.dot(&beta).mapv(|e| e.exp().max(1e-10));
+
+            // Gradient and Hessian
+            let mut grad_beta = Array1::<f64>::zeros(k);
+            let mut grad_alpha = 0.0;
+            let mut hess_bb = Array2::<f64>::zeros((k, k));
+
+            for i in 0..n {
+                let m = mu[i];
+                let yi = y[i];
+                let t = m + alpha * yi;
+                if t <= 0.0 {
+                    continue;
+                }
+
+                // d ll / d mu_i = 1/mu + (y-1)/t - 1, then chain rule * mu * x
+                let dll_dmu = 1.0 / m + if yi > 1.0 { (yi - 1.0) / t } else { 0.0 } - 1.0;
+                let dm_dbeta = m; // d mu / d eta * d eta / d beta_j = mu * x_j
+
+                for j in 0..k {
+                    grad_beta[j] += dll_dmu * dm_dbeta * x[[i, j]];
+                }
+
+                // d ll / d alpha = (y-1)*y/t - y
+                grad_alpha += if yi > 1.0 {
+                    (yi - 1.0) * yi / t
+                } else {
+                    0.0
+                } - yi;
+
+                // Approximate Hessian for beta (expected information)
+                let d2 = -1.0 / (m * m)
+                    - if yi > 1.0 {
+                        (yi - 1.0) / (t * t)
+                    } else {
+                        0.0
+                    };
+                let wi = -(d2 * m * m + dll_dmu * m);
+                for a in 0..k {
+                    for b in 0..k {
+                        hess_bb[[a, b]] -= wi * x[[i, a]] * x[[i, b]];
+                    }
+                }
+            }
+
+            // Update beta
+            let neg_hess_inv = match (-&hess_bb).inv() {
+                Ok(inv) => inv,
+                Err(_) => break,
+            };
+            let delta_beta = neg_hess_inv.dot(&grad_beta);
+            let new_beta = &beta + &delta_beta;
+
+            // Update alpha via simple gradient step with line search
+            let step_alpha = 0.01 * grad_alpha.signum() * grad_alpha.abs().min(0.1);
+            let new_alpha = (alpha + step_alpha).clamp(-0.99, 0.99);
+
+            let diff = delta_beta
+                .mapv(|d| d.abs())
+                .iter()
+                .copied()
+                .fold(0.0_f64, f64::max)
+                + (new_alpha - alpha).abs();
+
+            beta = new_beta;
+            alpha = new_alpha;
+
+            if diff < tol {
+                converged = true;
+                break;
+            }
+        }
+
+        // Final log-likelihood
+        let mu: Array1<f64> = x.dot(&beta).mapv(|e| e.exp().max(1e-10));
+        let mut ll = 0.0;
+        for i in 0..n {
+            let m = mu[i];
+            let yi = y[i];
+            let t = m + alpha * yi;
+            if t > 0.0 {
+                ll += m.ln()
+                    + if yi > 1.0 { (yi - 1.0) * t.ln() } else { 0.0 }
+                    - t
+                    - statrs::function::gamma::ln_gamma(yi + 1.0);
+            }
+        }
+
+        // Standard errors from numerical Hessian
+        let mut fisher = Array2::<f64>::zeros((k, k));
+        for i in 0..n {
+            let m = mu[i];
+            let yi = y[i];
+            let t = (m + alpha * yi).max(1e-10);
+            let w = 1.0 / m + if yi > 1.0 { (yi - 1.0) / (t * t) } else { 0.0 };
+            let wi = w * m * m;
+            let xi = x.row(i);
+            for a in 0..k {
+                for b in 0..k {
+                    fisher[[a, b]] += wi * xi[a] * xi[b];
+                }
+            }
+        }
+
+        let cov = fisher.inv().unwrap_or(Array2::eye(k) * 1e-4);
+        let std_errors: Array1<f64> =
+            (0..k).map(|i| cov[[i, i]].max(0.0).sqrt()).collect();
+
+        let normal = Normal::new(0.0, 1.0).unwrap();
+        let z_values = &beta / std_errors.mapv(|s| if s > 1e-15 { s } else { 1.0 });
+        let p_values = z_values.mapv(|z| 2.0 * (1.0 - normal.cdf(z.abs())));
+        let z_crit = normal.inverse_cdf(0.975);
+        let conf_lower = &beta - z_crit * &std_errors;
+        let conf_upper = &beta + z_crit * &std_errors;
+
+        let k_f = (k + 1) as f64;
+        let aic = -2.0 * ll + 2.0 * k_f;
+        let bic = -2.0 * ll + k_f * (n as f64).ln();
+
+        Ok(GenPoissonResult {
+            params: beta,
+            alpha,
+            std_errors,
+            z_values,
+            p_values,
+            conf_lower,
+            conf_upper,
+            log_likelihood: ll,
+            aic,
+            bic,
+            n_obs: n,
+            n_iter,
+            converged,
+            variable_names,
+        })
     }
 }

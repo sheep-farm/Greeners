@@ -132,6 +132,15 @@ impl Formula {
 
                 // Add interaction term as-is
                 independents.push(format!("{}:{}", vars[0], vars[1]));
+            }
+            // Function transforms: log(), exp(), sqrt(), poly(), bs()
+            else if term.starts_with("log(")
+                || term.starts_with("exp(")
+                || term.starts_with("sqrt(")
+                || term.starts_with("poly(")
+                || term.starts_with("bs(")
+            {
+                independents.push(term.to_string());
             } else {
                 // Regular term
                 independents.push(term.to_string());
