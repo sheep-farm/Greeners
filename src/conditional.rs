@@ -556,6 +556,203 @@ impl ConditionalPoisson {
     }
 }
 
+/// Conditional Multinomial Logit (McFadden's choice model).
+///
+/// Softmax likelihood within each choice set (group).
+/// Each group has `n_alts` alternatives; y indicates the chosen one.
+pub struct ConditionalMNLogit;
+
+impl ConditionalMNLogit {
+    /// Fit conditional multinomial logit.
+    ///
+    /// - `y`: chosen alternative index (0-based) for each choice occasion
+    /// - `x`: stacked design matrix (n_occasions * n_alts) x k
+    /// - `groups`: group/choice-set ID for each row of x
+    /// - `n_alts`: number of alternatives per choice set
+    pub fn fit(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        groups: &[usize],
+        _n_alts: usize,
+    ) -> Result<ConditionalResult, GreenersError> {
+        Self::fit_with_names(y, x, groups, n_alts, None)
+    }
+
+    pub fn fit_with_names(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        groups: &[usize],
+        _n_alts: usize,
+        variable_names: Option<Vec<String>>,
+    ) -> Result<ConditionalResult, GreenersError> {
+        let n_rows = x.nrows();
+        let k = x.ncols();
+
+        if n_rows != groups.len() {
+            return Err(GreenersError::ShapeMismatch(
+                "x rows and groups must have same length".into(),
+            ));
+        }
+
+        // Build choice sets
+        let mut group_map: HashMap<usize, Vec<usize>> = HashMap::new();
+        for (i, &g) in groups.iter().enumerate() {
+            group_map.entry(g).or_default().push(i);
+        }
+
+        let mut choice_sets: Vec<Vec<usize>> = group_map.values().cloned().collect();
+        choice_sets.sort_by_key(|v| v[0]);
+
+        let n_occasions = y.len();
+        if choice_sets.len() != n_occasions {
+            return Err(GreenersError::ShapeMismatch(
+                "Number of groups must equal length of y".into(),
+            ));
+        }
+
+        // Newton-Raphson
+        let mut beta = Array1::<f64>::zeros(k);
+        let max_iter = 100;
+        let tol = 1e-6;
+        let mut converged = false;
+        let mut iter = 0;
+        let mut log_likelihood = 0.0;
+
+        for iteration in 0..max_iter {
+            iter = iteration + 1;
+            let mut gradient = Array1::<f64>::zeros(k);
+            let mut hessian = Array2::<f64>::zeros((k, k));
+            log_likelihood = 0.0;
+
+            for (occ, indices) in choice_sets.iter().enumerate() {
+                let chosen = y[occ] as usize;
+
+                // Compute exp(x_j' beta) for each alternative
+                let xb: Vec<f64> = indices.iter().map(|&i| x.row(i).dot(&beta)).collect();
+                let max_xb = xb.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                let exp_xb: Vec<f64> = xb.iter().map(|&v| (v - max_xb).exp()).collect();
+                let sum_exp: f64 = exp_xb.iter().sum();
+
+                // Log-likelihood: xb[chosen] - log(sum_exp) - max_xb + max_xb
+                if chosen < indices.len() {
+                    log_likelihood += xb[chosen] - max_xb - sum_exp.ln();
+                }
+
+                // Gradient and Hessian
+                let probs: Vec<f64> = exp_xb.iter().map(|&e| e / sum_exp).collect();
+
+                // E[x] = sum p_j x_j
+                let mut e_x = Array1::<f64>::zeros(k);
+                for (j, &idx) in indices.iter().enumerate() {
+                    let xj = x.row(idx);
+                    for kk in 0..k {
+                        e_x[kk] += probs[j] * xj[kk];
+                    }
+                }
+
+                // gradient += x_chosen - E[x]
+                if chosen < indices.len() {
+                    let x_chosen = x.row(indices[chosen]);
+                    for kk in 0..k {
+                        gradient[kk] += x_chosen[kk] - e_x[kk];
+                    }
+                }
+
+                // Hessian -= E[xx'] - E[x]E[x]'
+                for (j, &idx) in indices.iter().enumerate() {
+                    let xj = x.row(idx);
+                    for a in 0..k {
+                        for b in 0..k {
+                            hessian[[a, b]] -= probs[j] * xj[a] * xj[b];
+                        }
+                    }
+                }
+                for a in 0..k {
+                    for b in 0..k {
+                        hessian[[a, b]] += e_x[a] * e_x[b];
+                    }
+                }
+            }
+
+            let neg_hessian = -&hessian;
+            let inv_neg_hessian = match neg_hessian.inv() {
+                Ok(m) => m,
+                Err(_) => return Err(GreenersError::OptimizationFailed),
+            };
+
+            let change = inv_neg_hessian.dot(&gradient);
+            beta = &beta + &change;
+
+            if change.mapv(|v| v.powi(2)).sum().sqrt() < tol {
+                converged = true;
+                break;
+            }
+        }
+
+        // Standard errors
+        let mut final_hessian = Array2::<f64>::zeros((k, k));
+        for indices in &choice_sets {
+            let xb: Vec<f64> = indices.iter().map(|&i| x.row(i).dot(&beta)).collect();
+            let max_xb = xb.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            let exp_xb: Vec<f64> = xb.iter().map(|&v| (v - max_xb).exp()).collect();
+            let sum_exp: f64 = exp_xb.iter().sum();
+            let probs: Vec<f64> = exp_xb.iter().map(|&e| e / sum_exp).collect();
+
+            let mut e_x = Array1::<f64>::zeros(k);
+            for (j, &idx) in indices.iter().enumerate() {
+                let xj = x.row(idx);
+                for kk in 0..k {
+                    e_x[kk] += probs[j] * xj[kk];
+                }
+            }
+
+            for (j, &idx) in indices.iter().enumerate() {
+                let xj = x.row(idx);
+                for a in 0..k {
+                    for b in 0..k {
+                        final_hessian[[a, b]] -= probs[j] * xj[a] * xj[b];
+                    }
+                }
+            }
+            for a in 0..k {
+                for b in 0..k {
+                    final_hessian[[a, b]] += e_x[a] * e_x[b];
+                }
+            }
+        }
+
+        let cov_matrix = (-&final_hessian).inv().unwrap_or(Array2::eye(k) * 1e-4);
+        let std_errors: Array1<f64> =
+            (0..k).map(|i| cov_matrix[[i, i]].max(0.0).sqrt()).collect();
+
+        let normal_dist = Normal::new(0.0, 1.0).unwrap();
+        let z_values = &beta / std_errors.mapv(|s| if s > 1e-15 { s } else { 1.0 });
+        let p_values = z_values.mapv(|z| 2.0 * (1.0 - normal_dist.cdf(z.abs())));
+
+        let k_f = k as f64;
+        let n = n_rows;
+        let aic = -2.0 * log_likelihood + 2.0 * k_f;
+        let bic = -2.0 * log_likelihood + k_f * (n as f64).ln();
+
+        Ok(ConditionalResult {
+            model_name: "Conditional MNLogit".to_string(),
+            params: beta,
+            std_errors,
+            z_values,
+            p_values,
+            log_likelihood,
+            aic,
+            bic,
+            n_obs: n_rows,
+            n_groups: choice_sets.len(),
+            iterations: iter,
+            converged,
+            inference_type: crate::InferenceType::Normal,
+            variable_names,
+        })
+    }
+}
+
 /// Generate all combinations of `r` elements from `0..n`.
 fn combinations(n: usize, r: usize) -> Vec<Vec<usize>> {
     if r == 0 {

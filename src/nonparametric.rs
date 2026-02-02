@@ -1,5 +1,5 @@
 use crate::error::GreenersError;
-use ndarray::Array1;
+use ndarray::{Array1, Array2};
 use std::fmt;
 
 /// Kernel function for density estimation and kernel regression.
@@ -378,6 +378,109 @@ impl KernelReg {
             residuals,
             bandwidth: bw,
             n_obs: n,
+        })
+    }
+}
+
+// ─── KDEMultivariate ────────────────────────────────────────────────────────────
+
+/// Result of multivariate kernel density estimation.
+#[derive(Debug)]
+pub struct KDEMultivariateResult {
+    pub bandwidths: Array1<f64>,
+    pub n_obs: usize,
+    pub n_dims: usize,
+    _data: Array2<f64>,
+    _kernel: Kernel,
+}
+
+impl KDEMultivariateResult {
+    /// Evaluate density at given points (m x d matrix).
+    pub fn evaluate(&self, points: &Array2<f64>) -> Array1<f64> {
+        let n = self._data.nrows();
+        let d = self._data.ncols();
+        let m = points.nrows();
+        let mut density = Array1::<f64>::zeros(m);
+
+        for i in 0..m {
+            let mut sum = 0.0;
+            for j in 0..n {
+                let mut prod = 1.0;
+                for dim in 0..d {
+                    let u = (points[[i, dim]] - self._data[[j, dim]]) / self.bandwidths[dim];
+                    prod *= self._kernel.evaluate(u) / self.bandwidths[dim];
+                }
+                sum += prod;
+            }
+            density[i] = sum / n as f64;
+        }
+
+        density
+    }
+}
+
+impl fmt::Display for KDEMultivariateResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "\n{:=^60}", " Multivariate KDE ")?;
+        writeln!(f, "{:<20} {:>10}", "Observations:", self.n_obs)?;
+        writeln!(f, "{:<20} {:>10}", "Dimensions:", self.n_dims)?;
+        writeln!(f, "Bandwidths: {:?}", self.bandwidths)?;
+        writeln!(f, "{:=^60}", "")
+    }
+}
+
+/// Multivariate Kernel Density Estimation via product kernel.
+pub struct KDEMultivariate;
+
+impl KDEMultivariate {
+    /// Fit multivariate KDE.
+    ///
+    /// - `data`: n x d matrix
+    /// - `bandwidths`: per-dimension bandwidths (None = Silverman rule per dim)
+    /// - `kernel`: kernel function
+    pub fn fit(
+        data: &Array2<f64>,
+        bandwidths: Option<&Array1<f64>>,
+        kernel: Kernel,
+    ) -> Result<KDEMultivariateResult, GreenersError> {
+        let (n, d) = (data.nrows(), data.ncols());
+        if n < 2 {
+            return Err(GreenersError::InvalidOperation(
+                "Need at least 2 data points for KDE".into(),
+            ));
+        }
+
+        let bw = match bandwidths {
+            Some(b) => {
+                if b.len() != d {
+                    return Err(GreenersError::ShapeMismatch(
+                        "Bandwidth length must match data dimensions".into(),
+                    ));
+                }
+                b.clone()
+            }
+            None => {
+                // Silverman's rule per dimension
+                let factor = (4.0 / ((d + 2) as f64)).powf(1.0 / (d as f64 + 4.0))
+                    * (n as f64).powf(-1.0 / (d as f64 + 4.0));
+                let mut bw = Array1::<f64>::zeros(d);
+                for j in 0..d {
+                    let col = data.column(j);
+                    let mean = col.mean().unwrap_or(0.0);
+                    let var =
+                        col.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / (n - 1) as f64;
+                    bw[j] = (var.sqrt() * factor).max(1e-10);
+                }
+                bw
+            }
+        };
+
+        Ok(KDEMultivariateResult {
+            bandwidths: bw,
+            n_obs: n,
+            n_dims: d,
+            _data: data.clone(),
+            _kernel: kernel,
         })
     }
 }

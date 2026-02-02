@@ -888,6 +888,252 @@ impl TimeSeries {
 
         Ok(cycle)
     }
+
+    // ── Phillips-Perron ────────────────────────────────────────────────
+
+    /// Phillips-Perron unit root test.
+    ///
+    /// Non-parametric correction to ADF: uses Newey-West for serial correlation.
+    /// Returns Z(t) statistic with same critical values as ADF.
+    pub fn phillips_perron(
+        series: &Array1<f64>,
+        nlags: Option<usize>,
+    ) -> Result<PhillipsPerronResult, GreenersError> {
+        let n = series.len();
+        if n < 10 {
+            return Err(GreenersError::ShapeMismatch(
+                "Series too short for Phillips-Perron test".into(),
+            ));
+        }
+
+        let lags = nlags.unwrap_or_else(|| ((n as f64).powf(0.25)) as usize);
+
+        // AR(1) regression: y_t = a + rho * y_{t-1} + e_t
+        let y_dep: Array1<f64> = series.slice(s![1..]).to_owned();
+        let n_eff = n - 1;
+        let mut x_mat = Array2::<f64>::zeros((n_eff, 2));
+        x_mat.column_mut(0).fill(1.0);
+        for i in 0..n_eff {
+            x_mat[[i, 1]] = series[i];
+        }
+
+        let ols_res = OLS::fit(&y_dep, &x_mat, CovarianceType::NonRobust)?;
+        let rho = ols_res.params[1];
+        let se_rho = ols_res.std_errors[1];
+        let resid = ols_res.residuals(&y_dep, &x_mat);
+
+        // Estimate sigma^2 (short-run variance)
+        let sigma2: f64 = resid.iter().map(|r| r * r).sum::<f64>() / n_eff as f64;
+
+        // Estimate lambda^2 (long-run variance) via Newey-West
+        let mut lambda2 = sigma2;
+        for l in 1..=lags {
+            let weight = 1.0 - l as f64 / (lags as f64 + 1.0);
+            let gamma_l: f64 = (l..n_eff)
+                .map(|t| resid[t] * resid[t - l])
+                .sum::<f64>()
+                / n_eff as f64;
+            lambda2 += 2.0 * weight * gamma_l;
+        }
+        lambda2 = lambda2.max(1e-15);
+
+        // Z(alpha) and Z(t) statistics
+        let nf = n_eff as f64;
+        let z_alpha = nf * (rho - 1.0) - 0.5 * nf * nf * se_rho * se_rho * (lambda2 - sigma2)
+            / (nf * sigma2);
+        let z_t = (sigma2 / lambda2).sqrt() * ols_res.t_values[1]
+            - 0.5
+                * (lambda2 - sigma2)
+                * (nf * se_rho / lambda2.sqrt());
+
+        // Same critical values as ADF
+        let crit_1pct = -3.43;
+        let crit_5pct = -2.86;
+        let crit_10pct = -2.57;
+
+        Ok(PhillipsPerronResult {
+            z_alpha,
+            z_t,
+            critical_values: (crit_1pct, crit_5pct, crit_10pct),
+            is_stationary: z_t < crit_5pct,
+            lags_used: lags,
+            n_obs: n_eff,
+        })
+    }
+
+    // ── Zivot-Andrews ────────────────────────────────────────────────
+
+    /// Zivot-Andrews structural break unit root test.
+    ///
+    /// Tests for a unit root allowing for one structural break in intercept.
+    /// Searches over all possible break points, returns minimum t-statistic.
+    pub fn zivot_andrews(
+        series: &Array1<f64>,
+        trim: f64,
+    ) -> Result<ZivotAndrewsResult, GreenersError> {
+        let n = series.len();
+        if n < 20 {
+            return Err(GreenersError::ShapeMismatch(
+                "Series too short for Zivot-Andrews test".into(),
+            ));
+        }
+
+        let trim = trim.clamp(0.05, 0.25);
+        let start = (n as f64 * trim) as usize;
+        let end = n - start;
+
+        let y_diff = diff(series, 1);
+        let max_lags = ((n - 1) as f64).powf(1.0 / 3.0) as usize;
+        let effective_n = n - 1 - max_lags;
+
+        let mut best_t = f64::INFINITY;
+        let mut best_break = start;
+
+        for bp in start..end {
+            // ADF regression with break dummy
+            // y_diff = const + gamma*y_{t-1} + theta*DU_t + lagged diffs + e
+            // DU_t = 1 if t > bp
+            let n_cols = 3 + max_lags; // const, y_{t-1}, DU, lagged diffs
+            let mut x_mat = Array2::<f64>::zeros((effective_n, n_cols));
+            let target_y = y_diff.slice(s![max_lags..]).to_owned();
+
+            for i in 0..effective_n {
+                let t = max_lags + i;
+                x_mat[[i, 0]] = 1.0; // const
+                x_mat[[i, 1]] = series[t]; // y_{t-1} (level)
+                x_mat[[i, 2]] = if t > bp { 1.0 } else { 0.0 }; // break dummy
+                for l in 0..max_lags {
+                    x_mat[[i, 3 + l]] = y_diff[t - 1 - l];
+                }
+            }
+
+            if let Ok(ols_res) = OLS::fit(&target_y, &x_mat, CovarianceType::NonRobust) {
+                let t_stat = ols_res.t_values[1]; // t-stat on y_{t-1}
+                if t_stat < best_t {
+                    best_t = t_stat;
+                    best_break = bp;
+                }
+            }
+        }
+
+        // Zivot-Andrews critical values (intercept break, model A)
+        let critical_values = (-5.34, -4.80, -4.58); // 1%, 5%, 10%
+
+        Ok(ZivotAndrewsResult {
+            statistic: best_t,
+            break_point: best_break,
+            critical_values,
+            is_stationary: best_t < critical_values.1,
+            n_obs: n,
+        })
+    }
+
+    // ── lagmat ────────────────────────────────────────────────────────
+
+    /// Build a lag matrix from a 1-D series.
+    ///
+    /// Returns (n - max_lag) x (max_lag + 1) matrix where column 0 is the
+    /// original series and column j is lag j.
+    pub fn lagmat(series: &Array1<f64>, max_lag: usize) -> Array2<f64> {
+        let n = series.len();
+        let rows = n.saturating_sub(max_lag);
+        let cols = max_lag + 1;
+        let mut mat = Array2::<f64>::zeros((rows, cols));
+        for i in 0..rows {
+            for j in 0..cols {
+                mat[[i, j]] = series[max_lag + i - j];
+            }
+        }
+        mat
+    }
+
+    // ── DeterministicProcess ─────────────────────────────────────────
+
+    /// Generate deterministic process components.
+    ///
+    /// `components` can include: "const", "trend", "seasonal:{period}", "fourier:{period}:{order}"
+    ///
+    /// Returns matrix with columns for each requested component.
+    pub fn deterministic_process(n: usize, components: &[&str]) -> Array2<f64> {
+        let mut cols: Vec<Array1<f64>> = Vec::new();
+
+        for &comp in components {
+            if comp == "const" {
+                cols.push(Array1::ones(n));
+            } else if comp == "trend" {
+                cols.push(Array1::from_vec((1..=n).map(|t| t as f64).collect()));
+            } else if let Some(rest) = comp.strip_prefix("seasonal:") {
+                if let Ok(period) = rest.parse::<usize>() {
+                    // Seasonal dummies (period-1 columns)
+                    for s in 0..period.saturating_sub(1) {
+                        cols.push(Array1::from_vec(
+                            (0..n).map(|t| if t % period == s { 1.0 } else { 0.0 }).collect(),
+                        ));
+                    }
+                }
+            } else if let Some(rest) = comp.strip_prefix("fourier:") {
+                let parts: Vec<&str> = rest.split(':').collect();
+                if parts.len() == 2 {
+                    if let (Ok(period), Ok(order)) =
+                        (parts[0].parse::<usize>(), parts[1].parse::<usize>())
+                    {
+                        let period_f = period as f64;
+                        for k in 1..=order {
+                            let k_f = k as f64;
+                            cols.push(Array1::from_vec(
+                                (0..n)
+                                    .map(|t| {
+                                        (2.0 * std::f64::consts::PI * k_f * t as f64 / period_f)
+                                            .sin()
+                                    })
+                                    .collect(),
+                            ));
+                            cols.push(Array1::from_vec(
+                                (0..n)
+                                    .map(|t| {
+                                        (2.0 * std::f64::consts::PI * k_f * t as f64 / period_f)
+                                            .cos()
+                                    })
+                                    .collect(),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
+        if cols.is_empty() {
+            return Array2::<f64>::zeros((n, 0));
+        }
+
+        let n_cols = cols.len();
+        let mut mat = Array2::<f64>::zeros((n, n_cols));
+        for (j, col) in cols.iter().enumerate() {
+            mat.column_mut(j).assign(col);
+        }
+        mat
+    }
+}
+
+/// Results of the Phillips-Perron test.
+#[derive(Debug)]
+pub struct PhillipsPerronResult {
+    pub z_alpha: f64,
+    pub z_t: f64,
+    pub critical_values: (f64, f64, f64), // 1%, 5%, 10%
+    pub is_stationary: bool,
+    pub lags_used: usize,
+    pub n_obs: usize,
+}
+
+/// Results of the Zivot-Andrews test.
+#[derive(Debug)]
+pub struct ZivotAndrewsResult {
+    pub statistic: f64,
+    pub break_point: usize,
+    pub critical_values: (f64, f64, f64), // 1%, 5%, 10%
+    pub is_stationary: bool,
+    pub n_obs: usize,
 }
 
 // ─── Helper functions ────────────────────────────────────────────────────────

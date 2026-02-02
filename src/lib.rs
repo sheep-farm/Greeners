@@ -5,7 +5,9 @@ pub mod bootstrap;
 pub mod column;
 pub mod conditional;
 pub mod dataframe;
+pub mod datasets;
 pub mod decomposition;
+pub mod descrstatsw;
 pub mod diagnostics;
 pub mod did;
 pub mod discrete;
@@ -20,6 +22,8 @@ pub mod gls;
 pub mod glsar;
 pub mod gmm;
 pub mod hausman;
+pub mod imputation;
+pub mod influence;
 pub mod iv;
 pub mod markov;
 pub mod mixed;
@@ -37,6 +41,8 @@ pub mod rlm;
 pub mod rolling;
 pub mod specification_tests;
 pub mod statespace;
+pub mod stats;
+pub mod summary_col;
 pub mod sur;
 pub mod survival;
 pub mod svar;
@@ -54,34 +60,40 @@ pub use autoreg::{ARDLResult, AutoReg, AutoRegResult, ARDL};
 pub use beta_model::{BetaLink, BetaModel, BetaResult};
 pub use bootstrap::{Bootstrap, HypothesisTest};
 pub use column::{CategoricalColumn, Column, DataType};
-pub use conditional::{ConditionalLogit, ConditionalPoisson, ConditionalResult};
+pub use conditional::{ConditionalLogit, ConditionalMNLogit, ConditionalPoisson, ConditionalResult};
 pub use dataframe::DataFrame;
+pub use datasets::Datasets;
 pub use decomposition::{Decomposition, DecompositionResult};
-pub use diagnostics::Diagnostics;
+pub use descrstatsw::DescrStatsW;
+pub use diagnostics::{AndersonDarlingResult, Diagnostics};
 pub use did::DiffInDiff;
 pub use discrete::{Logit, Probit};
 pub use dynamic_panel::ArellanoBond;
 pub use error::GreenersError;
 pub use ets::{ETSResult, ExponentialSmoothing};
 pub use formula::Formula;
-pub use gee::{CorrStructure, GeeResult, GEE};
+pub use gee::{CorrStructure, GeeResult, NominalGEE, OrdinalGEE, GEE};
 pub use glm::{Family, GlmResult, Link, GLM};
 pub use glmgam::{BSplineBasis, GLMGam, GamResult};
 pub use gls::FGLS;
 pub use glsar::{GlsarResult, GLSAR};
 pub use gmm::GMM;
 pub use hausman::HausmanTest;
+pub use influence::{CUSUMResult, CUSUMTest, Influence, InfluenceResult};
 pub use iv::IV;
 pub use markov::{MarkovSwitching, MarkovSwitchingResult};
-pub use mixed::{MixedLM, MixedResult};
+pub use imputation::{BayesGaussMI, BayesGaussMIResult, MICEResult, MICE};
+pub use mixed::{BayesMixedGLM, BayesMixedGLMResult, MixedLM, MixedResult};
 pub use mnlogit::{MNLogit, MNLogitResult};
 pub use model_selection::{ModelSelection, PanelDiagnostics, SummaryStats};
 pub use multivariate::{
-    FactorAnalysis, FactorResult, ManovaResult, PCAResult, Rotation, MANOVA, PCA,
+    CanCorr, CanCorrResult, FactorAnalysis, FactorResult, ManovaResult, PCAResult, Rotation,
+    MANOVA, PCA,
 };
-pub use negbin::{NegBin, NegBinResult};
+pub use negbin::{GenPoisson, GenPoissonResult, NegBin, NegBinP, NegBinPResult, NegBinResult};
 pub use nonparametric::{
-    KDEResult, KDEUnivariate, Kernel, KernelReg, KernelRegResult, Lowess, LowessResult,
+    KDEMultivariate, KDEMultivariateResult, KDEResult, KDEUnivariate, Kernel, KernelReg,
+    KernelRegResult, Lowess, LowessResult,
 };
 pub use ols::{OlsResult, PredictionResult, OLS};
 pub use ordered::{OrderedLogit, OrderedProbit, OrderedResult};
@@ -97,12 +109,14 @@ pub use statespace::{
     state_space_estimate, KalmanFilter, KalmanResult, KalmanSmoother, SmoothedResult,
     StateSpaceModel, StateSpaceResult,
 };
+pub use stats::{AnovaRegressionResult, AnovaResult, CompareMeansResult, Stats};
+pub use summary_col::{ModelSummary, SummaryCol, SummaryColResult};
 pub use sur::{SurEquation, SUR};
 pub use survival::{CoxPH, CoxResult, KMResult, KaplanMeier};
 pub use svar::{SVarIdentification, SVarResult, SVAR};
 pub use three_sls::{Equation, ThreeSLS};
 pub use threshold::PanelThreshold;
-pub use timeseries::TimeSeries;
+pub use timeseries::{PhillipsPerronResult, TimeSeries, ZivotAndrewsResult};
 pub use var::VAR;
 pub use varma::VARMA;
 pub use vecm::VECM;

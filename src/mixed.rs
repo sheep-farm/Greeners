@@ -317,6 +317,236 @@ impl MixedLM {
     }
 }
 
+/// Result of Bayesian Mixed GLM estimation.
+#[derive(Debug)]
+pub struct BayesMixedGLMResult {
+    pub posterior_mean: Array1<f64>,
+    pub posterior_sd: Array1<f64>,
+    pub random_effects: HashMap<usize, Array1<f64>>,
+    pub random_effects_sd: HashMap<usize, Array1<f64>>,
+    pub log_likelihood: f64,
+    pub n_obs: usize,
+    pub n_groups: usize,
+    pub converged: bool,
+    pub n_iter: usize,
+    pub variable_names: Option<Vec<String>>,
+}
+
+impl fmt::Display for BayesMixedGLMResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "\n{:=^78}", " Bayesian Mixed GLM (Laplace) ")?;
+        writeln!(f, "{:<20} {:>10}", "Observations:", self.n_obs)?;
+        writeln!(f, "{:<20} {:>10}", "Groups:", self.n_groups)?;
+        writeln!(f, "{:<20} {:>10.4}", "Log-Likelihood:", self.log_likelihood)?;
+
+        writeln!(f, "\nFixed Effects (Posterior):")?;
+        writeln!(f, "{:-^60}", "")?;
+        writeln!(
+            f,
+            "{:<12} | {:>12} | {:>12}",
+            "Variable", "Post. Mean", "Post. SD"
+        )?;
+        writeln!(f, "{:-^60}", "")?;
+
+        for i in 0..self.posterior_mean.len() {
+            let name = self
+                .variable_names
+                .as_ref()
+                .and_then(|n| n.get(i).cloned())
+                .unwrap_or_else(|| format!("x{}", i));
+            writeln!(
+                f,
+                "{:<12} | {:>12.4} | {:>12.4}",
+                name, self.posterior_mean[i], self.posterior_sd[i]
+            )?;
+        }
+        writeln!(f, "{:=^78}", "")
+    }
+}
+
+/// Bayesian Mixed GLM via Laplace approximation.
+///
+/// Supports binomial family with logit link.
+pub struct BayesMixedGLM;
+
+impl BayesMixedGLM {
+    /// Fit Bayesian mixed GLM.
+    ///
+    /// - `y`: binary response (0/1)
+    /// - `x_fixed`: fixed effects design matrix
+    /// - `groups`: group IDs
+    /// - `family`: "binomial" (only supported family)
+    pub fn fit(
+        y: &Array1<f64>,
+        x_fixed: &Array2<f64>,
+        groups: &Array1<usize>,
+        _family: &str,
+    ) -> Result<BayesMixedGLMResult, GreenersError> {
+        Self::fit_with_names(y, x_fixed, groups, _family, None)
+    }
+
+    pub fn fit_with_names(
+        y: &Array1<f64>,
+        x_fixed: &Array2<f64>,
+        groups: &Array1<usize>,
+        _family: &str,
+        variable_names: Option<Vec<String>>,
+    ) -> Result<BayesMixedGLMResult, GreenersError> {
+        let n = y.len();
+        let p = x_fixed.ncols();
+
+        let mut unique_groups: Vec<usize> = groups.iter().cloned().collect();
+        unique_groups.sort();
+        unique_groups.dedup();
+        let g = unique_groups.len();
+
+        let group_indices: Vec<Vec<usize>> = unique_groups
+            .iter()
+            .map(|&grp| (0..n).filter(|&i| groups[i] == grp).collect())
+            .collect();
+
+        let logistic = |x: f64| -> f64 { 1.0 / (1.0 + (-x).exp()) };
+
+        // Parameters: beta (fixed), u_g (random intercepts)
+        let mut beta = Array1::<f64>::zeros(p);
+        let mut u = vec![0.0_f64; g]; // random intercepts
+        let mut sigma2_u = 1.0; // prior variance of random effects
+
+        let max_iter = 100;
+        let tol = 1e-6;
+        let mut converged = false;
+        let mut n_iter = 0;
+
+        for iter in 0..max_iter {
+            n_iter = iter + 1;
+
+            // IRLS for beta and u jointly (Laplace approximation)
+            let mut hess_bb = Array2::<f64>::zeros((p, p));
+            let mut grad_b = Array1::<f64>::zeros(p);
+
+            let mut new_u = vec![0.0_f64; g];
+
+            for (gi, idx) in group_indices.iter().enumerate() {
+                let mut hess_uu = 1.0 / sigma2_u; // prior precision
+                let mut grad_u = -u[gi] / sigma2_u; // prior gradient
+
+                for &i in idx {
+                    let xi = x_fixed.row(i);
+                    let eta = xi.dot(&beta) + u[gi];
+                    let mu = logistic(eta);
+                    let w = mu * (1.0 - mu);
+
+                    let resid = y[i] - mu;
+
+                    for a in 0..p {
+                        grad_b[a] += resid * xi[a];
+                        for b in 0..p {
+                            hess_bb[[a, b]] += w * xi[a] * xi[b];
+                        }
+                    }
+
+                    grad_u += resid;
+                    hess_uu += w;
+                }
+
+                // Update u_g via Newton step
+                new_u[gi] = u[gi] + grad_u / hess_uu.max(1e-10);
+            }
+
+            // Update beta
+            let hess_inv = match hess_bb.inv() {
+                Ok(inv) => inv,
+                Err(_) => Array2::eye(p) * 1e-4,
+            };
+            let new_beta = &beta + &hess_inv.dot(&grad_b);
+
+            // Update sigma2_u (empirical Bayes)
+            let sum_u2: f64 = new_u.iter().map(|&ui| ui * ui).sum();
+            let new_sigma2_u = (sum_u2 / g as f64).max(1e-6);
+
+            let diff = (&new_beta - &beta)
+                .iter()
+                .map(|d| d.abs())
+                .fold(0.0_f64, f64::max)
+                + new_u
+                    .iter()
+                    .zip(u.iter())
+                    .map(|(a, b)| (a - b).abs())
+                    .fold(0.0_f64, f64::max);
+
+            beta = new_beta;
+            u = new_u;
+            sigma2_u = new_sigma2_u;
+
+            if diff < tol {
+                converged = true;
+                break;
+            }
+        }
+
+        // Log-likelihood at mode
+        let mut ll = 0.0;
+        for (gi, idx) in group_indices.iter().enumerate() {
+            for &i in idx {
+                let eta = x_fixed.row(i).dot(&beta) + u[gi];
+                let mu = logistic(eta);
+                ll += y[i] * mu.max(1e-15).ln() + (1.0 - y[i]) * (1.0 - mu).max(1e-15).ln();
+            }
+            // Prior on u
+            ll -= 0.5 * u[gi] * u[gi] / sigma2_u;
+        }
+
+        // Posterior standard deviations from Hessian
+        let mut hess = Array2::<f64>::zeros((p, p));
+        for (gi, idx) in group_indices.iter().enumerate() {
+            for &i in idx {
+                let eta = x_fixed.row(i).dot(&beta) + u[gi];
+                let mu = logistic(eta);
+                let w = mu * (1.0 - mu);
+                let xi = x_fixed.row(i);
+                for a in 0..p {
+                    for b in 0..p {
+                        hess[[a, b]] += w * xi[a] * xi[b];
+                    }
+                }
+            }
+        }
+
+        let post_cov = hess.inv().unwrap_or(Array2::eye(p) * 1e-4);
+        let posterior_sd: Array1<f64> = (0..p)
+            .map(|i| post_cov[[i, i]].max(0.0).sqrt())
+            .collect();
+
+        // Random effects and their SDs
+        let mut re_map = HashMap::new();
+        let mut re_sd_map = HashMap::new();
+        for (gi, &grp) in unique_groups.iter().enumerate() {
+            re_map.insert(grp, Array1::from(vec![u[gi]]));
+            // Approximate posterior SD of u_g
+            let mut hess_uu = 1.0 / sigma2_u;
+            for &i in &group_indices[gi] {
+                let eta = x_fixed.row(i).dot(&beta) + u[gi];
+                let mu = logistic(eta);
+                hess_uu += mu * (1.0 - mu);
+            }
+            re_sd_map.insert(grp, Array1::from(vec![(1.0 / hess_uu).sqrt()]));
+        }
+
+        Ok(BayesMixedGLMResult {
+            posterior_mean: beta,
+            posterior_sd,
+            random_effects: re_map,
+            random_effects_sd: re_sd_map,
+            log_likelihood: ll,
+            n_obs: n,
+            n_groups: g,
+            converged,
+            n_iter,
+            variable_names,
+        })
+    }
+}
+
 fn stack_rows(mat: &Array2<f64>, indices: &[usize]) -> Array2<f64> {
     let k = mat.ncols();
     let mut result = Array2::<f64>::zeros((indices.len(), k));

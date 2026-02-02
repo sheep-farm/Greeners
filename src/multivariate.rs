@@ -517,6 +517,157 @@ impl MANOVA {
     }
 }
 
+// ─── Canonical Correlation Analysis ──────────────────────────────────────────
+
+/// Result of Canonical Correlation Analysis.
+#[derive(Debug)]
+pub struct CanCorrResult {
+    /// Canonical correlations (descending)
+    pub cancorr: Array1<f64>,
+    /// Weights for X variables
+    pub x_weights: Array2<f64>,
+    /// Weights for Y variables
+    pub y_weights: Array2<f64>,
+    /// Wilks' Lambda
+    pub wilks_lambda: f64,
+    /// Approximate F-statistic
+    pub f_stat: f64,
+    /// P-value
+    pub p_value: f64,
+    pub n_obs: usize,
+}
+
+impl fmt::Display for CanCorrResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "\n{:=^60}", " Canonical Correlation Analysis ")?;
+        writeln!(f, "{:<20} {:>10}", "Observations:", self.n_obs)?;
+        writeln!(f, "{:<20} {:>10.4}", "Wilks' Lambda:", self.wilks_lambda)?;
+        writeln!(f, "{:<20} {:>10.4}", "F-statistic:", self.f_stat)?;
+        writeln!(f, "{:<20} {:>10.4}", "P-value:", self.p_value)?;
+        writeln!(f, "\nCanonical Correlations:")?;
+        for (i, &c) in self.cancorr.iter().enumerate() {
+            writeln!(f, "  CC{}: {:.4}", i + 1, c)?;
+        }
+        writeln!(f, "{:=^60}", "")
+    }
+}
+
+/// Canonical Correlation Analysis.
+pub struct CanCorr;
+
+impl CanCorr {
+    /// Fit CCA.
+    ///
+    /// - `x`: n x p matrix
+    /// - `y`: n x q matrix
+    pub fn fit(x: &Array2<f64>, y: &Array2<f64>) -> Result<CanCorrResult, GreenersError> {
+        let (n, p) = (x.nrows(), x.ncols());
+        let q = y.ncols();
+
+        if n != y.nrows() {
+            return Err(GreenersError::ShapeMismatch(
+                "x and y must have same number of rows".into(),
+            ));
+        }
+        if n < p + q + 1 {
+            return Err(GreenersError::ShapeMismatch(
+                "Not enough observations for CCA".into(),
+            ));
+        }
+
+        let s = p.min(q);
+
+        // Center
+        let x_mean = x.mean_axis(Axis(0)).unwrap();
+        let y_mean = y.mean_axis(Axis(0)).unwrap();
+        let mut xc = x.clone();
+        let mut yc = y.clone();
+        for (j, mut col) in xc.axis_iter_mut(Axis(1)).enumerate() {
+            col -= x_mean[j];
+        }
+        for (j, mut col) in yc.axis_iter_mut(Axis(1)).enumerate() {
+            col -= y_mean[j];
+        }
+
+        let nf = (n - 1) as f64;
+        let sxx = xc.t().dot(&xc) / nf;
+        let syy = yc.t().dot(&yc) / nf;
+        let sxy = xc.t().dot(&yc) / nf;
+
+        // Compute Sxx^{-1/2} via eigendecomposition
+        let sxx_inv = sxx.inv()?;
+        let syy_inv = syy.inv()?;
+
+        // Eigenvalue problem: Sxx^{-1} Sxy Syy^{-1} Syx a = lambda^2 a
+        let m = sxx_inv.dot(&sxy).dot(&syy_inv).dot(&sxy.t());
+        let m_sym = (&m + &m.t()) * 0.5;
+        let (eig_vals, eig_vecs) = m_sym.eigh(UPLO::Upper)?;
+
+        // Sort descending
+        let mut idx: Vec<usize> = (0..p).collect();
+        idx.sort_by(|&a, &b| eig_vals[b].partial_cmp(&eig_vals[a]).unwrap());
+
+        let cancorr: Array1<f64> = idx
+            .iter()
+            .take(s)
+            .map(|&i| eig_vals[i].max(0.0).sqrt().min(1.0))
+            .collect();
+
+        let mut x_weights = Array2::<f64>::zeros((p, s));
+        for (new_col, &old_col) in idx.iter().take(s).enumerate() {
+            x_weights
+                .column_mut(new_col)
+                .assign(&eig_vecs.column(old_col));
+        }
+
+        // Y weights: Syy^{-1} Syx * x_weights, normalized
+        let y_weights_raw = syy_inv.dot(&sxy.t()).dot(&x_weights);
+        let mut y_weights = Array2::<f64>::zeros((q, s));
+        for j in 0..s {
+            let col = y_weights_raw.column(j);
+            let norm = col.dot(&col).sqrt().max(1e-15);
+            y_weights.column_mut(j).assign(&(&col / norm));
+        }
+
+        // Wilks' Lambda = product(1 - r_i^2)
+        let wilks_lambda: f64 = cancorr.iter().map(|&r| 1.0 - r * r).product();
+
+        // Approximate F-test (Rao's F)
+        let pf = p as f64;
+        let qf = q as f64;
+        let nf_obs = n as f64;
+        let t = if pf * pf * qf * qf - 4.0 > 0.0 {
+            ((pf * pf * qf * qf - 4.0) / (pf * pf + qf * qf - 5.0)).sqrt()
+        } else {
+            1.0
+        };
+        let df1 = pf * qf;
+        let df2 = ((nf_obs - 1.0 - 0.5 * (pf + qf + 1.0)) * t - 0.5 * df1 + 1.0).max(1.0);
+        let lambda_t = if t > 0.0 {
+            wilks_lambda.powf(1.0 / t)
+        } else {
+            wilks_lambda
+        };
+        let f_stat = if lambda_t < 1.0 {
+            ((1.0 - lambda_t) / lambda_t) * (df2 / df1)
+        } else {
+            0.0
+        };
+
+        let p_value = f_pvalue(f_stat, df1, df2);
+
+        Ok(CanCorrResult {
+            cancorr,
+            x_weights,
+            y_weights,
+            wilks_lambda,
+            f_stat,
+            p_value,
+            n_obs: n,
+        })
+    }
+}
+
 fn f_pvalue(f: f64, df1: f64, df2: f64) -> f64 {
     if df1 <= 0.0 || df2 <= 0.0 || !f.is_finite() || f <= 0.0 {
         return 1.0;

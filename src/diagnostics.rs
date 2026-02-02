@@ -5,6 +5,16 @@ use ndarray::{Array1, Array2};
 use ndarray_linalg::{Inverse, SVD};
 use statrs::distribution::{ChiSquared, ContinuousCDF};
 
+/// Result of Anderson-Darling normality test.
+#[derive(Debug)]
+pub struct AndersonDarlingResult {
+    pub statistic: f64,
+    /// Critical values at [15%, 10%, 5%, 2.5%, 1%]
+    pub critical_values: [f64; 5],
+    pub significance_levels: [f64; 5],
+    pub n_obs: usize,
+}
+
 pub struct Diagnostics;
 
 impl Diagnostics {
@@ -360,6 +370,179 @@ impl Diagnostics {
         let p_value = 1.0 - chi2.cdf(k2);
 
         Ok((k2, p_value))
+    }
+
+    /// Harvey-Collier test for linearity.
+    ///
+    /// Performs a t-test on the mean of recursive residuals.
+    /// H0: Linear specification is correct.
+    /// Returns (t_statistic, p_value).
+    pub fn harvey_collier(y: &Array1<f64>, x: &Array2<f64>) -> Result<(f64, f64), GreenersError> {
+        let n = y.len();
+        let k = x.ncols();
+        if n <= k + 1 {
+            return Err(GreenersError::ShapeMismatch(
+                "Not enough observations for Harvey-Collier test".into(),
+            ));
+        }
+
+        // Compute recursive residuals using expanding window OLS
+        let mut rec_resids = Vec::new();
+        for t in k..n {
+            let x_t = x.slice(ndarray::s![..t, ..]).to_owned();
+            let y_t = y.slice(ndarray::s![..t]).to_owned();
+
+            if let Ok(ols_res) = OLS::fit(&y_t, &x_t, CovarianceType::NonRobust) {
+                // One-step ahead forecast error
+                let x_new = x.row(t);
+                let y_hat = x_new.dot(&ols_res.params);
+                let resid = y[t] - y_hat;
+
+                // Scaling factor: 1 + x_{t+1}' (X'X)^-1 x_{t+1}
+                let xtx = x_t.t().dot(&x_t);
+                if let Ok(xtx_inv) = xtx.inv() {
+                    let h = 1.0 + x_new.dot(&xtx_inv.dot(&x_new));
+                    let scaled = resid / h.sqrt().max(1e-10);
+                    rec_resids.push(scaled);
+                }
+            }
+        }
+
+        if rec_resids.len() < 3 {
+            return Err(GreenersError::InvalidOperation(
+                "Not enough recursive residuals".into(),
+            ));
+        }
+
+        let m = rec_resids.len();
+        let mean = rec_resids.iter().sum::<f64>() / m as f64;
+        let var = rec_resids.iter().map(|r| (r - mean).powi(2)).sum::<f64>() / (m - 1) as f64;
+        let se = (var / m as f64).sqrt();
+
+        if se < 1e-15 {
+            return Ok((0.0, 1.0));
+        }
+
+        let t_stat = mean / se;
+        let df = (m - 1) as f64;
+        let dist = statrs::distribution::StudentsT::new(0.0, 1.0, df)
+            .map_err(|_| GreenersError::OptimizationFailed)?;
+        let p_value = 2.0 * (1.0 - dist.cdf(t_stat.abs()));
+
+        Ok((t_stat, p_value))
+    }
+
+    /// Anderson-Darling test for normality.
+    ///
+    /// Returns `AndersonDarlingResult` with test statistic and critical values
+    /// at 15%, 10%, 5%, 2.5%, 1% significance levels.
+    pub fn anderson_darling(data: &Array1<f64>) -> Result<AndersonDarlingResult, GreenersError> {
+        let n = data.len();
+        if n < 8 {
+            return Err(GreenersError::ShapeMismatch(
+                "Need at least 8 observations for Anderson-Darling test".into(),
+            ));
+        }
+
+        let mean = data.mean().unwrap_or(0.0);
+        let var = data.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / (n - 1) as f64;
+        let std = var.sqrt();
+
+        if std < 1e-15 {
+            return Err(GreenersError::InvalidOperation(
+                "Zero variance data".into(),
+            ));
+        }
+
+        // Standardize and sort
+        let mut z: Vec<f64> = data.iter().map(|&x| (x - mean) / std).collect();
+        z.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        let normal = statrs::distribution::Normal::new(0.0, 1.0)
+            .map_err(|_| GreenersError::OptimizationFailed)?;
+
+        // A² = -n - (1/n) Σ (2i-1)[ln(Φ(z_i)) + ln(1-Φ(z_{n+1-i}))]
+        let nf = n as f64;
+        let mut sum = 0.0;
+        for i in 0..n {
+            let phi_i = normal.cdf(z[i]).clamp(1e-15, 1.0 - 1e-15);
+            let phi_ni = normal.cdf(z[n - 1 - i]).clamp(1e-15, 1.0 - 1e-15);
+            sum += (2 * i + 1) as f64 * (phi_i.ln() + (1.0 - phi_ni).ln());
+        }
+        let a2 = -nf - sum / nf;
+
+        // Adjusted statistic for finite sample
+        let a2_adj = a2 * (1.0 + 0.75 / nf + 2.25 / (nf * nf));
+
+        // Critical values for normal distribution: 15%, 10%, 5%, 2.5%, 1%
+        let critical_values = [0.576, 0.656, 0.787, 0.918, 1.092];
+
+        Ok(AndersonDarlingResult {
+            statistic: a2_adj,
+            critical_values,
+            significance_levels: [0.15, 0.10, 0.05, 0.025, 0.01],
+            n_obs: n,
+        })
+    }
+
+    /// Lilliefors test for normality.
+    ///
+    /// Kolmogorov-Smirnov test with estimated mean and variance.
+    /// Returns (statistic, p_value).
+    pub fn lilliefors(data: &Array1<f64>) -> Result<(f64, f64), GreenersError> {
+        let n = data.len();
+        if n < 4 {
+            return Err(GreenersError::ShapeMismatch(
+                "Need at least 4 observations for Lilliefors test".into(),
+            ));
+        }
+
+        let mean = data.mean().unwrap_or(0.0);
+        let var = data.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / (n - 1) as f64;
+        let std = var.sqrt();
+
+        if std < 1e-15 {
+            return Ok((0.0, 1.0));
+        }
+
+        // Sort data
+        let mut sorted: Vec<f64> = data.iter().cloned().collect();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        let normal = statrs::distribution::Normal::new(0.0, 1.0)
+            .map_err(|_| GreenersError::OptimizationFailed)?;
+
+        // KS statistic: max |F_n(x) - Φ((x-mean)/std)|
+        let nf = n as f64;
+        let mut d_stat = 0.0_f64;
+
+        for (i, &x) in sorted.iter().enumerate() {
+            let z = (x - mean) / std;
+            let f_n = (i + 1) as f64 / nf;
+            let f_n_prev = i as f64 / nf;
+            let phi = normal.cdf(z);
+            d_stat = d_stat.max((f_n - phi).abs()).max((f_n_prev - phi).abs());
+        }
+
+        // Approximate p-value using Lilliefors table approximation
+        // Based on Dallal & Wilkinson (1986) formula
+        let sqrt_n = nf.sqrt();
+        let d_adj = d_stat * (sqrt_n - 0.01 + 0.85 / sqrt_n);
+        let p_value = if d_adj <= 0.302 {
+            1.0
+        } else if d_adj <= 0.5 {
+            2.76773 - 19.828315 * d_adj
+                + 80.709644 * d_adj.powi(2)
+                - 138.55152 * d_adj.powi(3)
+                + 81.218052 * d_adj.powi(4)
+        } else if d_adj <= 1.8 {
+            (-0.7514 + 1.3076 * d_adj).exp().max(0.0).min(1.0) * (-8.318 * d_adj * d_adj).exp()
+        } else {
+            0.0
+        }
+        .clamp(0.0, 1.0);
+
+        Ok((d_stat, p_value))
     }
 
     pub fn condition_number(x: &Array2<f64>) -> Result<f64, GreenersError> {
