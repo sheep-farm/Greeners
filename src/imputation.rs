@@ -124,8 +124,7 @@ impl MICE {
                         continue;
                     }
 
-                    let mut x_obs =
-                        Array2::<f64>::zeros((observed_rows.len(), n_vars)); // incl. intercept
+                    let mut x_obs = Array2::<f64>::zeros((observed_rows.len(), n_vars)); // incl. intercept
                     let mut y_obs = Array1::<f64>::zeros(observed_rows.len());
 
                     for (ii, &i) in observed_rows.iter().enumerate() {
@@ -141,8 +140,7 @@ impl MICE {
                     }
 
                     // Trim to actual columns used
-                    let x_obs =
-                        x_obs.slice(ndarray::s![.., ..n_vars]).to_owned();
+                    let x_obs = x_obs.slice(ndarray::s![.., ..n_vars]).to_owned();
 
                     if let Ok(ols_res) = OLS::fit(&y_obs, &x_obs, CovarianceType::NonRobust) {
                         // Predict for missing rows
@@ -272,11 +270,9 @@ impl BayesGaussMI {
                 if obs_idx.is_empty() {
                     // All missing: draw from marginal
                     for &j in &mis_idx {
-                        rng_state =
-                            rng_state.wrapping_mul(6364136223846793005).wrapping_add(1);
+                        rng_state = rng_state.wrapping_mul(6364136223846793005).wrapping_add(1);
                         let u1 = (rng_state >> 33) as f64 / (1u64 << 31) as f64;
-                        rng_state =
-                            rng_state.wrapping_mul(6364136223846793005).wrapping_add(1);
+                        rng_state = rng_state.wrapping_mul(6364136223846793005).wrapping_add(1);
                         let u2 = (rng_state >> 33) as f64 / (1u64 << 31) as f64;
                         let z = (-2.0 * u1.max(1e-15).ln()).sqrt()
                             * (2.0 * std::f64::consts::PI * u2).cos();
@@ -322,16 +318,13 @@ impl BayesGaussMI {
                         sigma_mm[[a, b]] = sigma[[ja, jb]];
                     }
                 }
-                let sigma_cond =
-                    &sigma_mm - &sigma_mo.dot(&sigma_oo_inv).dot(&sigma_mo.t());
+                let sigma_cond = &sigma_mm - &sigma_mo.dot(&sigma_oo_inv).dot(&sigma_mo.t());
 
                 // Draw from N(mu_cond, diag of sigma_cond) — simplified
                 for (a, &ja) in mis_idx.iter().enumerate() {
-                    rng_state =
-                        rng_state.wrapping_mul(6364136223846793005).wrapping_add(1);
+                    rng_state = rng_state.wrapping_mul(6364136223846793005).wrapping_add(1);
                     let u1 = (rng_state >> 33) as f64 / (1u64 << 31) as f64;
-                    rng_state =
-                        rng_state.wrapping_mul(6364136223846793005).wrapping_add(1);
+                    rng_state = rng_state.wrapping_mul(6364136223846793005).wrapping_add(1);
                     let u2 = (rng_state >> 33) as f64 / (1u64 << 31) as f64;
                     let z = (-2.0 * u1.max(1e-15).ln()).sqrt()
                         * (2.0 * std::f64::consts::PI * u2).cos();

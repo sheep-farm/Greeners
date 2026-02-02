@@ -575,7 +575,7 @@ impl ConditionalMNLogit {
         groups: &[usize],
         _n_alts: usize,
     ) -> Result<ConditionalResult, GreenersError> {
-        Self::fit_with_names(y, x, groups, n_alts, None)
+        Self::fit_with_names(y, x, groups, _n_alts, None)
     }
 
     pub fn fit_with_names(
@@ -722,8 +722,7 @@ impl ConditionalMNLogit {
         }
 
         let cov_matrix = (-&final_hessian).inv().unwrap_or(Array2::eye(k) * 1e-4);
-        let std_errors: Array1<f64> =
-            (0..k).map(|i| cov_matrix[[i, i]].max(0.0).sqrt()).collect();
+        let std_errors: Array1<f64> = (0..k).map(|i| cov_matrix[[i, i]].max(0.0).sqrt()).collect();
 
         let normal_dist = Normal::new(0.0, 1.0).unwrap();
         let z_values = &beta / std_errors.mapv(|s| if s > 1e-15 { s } else { 1.0 });

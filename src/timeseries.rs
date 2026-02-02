@@ -929,22 +929,18 @@ impl TimeSeries {
         let mut lambda2 = sigma2;
         for l in 1..=lags {
             let weight = 1.0 - l as f64 / (lags as f64 + 1.0);
-            let gamma_l: f64 = (l..n_eff)
-                .map(|t| resid[t] * resid[t - l])
-                .sum::<f64>()
-                / n_eff as f64;
+            let gamma_l: f64 =
+                (l..n_eff).map(|t| resid[t] * resid[t - l]).sum::<f64>() / n_eff as f64;
             lambda2 += 2.0 * weight * gamma_l;
         }
         lambda2 = lambda2.max(1e-15);
 
         // Z(alpha) and Z(t) statistics
         let nf = n_eff as f64;
-        let z_alpha = nf * (rho - 1.0) - 0.5 * nf * nf * se_rho * se_rho * (lambda2 - sigma2)
-            / (nf * sigma2);
+        let z_alpha =
+            nf * (rho - 1.0) - 0.5 * nf * nf * se_rho * se_rho * (lambda2 - sigma2) / (nf * sigma2);
         let z_t = (sigma2 / lambda2).sqrt() * ols_res.t_values[1]
-            - 0.5
-                * (lambda2 - sigma2)
-                * (nf * se_rho / lambda2.sqrt());
+            - 0.5 * (lambda2 - sigma2) * (nf * se_rho / lambda2.sqrt());
 
         // Same critical values as ADF
         let crit_1pct = -3.43;
@@ -1067,7 +1063,9 @@ impl TimeSeries {
                     // Seasonal dummies (period-1 columns)
                     for s in 0..period.saturating_sub(1) {
                         cols.push(Array1::from_vec(
-                            (0..n).map(|t| if t % period == s { 1.0 } else { 0.0 }).collect(),
+                            (0..n)
+                                .map(|t| if t % period == s { 1.0 } else { 0.0 })
+                                .collect(),
                         ));
                     }
                 }

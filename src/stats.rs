@@ -426,12 +426,11 @@ impl Stats {
 
         // Welch-Satterthwaite df
         let num = (v1 / n1 as f64 + v2 / n2 as f64).powi(2);
-        let den = (v1 / n1 as f64).powi(2) / (n1 - 1) as f64
-            + (v2 / n2 as f64).powi(2) / (n2 - 1) as f64;
+        let den =
+            (v1 / n1 as f64).powi(2) / (n1 - 1) as f64 + (v2 / n2 as f64).powi(2) / (n2 - 1) as f64;
         let df = num / den.max(1e-15);
 
-        let dist =
-            StudentsT::new(0.0, 1.0, df).map_err(|_| GreenersError::OptimizationFailed)?;
+        let dist = StudentsT::new(0.0, 1.0, df).map_err(|_| GreenersError::OptimizationFailed)?;
         let p_value = 2.0 * (1.0 - dist.cdf(t_stat.abs()));
 
         // 95% CI for difference
@@ -440,8 +439,7 @@ impl Stats {
         let ci_upper = diff + t_crit * se;
 
         // Cohen's d: pooled std
-        let pooled_var = ((n1 - 1) as f64 * v1 + (n2 - 1) as f64 * v2)
-            / (n1 + n2 - 2) as f64;
+        let pooled_var = ((n1 - 1) as f64 * v1 + (n2 - 1) as f64 * v2) / (n1 + n2 - 2) as f64;
         let cohens_d = if pooled_var > 1e-15 {
             diff / pooled_var.sqrt()
         } else {
