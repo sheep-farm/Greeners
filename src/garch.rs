@@ -1,3 +1,4 @@
+use crate::GreenersError;
 use ndarray::Array1;
 use statrs::distribution::{ContinuousCDF, Normal as NormalDist};
 use std::f64::consts::PI;
@@ -68,12 +69,9 @@ impl GarchResult {
         let n = self.n_obs;
         match self.model_type {
             GarchModelType::GARCH | GarchModelType::GJRGARCH => {
-                // params: [mu, omega, alpha_1..alpha_q, beta_1..beta_p, (gamma_1..gamma_q), (nu)]
                 let omega = self.params[1];
                 let alphas: Vec<f64> = (0..self.q).map(|i| self.params[2 + i]).collect();
                 let betas: Vec<f64> = (0..self.p).map(|i| self.params[2 + self.q + i]).collect();
-
-                // For GJR, gammas follow betas
                 let gammas: Vec<f64> = if self.model_type == GarchModelType::GJRGARCH {
                     (0..self.q)
                         .map(|i| self.params[2 + self.q + self.p + i])
@@ -83,7 +81,6 @@ impl GarchResult {
                 };
 
                 let mut forecasts: Array1<f64> = Array1::zeros(steps);
-                // We need recent squared residuals and variances
                 let eps2: Vec<f64> = self.residuals.iter().map(|e| e * e).collect();
                 let h: Vec<f64> = self.conditional_variance.to_vec();
 
@@ -96,15 +93,12 @@ impl GarchResult {
                             } else {
                                 0.0
                             }
+                        } else if s > i {
+                            forecasts[s - 1 - i]
+                        } else if (n as isize - 1 - (i - s) as isize) >= 0 {
+                            eps2[n - 1 - (i - s)]
                         } else {
-                            // For multi-step, E[eps^2_{t+s-i}] = h_{t+s-i}
-                            if s > i {
-                                forecasts[s - 1 - i]
-                            } else if (n as isize - 1 - (i - s) as isize) >= 0 {
-                                eps2[n - 1 - (i - s)]
-                            } else {
-                                0.0
-                            }
+                            0.0
                         };
                         // For GJR: E[gamma * I(eps<0) * eps^2] = gamma * 0.5 * h (under normality)
                         val += alphas[i] * e2 + gammas[i] * 0.5 * e2;
@@ -130,7 +124,6 @@ impl GarchResult {
                 forecasts
             }
             GarchModelType::EGARCH => {
-                // params: [mu, omega, alpha_1..alpha_q, gamma_1..gamma_q, beta_1..beta_p, (nu)]
                 let omega = self.params[1];
                 let alphas: Vec<f64> = (0..self.q).map(|i| self.params[2 + i]).collect();
                 let gammas: Vec<f64> = (0..self.q).map(|i| self.params[2 + self.q + i]).collect();
@@ -249,7 +242,7 @@ impl fmt::Display for GarchResult {
 
 // ─── Helper functions ───────────────────────────────────────────────────────
 
-fn normal_log_pdf(x: f64, _mean: f64, var: f64) -> f64 {
+fn normal_log_pdf(x: f64, var: f64) -> f64 {
     -0.5 * (2.0 * PI).ln() - 0.5 * var.ln() - 0.5 * x * x / var
 }
 
@@ -329,7 +322,6 @@ fn invert_matrix(m: &[Vec<f64>]) -> Option<Vec<Vec<f64>>> {
         aug[i][n + i] = 1.0;
     }
     for col in 0..n {
-        // Partial pivot
         let mut max_row = col;
         let mut max_val = aug[col][col].abs();
         for (row, aug_row) in aug.iter().enumerate().skip(col + 1) {
@@ -368,7 +360,7 @@ fn invert_matrix(m: &[Vec<f64>]) -> Option<Vec<Vec<f64>>> {
 fn compute_inference(
     params: &Array1<f64>,
     std_errors: &Array1<f64>,
-) -> (Array1<f64>, Array1<f64>, Array1<f64>) {
+) -> (Array1<f64>, Array1<f64>, Array1<f64>, Array1<f64>) {
     let normal = NormalDist::new(0.0, 1.0).unwrap();
     let n = params.len();
     let mut z_values = Array1::zeros(n);
@@ -387,7 +379,7 @@ fn compute_inference(
         conf_lower[i] = params[i] - 1.96 * std_errors[i];
         conf_upper[i] = params[i] + 1.96 * std_errors[i];
     }
-    (z_values, p_values, conf_lower)
+    (z_values, p_values, conf_lower, conf_upper)
 }
 
 fn compute_std_errors_from_hessian(neg_ll: &dyn Fn(&[f64]) -> f64, params: &[f64]) -> Array1<f64> {
@@ -415,7 +407,7 @@ struct BuildResultArgs {
 
 fn build_result(
     params_vec: &[f64],
-    y: &Array1<f64>,
+    n_obs: usize,
     args: BuildResultArgs,
     neg_ll: &dyn Fn(&[f64]) -> f64,
 ) -> GarchResult {
@@ -431,14 +423,12 @@ fn build_result(
         n_iter,
         converged,
     } = args;
-    let n_obs = y.len();
     let k = params_vec.len() as f64;
     let n_f = n_obs as f64;
 
     let params = Array1::from_vec(params_vec.to_vec());
     let std_errors = compute_std_errors_from_hessian(neg_ll, params_vec);
-    let (z_values, p_values, conf_lower) = compute_inference(&params, &std_errors);
-    let conf_upper = &params + &(&std_errors * 1.96);
+    let (z_values, p_values, conf_lower, conf_upper) = compute_inference(&params, &std_errors);
 
     let standardized_residuals = Array1::from_vec(
         residuals
@@ -472,7 +462,7 @@ fn build_result(
     }
 }
 
-// ─── GARCH optimization core ────────────────────────────────────────────────
+// ─── BFGS optimizer ─────────────────────────────────────────────────────────
 
 fn optimize(
     neg_ll: impl Fn(&[f64]) -> f64,
@@ -480,31 +470,81 @@ fn optimize(
     max_iter: usize,
     constrain: impl Fn(&mut [f64]),
 ) -> (Vec<f64>, usize, bool) {
+    let n = init.len();
     let mut params = init.to_vec();
     constrain(&mut params);
-    let mut best_ll = neg_ll(&params);
+    let mut best_val = neg_ll(&params);
     let mut best_params = params.clone();
 
+    // Initialize inverse Hessian approximation as identity
+    let mut inv_hess = vec![vec![0.0; n]; n];
+    for (i, row) in inv_hess.iter_mut().enumerate() {
+        row[i] = 1.0;
+    }
+
+    let mut prev_grad = numerical_gradient(&neg_ll, &params, 1e-5);
+
     for iter in 0..max_iter {
-        let grad = numerical_gradient(&neg_ll, &params, 1e-5);
+        let grad = if iter == 0 {
+            prev_grad.clone()
+        } else {
+            numerical_gradient(&neg_ll, &params, 1e-5)
+        };
         let grad_norm: f64 = grad.iter().map(|g| g * g).sum::<f64>().sqrt();
         if grad_norm < 1e-6 {
             return (params, iter + 1, true);
         }
 
-        // Steepest descent with line search
+        // BFGS direction: d = -H^{-1} * g
+        let direction: Vec<f64> = (0..n)
+            .map(|i| -(0..n).map(|j| inv_hess[i][j] * grad[j]).sum::<f64>())
+            .collect();
+
+        // Line search with Armijo condition
         let mut step = 1.0;
         let mut improved = false;
+        let slope: f64 = direction.iter().zip(grad.iter()).map(|(d, g)| d * g).sum();
+
         for _ in 0..30 {
             let mut candidate: Vec<f64> = params
                 .iter()
-                .zip(grad.iter())
-                .map(|(p, g)| p - step * g)
+                .zip(direction.iter())
+                .map(|(p, d)| p + step * d)
                 .collect();
             constrain(&mut candidate);
-            let ll = neg_ll(&candidate);
-            if ll < best_ll && ll.is_finite() {
-                best_ll = ll;
+            let val = neg_ll(&candidate);
+            if val.is_finite() && val < best_val + 1e-4 * step * slope {
+                // BFGS update
+                let new_grad = numerical_gradient(&neg_ll, &candidate, 1e-5);
+                let s: Vec<f64> = candidate
+                    .iter()
+                    .zip(params.iter())
+                    .map(|(a, b)| a - b)
+                    .collect();
+                let y: Vec<f64> = new_grad
+                    .iter()
+                    .zip(grad.iter())
+                    .map(|(a, b)| a - b)
+                    .collect();
+                let sy: f64 = s.iter().zip(y.iter()).map(|(a, b)| a * b).sum();
+
+                if sy > 1e-10 {
+                    // BFGS inverse Hessian update
+                    let hy: Vec<f64> = (0..n)
+                        .map(|i| (0..n).map(|j| inv_hess[i][j] * y[j]).sum::<f64>())
+                        .collect();
+                    let yhy: f64 = y.iter().zip(hy.iter()).map(|(a, b)| a * b).sum();
+
+                    for (i, row) in inv_hess.iter_mut().enumerate() {
+                        for (j, cell) in row.iter_mut().enumerate() {
+                            *cell += (sy + yhy) * s[i] * s[j] / (sy * sy)
+                                - (hy[i] * s[j] + s[i] * hy[j]) / sy;
+                        }
+                    }
+                }
+
+                prev_grad = new_grad;
+                best_val = val;
                 best_params = candidate.clone();
                 params = candidate;
                 improved = true;
@@ -514,20 +554,25 @@ fn optimize(
         }
 
         if !improved {
-            // Try smaller step anyway
+            // Fall back to steepest descent with small step
             let mut candidate: Vec<f64> = params
                 .iter()
                 .zip(grad.iter())
                 .map(|(p, g)| p - 1e-6 * g)
                 .collect();
             constrain(&mut candidate);
-            let ll = neg_ll(&candidate);
-            if ll < best_ll && ll.is_finite() {
-                best_ll = ll;
+            let val = neg_ll(&candidate);
+            if val < best_val && val.is_finite() {
+                best_val = val;
                 best_params = candidate.clone();
                 params = candidate;
+                // Reset inverse Hessian to identity
+                for (i, row) in inv_hess.iter_mut().enumerate() {
+                    for (j, cell) in row.iter_mut().enumerate() {
+                        *cell = if i == j { 1.0 } else { 0.0 };
+                    }
+                }
             } else {
-                // Check convergence by param change
                 return (best_params, iter + 1, true);
             }
         }
@@ -642,6 +687,42 @@ fn gjrgarch_conditional_variance(
     h
 }
 
+// ─── Shared helpers for fit methods ──────────────────────────────────────────
+
+fn sample_moments(y: &Array1<f64>) -> (f64, f64) {
+    let n = y.len() as f64;
+    let mean = y.iter().sum::<f64>() / n;
+    let var = y.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n;
+    (mean, var)
+}
+
+fn compute_final_garch(
+    y: &Array1<f64>,
+    opt_params: &[f64],
+    p: usize,
+    q: usize,
+) -> (Array1<f64>, Array1<f64>, f64) {
+    let mu = opt_params[0];
+    let omega = opt_params[1];
+    let alphas: Vec<f64> = (0..q).map(|i| opt_params[2 + i]).collect();
+    let betas: Vec<f64> = (0..p).map(|i| opt_params[2 + q + i]).collect();
+    let eps: Vec<f64> = y.iter().map(|v| v - mu).collect();
+    let var_init = eps.iter().map(|e| e * e).sum::<f64>() / eps.len() as f64;
+    let h = garch_conditional_variance(&eps, omega, &alphas, &betas, var_init);
+    (Array1::from_vec(eps), Array1::from_vec(h), var_init)
+}
+
+fn garch_param_names(p: usize, q: usize) -> Vec<String> {
+    let mut names = vec!["mu".to_string(), "omega".to_string()];
+    for i in 0..q {
+        names.push(format!("alpha[{}]", i + 1));
+    }
+    for j in 0..p {
+        names.push(format!("beta[{}]", j + 1));
+    }
+    names
+}
+
 // ─── GARCH struct ────────────────────────────────────────────────────────────
 
 /// Standard GARCH(p,q) model. ARCH(q) is GARCH(0,q).
@@ -649,28 +730,28 @@ pub struct GARCH;
 
 impl GARCH {
     /// Fit GARCH(p,q) with Normal errors
-    pub fn fit(y: &Array1<f64>, p: usize, q: usize) -> Result<GarchResult, String> {
+    pub fn fit(y: &Array1<f64>, p: usize, q: usize) -> Result<GarchResult, GreenersError> {
         if y.len() < 10 {
-            return Err("Need at least 10 observations".to_string());
+            return Err(GreenersError::InvalidOperation(
+                "Need at least 10 observations".into(),
+            ));
         }
         if q == 0 {
-            return Err("q must be >= 1 for GARCH".to_string());
+            return Err(GreenersError::InvalidOperation(
+                "q must be >= 1 for GARCH".into(),
+            ));
         }
 
-        let n = y.len();
-        let mean_y = y.iter().sum::<f64>() / n as f64;
-        let var_y = y.iter().map(|v| (v - mean_y).powi(2)).sum::<f64>() / n as f64;
-
-        // n_params: mu + omega + q alphas + p betas
+        let (mean_y, var_y) = sample_moments(y);
         let n_params = 1 + 1 + q + p;
         let mut init = vec![0.0; n_params];
-        init[0] = mean_y; // mu
-        init[1] = 0.1 * var_y; // omega
+        init[0] = mean_y;
+        init[1] = 0.1 * var_y;
         for i in 0..q {
-            init[2 + i] = 0.05; // alphas
+            init[2 + i] = 0.05;
         }
         for j in 0..p {
-            init[2 + q + j] = 0.85 / p.max(1) as f64; // betas
+            init[2 + q + j] = 0.85 / p.max(1) as f64;
         }
 
         let y_clone = y.clone();
@@ -683,8 +764,8 @@ impl GARCH {
             let var_init = eps.iter().map(|e| e * e).sum::<f64>() / eps.len() as f64;
             let h = garch_conditional_variance(&eps, omega, &alphas, &betas, var_init);
             let mut ll = 0.0;
-            for t in 0..eps.len() {
-                ll += normal_log_pdf(eps[t], 0.0, h[t]);
+            for (e, ht) in eps.iter().zip(h.iter()) {
+                ll += normal_log_pdf(*e, *ht);
             }
             if ll.is_finite() {
                 -ll
@@ -693,53 +774,14 @@ impl GARCH {
             }
         };
 
-        let constrain = move |params: &mut [f64]| {
-            params[1] = params[1].max(1e-10); // omega > 0
-            for i in 0..q {
-                params[2 + i] = params[2 + i].max(0.0); // alpha >= 0
-            }
-            for j in 0..p {
-                params[2 + q + j] = params[2 + q + j].max(0.0); // beta >= 0
-            }
-            // Stationarity: sum(alpha) + sum(beta) < 1
-            let sum_ab: f64 = (0..q).map(|i| params[2 + i]).sum::<f64>()
-                + (0..p).map(|j| params[2 + q + j]).sum::<f64>();
-            if sum_ab >= 0.9999 {
-                let scale = 0.999 / sum_ab;
-                for i in 0..q {
-                    params[2 + i] *= scale;
-                }
-                for j in 0..p {
-                    params[2 + q + j] *= scale;
-                }
-            }
-        };
-
+        let constrain = garch_constrain(p, q);
         let (opt_params, n_iter, converged) = optimize(&neg_ll, &init, 500, constrain);
-
-        let mu = opt_params[0];
-        let omega = opt_params[1];
-        let alphas: Vec<f64> = (0..q).map(|i| opt_params[2 + i]).collect();
-        let betas: Vec<f64> = (0..p).map(|i| opt_params[2 + q + i]).collect();
-        let final_eps: Vec<f64> = y.iter().map(|v| v - mu).collect();
-        let var_init = final_eps.iter().map(|e| e * e).sum::<f64>() / final_eps.len() as f64;
-        let h = garch_conditional_variance(&final_eps, omega, &alphas, &betas, var_init);
+        let (residuals, cond_var, _) = compute_final_garch(y, &opt_params, p, q);
         let log_likelihood = -neg_ll(&opt_params);
-
-        let residuals = Array1::from_vec(final_eps);
-        let cond_var = Array1::from_vec(h);
-
-        let mut names = vec!["mu".to_string(), "omega".to_string()];
-        for i in 0..q {
-            names.push(format!("alpha[{}]", i + 1));
-        }
-        for j in 0..p {
-            names.push(format!("beta[{}]", j + 1));
-        }
 
         Ok(build_result(
             &opt_params,
-            y,
+            y.len(),
             BuildResultArgs {
                 residuals,
                 cond_var,
@@ -747,7 +789,7 @@ impl GARCH {
                 q,
                 model_type: GarchModelType::GARCH,
                 dist: GarchDist::Normal,
-                variable_names: names,
+                variable_names: garch_param_names(p, q),
                 log_likelihood,
                 n_iter,
                 converged,
@@ -756,20 +798,20 @@ impl GARCH {
         ))
     }
 
-    /// Fit GARCH(p,q) with Student-t errors (df estimated)
-    pub fn fit_t(y: &Array1<f64>, p: usize, q: usize) -> Result<GarchResult, String> {
+    /// Fit GARCH(p,q) with Student-t errors (df estimated via MLE)
+    pub fn fit_t(y: &Array1<f64>, p: usize, q: usize) -> Result<GarchResult, GreenersError> {
         if y.len() < 10 {
-            return Err("Need at least 10 observations".to_string());
+            return Err(GreenersError::InvalidOperation(
+                "Need at least 10 observations".into(),
+            ));
         }
         if q == 0 {
-            return Err("q must be >= 1 for GARCH".to_string());
+            return Err(GreenersError::InvalidOperation(
+                "q must be >= 1 for GARCH".into(),
+            ));
         }
 
-        let n = y.len();
-        let mean_y = y.iter().sum::<f64>() / n as f64;
-        let var_y = y.iter().map(|v| (v - mean_y).powi(2)).sum::<f64>() / n as f64;
-
-        // n_params: mu + omega + q alphas + p betas + nu
+        let (mean_y, var_y) = sample_moments(y);
         let n_params = 1 + 1 + q + p + 1;
         let mut init = vec![0.0; n_params];
         init[0] = mean_y;
@@ -780,7 +822,7 @@ impl GARCH {
         for j in 0..p {
             init[2 + q + j] = 0.85 / p.max(1) as f64;
         }
-        init[n_params - 1] = 8.0; // nu
+        init[n_params - 1] = 8.0;
 
         let y_clone = y.clone();
         let neg_ll = move |params: &[f64]| -> f64 {
@@ -796,8 +838,8 @@ impl GARCH {
             let var_init = eps.iter().map(|e| e * e).sum::<f64>() / eps.len() as f64;
             let h = garch_conditional_variance(&eps, omega, &alphas, &betas, var_init);
             let mut ll = 0.0;
-            for t in 0..eps.len() {
-                ll += student_t_log_pdf(eps[t], h[t], nu);
+            for (e, ht) in eps.iter().zip(h.iter()) {
+                ll += student_t_log_pdf(*e, *ht, nu);
             }
             if ll.is_finite() {
                 -ll
@@ -808,53 +850,20 @@ impl GARCH {
 
         let n_p = n_params;
         let constrain = move |params: &mut [f64]| {
-            params[1] = params[1].max(1e-10);
-            for i in 0..q {
-                params[2 + i] = params[2 + i].max(0.0);
-            }
-            for j in 0..p {
-                params[2 + q + j] = params[2 + q + j].max(0.0);
-            }
-            let sum_ab: f64 = (0..q).map(|i| params[2 + i]).sum::<f64>()
-                + (0..p).map(|j| params[2 + q + j]).sum::<f64>();
-            if sum_ab >= 0.9999 {
-                let scale = 0.999 / sum_ab;
-                for i in 0..q {
-                    params[2 + i] *= scale;
-                }
-                for j in 0..p {
-                    params[2 + q + j] *= scale;
-                }
-            }
+            garch_constrain_inner(params, p, q);
             params[n_p - 1] = params[n_p - 1].clamp(2.1, 100.0);
         };
 
         let (opt_params, n_iter, converged) = optimize(&neg_ll, &init, 500, constrain);
-
-        let mu = opt_params[0];
-        let omega = opt_params[1];
-        let alphas: Vec<f64> = (0..q).map(|i| opt_params[2 + i]).collect();
-        let betas: Vec<f64> = (0..p).map(|i| opt_params[2 + q + i]).collect();
-        let final_eps: Vec<f64> = y.iter().map(|v| v - mu).collect();
-        let var_init = final_eps.iter().map(|e| e * e).sum::<f64>() / final_eps.len() as f64;
-        let h = garch_conditional_variance(&final_eps, omega, &alphas, &betas, var_init);
+        let (residuals, cond_var, _) = compute_final_garch(y, &opt_params, p, q);
         let log_likelihood = -neg_ll(&opt_params);
 
-        let residuals = Array1::from_vec(final_eps);
-        let cond_var = Array1::from_vec(h);
-
-        let mut names = vec!["mu".to_string(), "omega".to_string()];
-        for i in 0..q {
-            names.push(format!("alpha[{}]", i + 1));
-        }
-        for j in 0..p {
-            names.push(format!("beta[{}]", j + 1));
-        }
+        let mut names = garch_param_names(p, q);
         names.push("nu".to_string());
 
         Ok(build_result(
             &opt_params,
-            y,
+            y.len(),
             BuildResultArgs {
                 residuals,
                 cond_var,
@@ -872,6 +881,31 @@ impl GARCH {
     }
 }
 
+fn garch_constrain_inner(params: &mut [f64], p: usize, q: usize) {
+    params[1] = params[1].max(1e-10);
+    for i in 0..q {
+        params[2 + i] = params[2 + i].max(0.0);
+    }
+    for j in 0..p {
+        params[2 + q + j] = params[2 + q + j].max(0.0);
+    }
+    let sum_ab: f64 =
+        (0..q).map(|i| params[2 + i]).sum::<f64>() + (0..p).map(|j| params[2 + q + j]).sum::<f64>();
+    if sum_ab >= 0.9999 {
+        let scale = 0.999 / sum_ab;
+        for i in 0..q {
+            params[2 + i] *= scale;
+        }
+        for j in 0..p {
+            params[2 + q + j] *= scale;
+        }
+    }
+}
+
+fn garch_constrain(p: usize, q: usize) -> impl Fn(&mut [f64]) {
+    move |params: &mut [f64]| garch_constrain_inner(params, p, q)
+}
+
 // ─── EGARCH struct ───────────────────────────────────────────────────────────
 
 /// EGARCH(p,q) model — log-variance specification, no positivity constraints
@@ -879,29 +913,46 @@ pub struct EGARCH;
 
 impl EGARCH {
     /// Fit EGARCH(p,q) with Normal errors
-    pub fn fit(y: &Array1<f64>, p: usize, q: usize) -> Result<GarchResult, String> {
+    pub fn fit(y: &Array1<f64>, p: usize, q: usize) -> Result<GarchResult, GreenersError> {
+        Self::fit_inner(y, p, q, false)
+    }
+
+    /// Fit EGARCH(p,q) with Student-t errors (df estimated via MLE)
+    pub fn fit_t(y: &Array1<f64>, p: usize, q: usize) -> Result<GarchResult, GreenersError> {
+        Self::fit_inner(y, p, q, true)
+    }
+
+    fn fit_inner(
+        y: &Array1<f64>,
+        p: usize,
+        q: usize,
+        use_t: bool,
+    ) -> Result<GarchResult, GreenersError> {
         if y.len() < 10 {
-            return Err("Need at least 10 observations".to_string());
+            return Err(GreenersError::InvalidOperation(
+                "Need at least 10 observations".into(),
+            ));
         }
         if q == 0 {
-            return Err("q must be >= 1".to_string());
+            return Err(GreenersError::InvalidOperation("q must be >= 1".into()));
         }
 
-        let n = y.len();
-        let mean_y = y.iter().sum::<f64>() / n as f64;
-        let var_y = y.iter().map(|v| (v - mean_y).powi(2)).sum::<f64>() / n as f64;
-
-        // params: mu, omega, alpha_1..q, gamma_1..q, beta_1..p
-        let n_params = 1 + 1 + q + q + p;
+        let (mean_y, var_y) = sample_moments(y);
+        // params: mu, omega, alpha_1..q, gamma_1..q, beta_1..p, (nu)
+        let n_base = 1 + 1 + q + q + p;
+        let n_params = if use_t { n_base + 1 } else { n_base };
         let mut init = vec![0.0; n_params];
         init[0] = mean_y;
-        init[1] = var_y.ln() * 0.1; // omega (log scale)
+        init[1] = var_y.ln() * 0.1;
         for i in 0..q {
-            init[2 + i] = 0.1; // alpha
-            init[2 + q + i] = -0.05; // gamma (leverage, typically negative)
+            init[2 + i] = 0.1;
+            init[2 + q + i] = -0.05;
         }
         for j in 0..p {
-            init[2 + 2 * q + j] = 0.9 / p.max(1) as f64; // beta
+            init[2 + 2 * q + j] = 0.9 / p.max(1) as f64;
+        }
+        if use_t {
+            init[n_params - 1] = 8.0;
         }
 
         let y_clone = y.clone();
@@ -911,12 +962,20 @@ impl EGARCH {
             let alphas: Vec<f64> = (0..q).map(|i| params[2 + i]).collect();
             let gammas: Vec<f64> = (0..q).map(|i| params[2 + q + i]).collect();
             let betas: Vec<f64> = (0..p).map(|i| params[2 + 2 * q + i]).collect();
+            let nu = if use_t { params[n_base] } else { 0.0 };
+            if use_t && nu <= 2.0 {
+                return 1e18;
+            }
             let eps: Vec<f64> = y_clone.iter().map(|v| v - mu).collect();
             let var_init = eps.iter().map(|e| e * e).sum::<f64>() / eps.len() as f64;
             let h = egarch_conditional_variance(&eps, omega, &alphas, &gammas, &betas, var_init);
             let mut ll = 0.0;
-            for t in 0..eps.len() {
-                ll += normal_log_pdf(eps[t], 0.0, h[t]);
+            for (e, ht) in eps.iter().zip(h.iter()) {
+                if use_t {
+                    ll += student_t_log_pdf(*e, *ht, nu);
+                } else {
+                    ll += normal_log_pdf(*e, *ht);
+                }
             }
             if ll.is_finite() {
                 -ll
@@ -926,14 +985,15 @@ impl EGARCH {
         };
 
         let constrain = move |params: &mut [f64]| {
-            // EGARCH has no positivity constraints on alpha/gamma
-            // But beta should have |sum| < 1 for stationarity
             let sum_b: f64 = (0..p).map(|j| params[2 + 2 * q + j].abs()).sum::<f64>();
             if sum_b >= 0.9999 {
                 let scale = 0.999 / sum_b;
                 for j in 0..p {
                     params[2 + 2 * q + j] *= scale;
                 }
+            }
+            if use_t {
+                params[n_base] = params[n_base].clamp(2.1, 100.0);
             }
         };
 
@@ -949,9 +1009,6 @@ impl EGARCH {
         let h = egarch_conditional_variance(&final_eps, omega, &alphas, &gammas, &betas, var_init);
         let log_likelihood = -neg_ll(&opt_params);
 
-        let residuals = Array1::from_vec(final_eps);
-        let cond_var = Array1::from_vec(h);
-
         let mut names = vec!["mu".to_string(), "omega".to_string()];
         for i in 0..q {
             names.push(format!("alpha[{}]", i + 1));
@@ -962,17 +1019,24 @@ impl EGARCH {
         for j in 0..p {
             names.push(format!("beta[{}]", j + 1));
         }
+        if use_t {
+            names.push("nu".to_string());
+        }
 
         Ok(build_result(
             &opt_params,
-            y,
+            y.len(),
             BuildResultArgs {
-                residuals,
-                cond_var,
+                residuals: Array1::from_vec(final_eps),
+                cond_var: Array1::from_vec(h),
                 p,
                 q,
                 model_type: GarchModelType::EGARCH,
-                dist: GarchDist::Normal,
+                dist: if use_t {
+                    GarchDist::StudentT
+                } else {
+                    GarchDist::Normal
+                },
                 variable_names: names,
                 log_likelihood,
                 n_iter,
@@ -990,31 +1054,48 @@ pub struct GJRGARCH;
 
 impl GJRGARCH {
     /// Fit GJR-GARCH(p,q) with Normal errors
-    pub fn fit(y: &Array1<f64>, p: usize, q: usize) -> Result<GarchResult, String> {
+    pub fn fit(y: &Array1<f64>, p: usize, q: usize) -> Result<GarchResult, GreenersError> {
+        Self::fit_inner(y, p, q, false)
+    }
+
+    /// Fit GJR-GARCH(p,q) with Student-t errors (df estimated via MLE)
+    pub fn fit_t(y: &Array1<f64>, p: usize, q: usize) -> Result<GarchResult, GreenersError> {
+        Self::fit_inner(y, p, q, true)
+    }
+
+    fn fit_inner(
+        y: &Array1<f64>,
+        p: usize,
+        q: usize,
+        use_t: bool,
+    ) -> Result<GarchResult, GreenersError> {
         if y.len() < 10 {
-            return Err("Need at least 10 observations".to_string());
+            return Err(GreenersError::InvalidOperation(
+                "Need at least 10 observations".into(),
+            ));
         }
         if q == 0 {
-            return Err("q must be >= 1".to_string());
+            return Err(GreenersError::InvalidOperation("q must be >= 1".into()));
         }
 
-        let n = y.len();
-        let mean_y = y.iter().sum::<f64>() / n as f64;
-        let var_y = y.iter().map(|v| (v - mean_y).powi(2)).sum::<f64>() / n as f64;
-
-        // params: mu, omega, alpha_1..q, beta_1..p, gamma_1..q
-        let n_params = 1 + 1 + q + p + q;
+        let (mean_y, var_y) = sample_moments(y);
+        // params: mu, omega, alpha_1..q, beta_1..p, gamma_1..q, (nu)
+        let n_base = 1 + 1 + q + p + q;
+        let n_params = if use_t { n_base + 1 } else { n_base };
         let mut init = vec![0.0; n_params];
         init[0] = mean_y;
         init[1] = 0.1 * var_y;
         for i in 0..q {
-            init[2 + i] = 0.05; // alpha
+            init[2 + i] = 0.05;
         }
         for j in 0..p {
-            init[2 + q + j] = 0.85 / p.max(1) as f64; // beta
+            init[2 + q + j] = 0.85 / p.max(1) as f64;
         }
         for i in 0..q {
-            init[2 + q + p + i] = 0.05; // gamma
+            init[2 + q + p + i] = 0.05;
+        }
+        if use_t {
+            init[n_params - 1] = 8.0;
         }
 
         let y_clone = y.clone();
@@ -1024,12 +1105,20 @@ impl GJRGARCH {
             let alphas: Vec<f64> = (0..q).map(|i| params[2 + i]).collect();
             let betas: Vec<f64> = (0..p).map(|i| params[2 + q + i]).collect();
             let gammas: Vec<f64> = (0..q).map(|i| params[2 + q + p + i]).collect();
+            let nu = if use_t { params[n_base] } else { 0.0 };
+            if use_t && nu <= 2.0 {
+                return 1e18;
+            }
             let eps: Vec<f64> = y_clone.iter().map(|v| v - mu).collect();
             let var_init = eps.iter().map(|e| e * e).sum::<f64>() / eps.len() as f64;
             let h = gjrgarch_conditional_variance(&eps, omega, &alphas, &betas, &gammas, var_init);
             let mut ll = 0.0;
-            for t in 0..eps.len() {
-                ll += normal_log_pdf(eps[t], 0.0, h[t]);
+            for (e, ht) in eps.iter().zip(h.iter()) {
+                if use_t {
+                    ll += student_t_log_pdf(*e, *ht, nu);
+                } else {
+                    ll += normal_log_pdf(*e, *ht);
+                }
             }
             if ll.is_finite() {
                 -ll
@@ -1039,17 +1128,16 @@ impl GJRGARCH {
         };
 
         let constrain = move |params: &mut [f64]| {
-            params[1] = params[1].max(1e-10); // omega > 0
+            params[1] = params[1].max(1e-10);
             for i in 0..q {
-                params[2 + i] = params[2 + i].max(0.0); // alpha >= 0
+                params[2 + i] = params[2 + i].max(0.0);
             }
             for j in 0..p {
-                params[2 + q + j] = params[2 + q + j].max(0.0); // beta >= 0
+                params[2 + q + j] = params[2 + q + j].max(0.0);
             }
             for i in 0..q {
-                params[2 + q + p + i] = params[2 + q + p + i].max(0.0); // gamma >= 0
+                params[2 + q + p + i] = params[2 + q + p + i].max(0.0);
             }
-            // Stationarity: sum(alpha) + sum(beta) + 0.5*sum(gamma) < 1
             let sum_abg: f64 = (0..q).map(|i| params[2 + i]).sum::<f64>()
                 + (0..p).map(|j| params[2 + q + j]).sum::<f64>()
                 + 0.5 * (0..q).map(|i| params[2 + q + p + i]).sum::<f64>();
@@ -1064,6 +1152,9 @@ impl GJRGARCH {
                 for i in 0..q {
                     params[2 + q + p + i] *= scale;
                 }
+            }
+            if use_t {
+                params[n_base] = params[n_base].clamp(2.1, 100.0);
             }
         };
 
@@ -1080,9 +1171,6 @@ impl GJRGARCH {
             gjrgarch_conditional_variance(&final_eps, omega, &alphas, &betas, &gammas, var_init);
         let log_likelihood = -neg_ll(&opt_params);
 
-        let residuals = Array1::from_vec(final_eps);
-        let cond_var = Array1::from_vec(h);
-
         let mut names = vec!["mu".to_string(), "omega".to_string()];
         for i in 0..q {
             names.push(format!("alpha[{}]", i + 1));
@@ -1093,17 +1181,24 @@ impl GJRGARCH {
         for i in 0..q {
             names.push(format!("gamma[{}]", i + 1));
         }
+        if use_t {
+            names.push("nu".to_string());
+        }
 
         Ok(build_result(
             &opt_params,
-            y,
+            y.len(),
             BuildResultArgs {
-                residuals,
-                cond_var,
+                residuals: Array1::from_vec(final_eps),
+                cond_var: Array1::from_vec(h),
                 p,
                 q,
                 model_type: GarchModelType::GJRGARCH,
-                dist: GarchDist::Normal,
+                dist: if use_t {
+                    GarchDist::StudentT
+                } else {
+                    GarchDist::Normal
+                },
                 variable_names: names,
                 log_likelihood,
                 n_iter,

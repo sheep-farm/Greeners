@@ -649,6 +649,144 @@ impl ArimaResult {
             .collect()
     }
 
+    /// Monte Carlo simulation of future paths.
+    ///
+    /// Returns an `Array2<f64>` with shape `(steps, n_simulations)` where each column
+    /// is one simulated future path using the model parameters with random Normal(0, sigma2) shocks.
+    pub fn simulate(&self, steps: usize, n_simulations: usize) -> Array2<f64> {
+        let p = self.order.p;
+        let q = self.order.q;
+        let d = self.order.d;
+        let sigma = self.sigma2.sqrt();
+
+        let z = &self.differenced_y;
+        let n = z.len();
+        let res_vec: Vec<f64> = self.residuals.to_vec();
+
+        let mut result = Array2::<f64>::zeros((steps, n_simulations));
+
+        // Simple LCG random number generator state
+        let mut rng_state: u64 = 123_456_789;
+
+        for sim in 0..n_simulations {
+            // Copy the tail of the differenced series for AR context
+            let mut z_ext: Vec<f64> = z.to_vec();
+            let mut res_ext: Vec<f64> = res_vec.clone();
+
+            for h in 0..steps {
+                // Generate a normal random variate using Box-Muller with LCG
+                // LCG: x_{n+1} = (a * x_n + c) mod m
+                rng_state = rng_state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+                let u1 = (rng_state >> 11) as f64 / (1u64 << 53) as f64;
+                let u1 = if u1 < 1e-15 { 1e-15 } else { u1 };
+                rng_state = rng_state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+                let u2 = (rng_state >> 11) as f64 / (1u64 << 53) as f64;
+
+                let normal_variate = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
+                let shock = sigma * normal_variate;
+
+                let ti = n + h;
+                let mut val = self.intercept;
+
+                for l in 1..=p {
+                    if ti >= l {
+                        val += self.ar_params[l - 1] * z_ext[ti - l];
+                    }
+                }
+                for l in 1..=q {
+                    if ti >= l && (ti - l) < res_ext.len() {
+                        val += self.ma_params[l - 1] * res_ext[ti - l];
+                    }
+                }
+
+                val += shock;
+                z_ext.push(val);
+                res_ext.push(shock);
+            }
+
+            // Undo differencing for this simulation path
+            let mut forecast_vals: Vec<f64> = z_ext[n..].to_vec();
+
+            if d > 0 {
+                let orig = &self.original_y;
+                let level: Vec<f64> = orig.to_vec();
+                for _diff_round in 0..d {
+                    let last = *level.last().unwrap_or(&0.0);
+                    let mut integrated = Vec::with_capacity(forecast_vals.len());
+                    let mut prev = last;
+                    for &v in &forecast_vals {
+                        prev += v;
+                        integrated.push(prev);
+                    }
+                    forecast_vals = integrated;
+                }
+            }
+
+            for h in 0..steps {
+                result[[h, sim]] = forecast_vals[h];
+            }
+        }
+
+        result
+    }
+
+    /// Produce h-step ahead forecasts with confidence intervals.
+    ///
+    /// Returns `(forecast, lower_ci, upper_ci)`. The confidence intervals are computed
+    /// analytically using the MA(infinity) representation. The h-step forecast error variance
+    /// is `sigma2 * sum_{j=0}^{h-1} psi_j^2`, where `psi_j` are the MA(infinity) coefficients.
+    #[allow(clippy::type_complexity)]
+    pub fn predict_with_ci(
+        &self,
+        steps: usize,
+        future_exog: Option<&Array2<f64>>,
+        alpha: f64,
+    ) -> Result<(Array1<f64>, Array1<f64>, Array1<f64>), GreenersError> {
+        if alpha <= 0.0 || alpha >= 1.0 {
+            return Err(GreenersError::InvalidOperation(
+                "alpha must be between 0 and 1 (exclusive)".into(),
+            ));
+        }
+
+        let forecast = self.predict(steps, future_exog)?;
+
+        let p = self.order.p;
+        let q = self.order.q;
+
+        // Compute MA(infinity) coefficients (psi weights) up to `steps` terms.
+        // psi_0 = 1
+        // psi_j = theta_j + sum_{k=1}^{min(j,p)} phi_k * psi_{j-k}
+        // where theta_j = ma_params[j-1] for j <= q, else 0.
+        let mut psi = vec![0.0_f64; steps];
+        psi[0] = 1.0;
+        for j in 1..steps {
+            let theta_j = if j <= q { self.ma_params[j - 1] } else { 0.0 };
+            let mut val = theta_j;
+            for k in 1..=p.min(j) {
+                val += self.ar_params[k - 1] * psi[j - k];
+            }
+            psi[j] = val;
+        }
+
+        // h-step forecast error variance: sigma2 * sum_{j=0}^{h-1} psi_j^2
+        let normal = NormalDist::new(0.0, 1.0)
+            .map_err(|e| GreenersError::InvalidOperation(format!("Normal distribution error: {}", e)))?;
+        let z_crit = normal.inverse_cdf(1.0 - alpha / 2.0);
+
+        let mut cum_psi2 = 0.0;
+        let mut lower = Array1::<f64>::zeros(steps);
+        let mut upper = Array1::<f64>::zeros(steps);
+
+        for h in 0..steps {
+            cum_psi2 += psi[h] * psi[h];
+            let se = (self.sigma2 * cum_psi2).sqrt();
+            lower[h] = forecast[h] - z_crit * se;
+            upper[h] = forecast[h] + z_crit * se;
+        }
+
+        Ok((forecast, lower, upper))
+    }
+
     /// Check if the AR polynomial has all roots outside the unit circle (stationary).
     pub fn is_stationary(&self) -> bool {
         // For AR(1): stationary if |phi| < 1
