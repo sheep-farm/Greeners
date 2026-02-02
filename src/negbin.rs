@@ -307,10 +307,7 @@ impl fmt::Display for NegBinPResult {
         writeln!(
             f,
             "\n{:=^78}",
-            format!(
-                " NegBinP (p={:.1}, alpha={:.4}) ",
-                self.p_param, self.alpha
-            )
+            format!(" NegBinP (p={:.1}, alpha={:.4}) ", self.p_param, self.alpha)
         )?;
         writeln!(
             f,
@@ -690,8 +687,7 @@ impl NegBinP {
         }
 
         let cov = fisher.inv().unwrap_or(Array2::eye(k) * 1e-4);
-        let std_errors: Array1<f64> =
-            (0..k).map(|i| cov[[i, i]].max(0.0).sqrt()).collect();
+        let std_errors: Array1<f64> = (0..k).map(|i| cov[[i, i]].max(0.0).sqrt()).collect();
 
         let normal = Normal::new(0.0, 1.0).unwrap();
         let z_values = &beta / std_errors.mapv(|s| if s > 1e-15 { s } else { 1.0 });
@@ -731,10 +727,7 @@ impl NegBinP {
 pub struct GenPoisson;
 
 impl GenPoisson {
-    pub fn fit(
-        y: &Array1<f64>,
-        x: &Array2<f64>,
-    ) -> Result<GenPoissonResult, GreenersError> {
+    pub fn fit(y: &Array1<f64>, x: &Array2<f64>) -> Result<GenPoissonResult, GreenersError> {
         Self::fit_with_names(y, x, None)
     }
 
@@ -784,19 +777,10 @@ impl GenPoisson {
                 }
 
                 // d ll / d alpha = (y-1)*y/t - y
-                grad_alpha += if yi > 1.0 {
-                    (yi - 1.0) * yi / t
-                } else {
-                    0.0
-                } - yi;
+                grad_alpha += if yi > 1.0 { (yi - 1.0) * yi / t } else { 0.0 } - yi;
 
                 // Approximate Hessian for beta (expected information)
-                let d2 = -1.0 / (m * m)
-                    - if yi > 1.0 {
-                        (yi - 1.0) / (t * t)
-                    } else {
-                        0.0
-                    };
+                let d2 = -1.0 / (m * m) - if yi > 1.0 { (yi - 1.0) / (t * t) } else { 0.0 };
                 let wi = -(d2 * m * m + dll_dmu * m);
                 for a in 0..k {
                     for b in 0..k {
@@ -841,8 +825,7 @@ impl GenPoisson {
             let yi = y[i];
             let t = m + alpha * yi;
             if t > 0.0 {
-                ll += m.ln()
-                    + if yi > 1.0 { (yi - 1.0) * t.ln() } else { 0.0 }
+                ll += m.ln() + if yi > 1.0 { (yi - 1.0) * t.ln() } else { 0.0 }
                     - t
                     - statrs::function::gamma::ln_gamma(yi + 1.0);
             }
@@ -865,8 +848,7 @@ impl GenPoisson {
         }
 
         let cov = fisher.inv().unwrap_or(Array2::eye(k) * 1e-4);
-        let std_errors: Array1<f64> =
-            (0..k).map(|i| cov[[i, i]].max(0.0).sqrt()).collect();
+        let std_errors: Array1<f64> = (0..k).map(|i| cov[[i, i]].max(0.0).sqrt()).collect();
 
         let normal = Normal::new(0.0, 1.0).unwrap();
         let z_values = &beta / std_errors.mapv(|s| if s > 1e-15 { s } else { 1.0 });

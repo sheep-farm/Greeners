@@ -60,7 +60,9 @@ pub use autoreg::{ARDLResult, AutoReg, AutoRegResult, ARDL};
 pub use beta_model::{BetaLink, BetaModel, BetaResult};
 pub use bootstrap::{Bootstrap, HypothesisTest};
 pub use column::{CategoricalColumn, Column, DataType};
-pub use conditional::{ConditionalLogit, ConditionalMNLogit, ConditionalPoisson, ConditionalResult};
+pub use conditional::{
+    ConditionalLogit, ConditionalMNLogit, ConditionalPoisson, ConditionalResult,
+};
 pub use dataframe::DataFrame;
 pub use datasets::Datasets;
 pub use decomposition::{Decomposition, DecompositionResult};
@@ -79,10 +81,10 @@ pub use gls::FGLS;
 pub use glsar::{GlsarResult, GLSAR};
 pub use gmm::GMM;
 pub use hausman::HausmanTest;
+pub use imputation::{BayesGaussMI, BayesGaussMIResult, MICEResult, MICE};
 pub use influence::{CUSUMResult, CUSUMTest, Influence, InfluenceResult};
 pub use iv::IV;
 pub use markov::{MarkovSwitching, MarkovSwitchingResult};
-pub use imputation::{BayesGaussMI, BayesGaussMIResult, MICEResult, MICE};
 pub use mixed::{BayesMixedGLM, BayesMixedGLMResult, MixedLM, MixedResult};
 pub use mnlogit::{MNLogit, MNLogitResult};
 pub use model_selection::{ModelSelection, PanelDiagnostics, SummaryStats};

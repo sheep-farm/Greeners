@@ -449,9 +449,7 @@ impl Diagnostics {
         let std = var.sqrt();
 
         if std < 1e-15 {
-            return Err(GreenersError::InvalidOperation(
-                "Zero variance data".into(),
-            ));
+            return Err(GreenersError::InvalidOperation("Zero variance data".into()));
         }
 
         // Standardize and sort
@@ -531,12 +529,10 @@ impl Diagnostics {
         let p_value = if d_adj <= 0.302 {
             1.0
         } else if d_adj <= 0.5 {
-            2.76773 - 19.828315 * d_adj
-                + 80.709644 * d_adj.powi(2)
-                - 138.55152 * d_adj.powi(3)
+            2.76773 - 19.828315 * d_adj + 80.709644 * d_adj.powi(2) - 138.55152 * d_adj.powi(3)
                 + 81.218052 * d_adj.powi(4)
         } else if d_adj <= 1.8 {
-            (-0.7514 + 1.3076 * d_adj).exp().max(0.0).min(1.0) * (-8.318 * d_adj * d_adj).exp()
+            (-0.7514 + 1.3076 * d_adj).exp().clamp(0.0, 1.0) * (-8.318 * d_adj * d_adj).exp()
         } else {
             0.0
         }

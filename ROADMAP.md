@@ -4,7 +4,7 @@ Este documento mapeia todas as funcionalidades do statsmodels (v0.14) e compara 
 
 Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 
-**Ultima atualizacao:** 2026-02-01
+**Ultima atualizacao:** 2026-02-02
 
 ---
 
@@ -27,11 +27,11 @@ Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 |---|---|---|---|---|
 | GLM | `sm.GLM` | `GLM` | ✅ | Gaussian, Binomial, Poisson, Gamma, InvGaussian, Tweedie, NegBin |
 | Links | 10+ | 10 | ✅ | Identity, Log, Logit, Probit, InvPower, InvSq, CLogLog, Power, NegBin, Cauchy |
-| GEE | `GEE` | — | ❌ | Generalized Estimating Equations |
-| NominalGEE | `NominalGEE` | — | ❌ | |
-| OrdinalGEE | `OrdinalGEE` | — | ❌ | |
+| GEE | `GEE` | `GEE` | ✅ | Exchangeable, AR(1), unstructured, independence |
+| NominalGEE | `NominalGEE` | `NominalGEE` | ✅ | Baseline-category logit |
+| OrdinalGEE | `OrdinalGEE` | `OrdinalGEE` | ✅ | Cumulative logit |
 | GLMGam | `GLMGam` | — | ❌ | GAM via penalized splines |
-| BayesMixedGLM | `BinomialBayesMixedGLM` | — | ❌ | |
+| BayesMixedGLM | `BinomialBayesMixedGLM` | `BayesMixedGLM` | ✅ | Laplace approximation |
 
 ## 3. Discrete Choice (statsmodels.discrete)
 
@@ -43,13 +43,13 @@ Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 | OrderedModel | `OrderedModel` | `OrderedLogit`/`OrderedProbit` | ✅ | Threshold reparametrization |
 | Poisson (dedicado) | `Poisson` | `Poisson` | ✅ | Overdispersion test, exposure, AME |
 | NegativeBinomial | `NegativeBinomial` | `NegBin` | ✅ | Profile likelihood alpha, LR test |
-| NegativeBinomialP | `NegativeBinomialP` | — | ❌ | |
-| GeneralizedPoisson | `GeneralizedPoisson` | — | ❌ | |
+| NegativeBinomialP | `NegativeBinomialP` | `NegBinP` | ✅ | NB1 (p=1), NB2 (p=2), flexible p |
+| GeneralizedPoisson | `GeneralizedPoisson` | `GenPoisson` | ✅ | Newton-Raphson MLE |
 | ZeroInflatedPoisson | `ZeroInflatedPoisson` | `ZIP` | ✅ | EM algorithm |
 | ZeroInflatedNB | `ZeroInflatedNegativeBinomialP` | `ZINB` | ✅ | EM algorithm |
 | ConditionalLogit | `ConditionalLogit` | `ConditionalLogit` | ✅ | Chamberlain conditional MLE |
 | ConditionalPoisson | `ConditionalPoisson` | `ConditionalPoisson` | ✅ | Hausman-Hall-Griliches |
-| ConditionalMNLogit | `ConditionalMNLogit` | — | ❌ | |
+| ConditionalMNLogit | `ConditionalMNLogit` | `ConditionalMNLogit` | ✅ | Softmax conditional likelihood |
 
 ## 4. Time Series (statsmodels.tsa)
 
@@ -88,56 +88,56 @@ Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 |---|---|---|---|---|
 | ADF | `adfuller` | `TimeSeries::adf` | ✅ | |
 | KPSS | `kpss` | `TimeSeries::kpss` | ✅ | |
-| Phillips-Perron | `PhillipsPerron` | — | ❌ | |
-| Zivot-Andrews | `zivot_andrews` | — | ❌ | |
+| Phillips-Perron | `PhillipsPerron` | `TimeSeries::phillips_perron` | ✅ | Z(alpha), Z(t) with Newey-West |
+| Zivot-Andrews | `zivot_andrews` | `TimeSeries::zivot_andrews` | ✅ | Structural break unit root |
 | Engle-Granger coint | `coint` | `TimeSeries::engle_granger` | ✅ | |
 | Johansen coint | `coint_johansen` | `TimeSeries::johansen` | ✅ | |
 | Granger causality | `grangercausalitytests` | `TimeSeries::granger_causality` | ✅ | |
 | Ljung-Box | `acorr_ljungbox` | `TimeSeries::ljung_box` | ✅ | |
 | ACF | `acf` | `TimeSeries::acf` | ✅ | |
 | PACF | `pacf` | `TimeSeries::pacf` | ✅ | |
-| seasonal_decompose | `seasonal_decompose` | — | ❌ | |
-| STL | `STL` | — | ❌ | |
+| seasonal_decompose | `seasonal_decompose` | `TimeSeries::seasonal_decompose` | ✅ | Additive + multiplicative |
+| STL | `STL` | `TimeSeries::stl` | ✅ | LOESS-based decomposition |
 | MSTL | `MSTL` | — | ❌ | |
-| HP filter | `hpfilter` | — | ❌ | |
-| BK filter | `bkfilter` | — | ❌ | |
-| CF filter | `cffilter` | — | ❌ | |
+| HP filter | `hpfilter` | `TimeSeries::hp_filter` | ✅ | Hodrick-Prescott |
+| BK filter | `bkfilter` | `TimeSeries::bk_filter` | ✅ | Baxter-King |
+| CF filter | `cffilter` | `TimeSeries::cf_filter` | ✅ | Christiano-Fitzgerald |
 | IRF | `irf` (no VAR result) | `VarResult::irf` | ✅ | Impulse Response Functions |
 | FEVD | `fevd` (no VAR result) | `VarResult::fevd` | ✅ | Forecast Error Variance Decomposition |
-| DeterministicProcess | `DeterministicProcess` | — | ❌ | Trend, fourier, sazonalidade |
-| lagmat | `lagmat` | — | ❌ | Construcao de matrizes de lags |
+| DeterministicProcess | `DeterministicProcess` | `TimeSeries::deterministic_process` | ✅ | Const, trend, seasonal, fourier |
+| lagmat | `lagmat` | `TimeSeries::lagmat` | ✅ | Lag matrix construction |
 
 ## 5. Robust Regression (statsmodels.robust)
 
 | Feature | statsmodels | Greeners | Status |
 |---|---|---|---|
-| RLM | `sm.RLM` | — | ❌ |
-| Norms (Huber, Tukey, etc.) | `norms` | — | ❌ |
+| RLM | `sm.RLM` | `RLM` | ✅ | Huber, Bisquare, Andrews, Hampel |
+| Norms (Huber, Tukey, etc.) | `norms` | `RobustNorm` | ✅ | 4 norms implemented |
 
 ## 6. Mixed/Multilevel Models
 
 | Feature | statsmodels | Greeners | Status |
 |---|---|---|---|
-| MixedLM | `MixedLM` | — | ❌ |
+| MixedLM | `MixedLM` | `MixedLM` | ✅ | Random intercepts, REML |
 | BetaModel | `BetaModel` | — | ❌ |
 
 ## 7. Multivariate (statsmodels.multivariate)
 
 | Feature | statsmodels | Greeners | Status |
 |---|---|---|---|
-| PCA | `PCA` | — | ❌ |
-| Factor Analysis | `Factor` | — | ❌ |
-| MANOVA | `MANOVA` | — | ❌ |
-| Canonical Correlation | `CanCorr` | — | ❌ |
+| PCA | `PCA` | `PCA` | ✅ | Eigendecomposition, scree, loadings |
+| Factor Analysis | `Factor` | `FactorAnalysis` | ✅ | Principal axis factoring, rotation |
+| MANOVA | `MANOVA` | `MANOVA` | ✅ | Wilks, Pillai, Hotelling, Roy |
+| Canonical Correlation | `CanCorr` | `CanCorr` | ✅ | SVD-based, Wilks' Lambda, F-test |
 
 ## 8. Nonparametric (statsmodels.nonparametric)
 
 | Feature | statsmodels | Greeners | Status |
 |---|---|---|---|
-| KDEUnivariate | `KDEUnivariate` | — | ❌ |
-| KDEMultivariate | `KDEMultivariate` | — | ❌ |
+| KDEUnivariate | `KDEUnivariate` | `KDE` | ✅ | Gaussian, Epanechnikov, Silverman/Scott |
+| KDEMultivariate | `KDEMultivariate` | `KDEMultivariate` | ✅ | Product kernel, Silverman per-dim |
 | KernelReg | `KernelReg` | — | ❌ |
-| Lowess | `lowess` | — | ❌ |
+| Lowess | `lowess` | `Lowess` | ✅ | Local weighted regression |
 
 ## 9. Duration/Survival (statsmodels.duration)
 
@@ -150,8 +150,8 @@ Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 
 | Feature | statsmodels | Greeners | Status |
 |---|---|---|---|
-| MICE | `MICE` | — | ❌ |
-| BayesGaussMI | `BayesGaussMI` | — | ❌ |
+| MICE | `MICE` | `MICE` | ✅ | Chained equations with OLS |
+| BayesGaussMI | `BayesGaussMI` | `BayesGaussMI` | ✅ | Conditional normal imputation |
 
 ## 11. Diagnostics & Specification Tests
 
@@ -172,9 +172,9 @@ Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 | Ljung-Box | `acorr_ljungbox` | `TimeSeries::ljung_box` | ✅ |
 | ARCH test | `het_arch` | `TimeSeries::arch_test` | ✅ |
 | Omnibus | `omni_normtest` | `Diagnostics::omnibus` | ✅ |
-| Harvey-Collier | `linear_harvey_collier` | — | ❌ |
-| DFBetas | `OLSInfluence` | — | ❌ |
-| DFFITS | `OLSInfluence` | — | ❌ |
+| Harvey-Collier | `linear_harvey_collier` | `Diagnostics::harvey_collier` | ✅ | t-test on recursive residuals |
+| DFBetas | `OLSInfluence` | `Influence::dfbetas` | ✅ | Per-observation influence |
+| DFFITS | `OLSInfluence` | `Influence::dffits` | ✅ | Per-observation influence |
 | CUSUM | `OLSInfluence` | — | ❌ |
 | Wald test | `.wald_test()` | `OlsResult::wald_test` | ✅ |
 | F test | `.f_test()` | `OlsResult::f_test` | ✅ |
@@ -188,7 +188,7 @@ Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 | `.predict()` | com CI | `predict()` | ✅ | IC via get_prediction |
 | `.get_prediction()` | com SE e IC | `get_prediction()` | ✅ | OLS, GLM, Poisson, NegBin |
 | `.conf_int()` | em todos os modelos | `conf_int()` | ✅ | OLS, GLM, ARIMA, Poisson, NegBin |
-| `summary_col` | tabela comparativa | — | ❌ | Comparacao lado-a-lado |
+| `summary_col` | tabela comparativa | `SummaryCol` | ✅ | Side-by-side model comparison |
 | Export LaTeX | `summary().as_latex()` | — | ❌ | |
 | Export HTML | `summary().as_html()` | — | ❌ | |
 | Export CSV | `summary().as_csv()` | — | ❌ | |
@@ -210,13 +210,13 @@ Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 
 | Feature | statsmodels | Greeners | Status |
 |---|---|---|---|
-| `DescrStatsW` | descriptive stats com pesos | — | ❌ |
-| `CompareMeans` | testes de medias | — | ❌ |
+| `DescrStatsW` | descriptive stats com pesos | `DescrStatsW` | ✅ | Weighted mean, var, std, CI, t-test |
+| `CompareMeans` | testes de medias | `Stats::compare_means` | ✅ | Welch t-test, Cohen's d, CI |
 | `anova_lm` | ANOVA | — | ❌ |
 | `multipletests` | correcao de multiplos testes | — | ❌ |
-| `diagnostic` (vários) | Anderson-Darling, Lilliefors, etc. | — | ❌ |
+| `diagnostic` (vários) | Anderson-Darling, Lilliefors, etc. | `Diagnostics` | ✅ | Anderson-Darling, Lilliefors |
 | `proportion` | testes de proporcao | — | ❌ |
-| `weightstats` | estatisticas ponderadas | — | ❌ |
+| `weightstats` | estatisticas ponderadas | `DescrStatsW` | ✅ | Via descrstatsw module |
 | `moment_helpers` | skew, kurtosis | — | ❌ |
 | `sandwich_covariance` | HAC, kernel covariance | parcial | 🔶 | NeweyWest existe em CovarianceType |
 | `stattools` | varios testes | parcial | 🔶 | ADF existe |
@@ -225,7 +225,7 @@ Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 
 | Feature | statsmodels | Greeners | Status |
 |---|---|---|---|
-| Datasets embutidos | ~30 datasets | — | ❌ | Longley, Macrodata, Sunspots, etc. |
+| Datasets embutidos | ~30 datasets | `Datasets` | ✅ | Longley, Macrodata, Sunspots, etc. |
 
 ---
 

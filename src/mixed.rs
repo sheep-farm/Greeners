@@ -513,9 +513,7 @@ impl BayesMixedGLM {
         }
 
         let post_cov = hess.inv().unwrap_or(Array2::eye(p) * 1e-4);
-        let posterior_sd: Array1<f64> = (0..p)
-            .map(|i| post_cov[[i, i]].max(0.0).sqrt())
-            .collect();
+        let posterior_sd: Array1<f64> = (0..p).map(|i| post_cov[[i, i]].max(0.0).sqrt()).collect();
 
         // Random effects and their SDs
         let mut re_map = HashMap::new();

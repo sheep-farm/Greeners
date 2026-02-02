@@ -446,11 +446,7 @@ impl NominalGEE {
                         let pj = probs[[i, j]];
                         for j2 in 0..n_cats {
                             let pj2 = probs[[i, j2]];
-                            let w = if j == j2 {
-                                pj * (1.0 - pj)
-                            } else {
-                                -pj * pj2
-                            };
+                            let w = if j == j2 { pj * (1.0 - pj) } else { -pj * pj2 };
                             for a in 0..k {
                                 for b in 0..k {
                                     bread[[j * k + a, j2 * k + b]] += w * xi[a] * xi[b];
@@ -517,11 +513,7 @@ impl NominalGEE {
                     }
                     for j2 in 0..n_cats {
                         let pj2 = probs[[i, j2]];
-                        let w = if j == j2 {
-                            pj * (1.0 - pj)
-                        } else {
-                            -pj * pj2
-                        };
+                        let w = if j == j2 { pj * (1.0 - pj) } else { -pj * pj2 };
                         for a in 0..k {
                             for b in 0..k {
                                 bread_final[[j * k + a, j2 * k + b]] += w * xi[a] * xi[b];
@@ -787,9 +779,8 @@ impl OrdinalGEE {
         let p_values = z_values.mapv(|z| 2.0 * (1.0 - normal.cdf(z.abs())));
 
         let var_names = variable_names.map(|vn| {
-            let mut names: Vec<String> = (0..n_thresh)
-                .map(|j| format!("alpha_{}", j + 1))
-                .collect();
+            let mut names: Vec<String> =
+                (0..n_thresh).map(|j| format!("alpha_{}", j + 1)).collect();
             names.extend(vn);
             names
         });

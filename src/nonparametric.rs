@@ -467,8 +467,7 @@ impl KDEMultivariate {
                 for j in 0..d {
                     let col = data.column(j);
                     let mean = col.mean().unwrap_or(0.0);
-                    let var =
-                        col.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / (n - 1) as f64;
+                    let var = col.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / (n - 1) as f64;
                     bw[j] = (var.sqrt() * factor).max(1e-10);
                 }
                 bw
