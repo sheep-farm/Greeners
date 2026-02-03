@@ -151,8 +151,7 @@ impl ProportionTests {
             }
         }
 
-        let chi2_dist =
-            ChiSquared::new(1.0).map_err(|_| GreenersError::OptimizationFailed)?;
+        let chi2_dist = ChiSquared::new(1.0).map_err(|_| GreenersError::OptimizationFailed)?;
         let p_value = 1.0 - chi2_dist.cdf(chi2);
 
         Ok((chi2, p_value))

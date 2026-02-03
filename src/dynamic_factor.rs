@@ -91,8 +91,7 @@ impl DynamicFactor {
         for j in 0..k {
             let col = data.column(j);
             mean[j] = col.mean().unwrap_or(0.0);
-            let var =
-                col.iter().map(|x| (x - mean[j]).powi(2)).sum::<f64>() / (t - 1) as f64;
+            let var = col.iter().map(|x| (x - mean[j]).powi(2)).sum::<f64>() / (t - 1) as f64;
             std_dev[j] = var.sqrt().max(1e-15);
         }
 
@@ -104,7 +103,7 @@ impl DynamicFactor {
 
         // Step 1: PCA - extract initial factors
         let corr = z.t().dot(&z) / (t - 1) as f64;
-        let (eigenvalues, eigenvectors) = corr.eigh(UPLO::Upper)?;
+        let (_eigenvalues, eigenvectors) = corr.eigh(UPLO::Upper)?;
 
         // Reverse to descending order, take top r eigenvectors
         let evec: Array2<f64> = eigenvectors.slice(s![.., ..;-1]).to_owned();
@@ -147,7 +146,8 @@ impl DynamicFactor {
         let mut f_mat = Array2::<f64>::zeros((state_dim, state_dim));
         for (lag, ar_mat) in ar_params.iter().enumerate() {
             let col_start = lag * r;
-            f_mat.slice_mut(s![..r, col_start..col_start + r])
+            f_mat
+                .slice_mut(s![..r, col_start..col_start + r])
                 .assign(ar_mat);
         }
         // Identity blocks for lagged states

@@ -83,11 +83,7 @@ impl fmt::Display for UCResult {
         writeln!(f, "{:<25} {:>10}", "Observations:", self.n_obs)?;
         writeln!(f, "{:<25} {:>10?}", "Level type:", self.level_type)?;
         writeln!(f, "{:<25} {:>10?}", "Seasonal type:", self.seasonal_type)?;
-        writeln!(
-            f,
-            "{:<25} {:>10.4}",
-            "Log-likelihood:", self.log_likelihood
-        )?;
+        writeln!(f, "{:<25} {:>10.4}", "Log-likelihood:", self.log_likelihood)?;
         writeln!(f, "{:<25} {:>10.4}", "AIC:", self.aic)?;
         writeln!(f, "{:<25} {:>10.4}", "BIC:", self.bic)?;
         writeln!(f, "\n{:-^60}", " Estimated Parameters ")?;
@@ -232,7 +228,9 @@ impl UnobservedComponents {
     ) -> Result<UCResult, GreenersError> {
         let n = y.len();
         if n < 3 {
-            return Err(GreenersError::InvalidOperation("Not enough data".to_string()));
+            return Err(GreenersError::InvalidOperation(
+                "Not enough data".to_string(),
+            ));
         }
 
         // Determine state dimension and parameter layout

@@ -676,13 +676,18 @@ impl ArimaResult {
             for h in 0..steps {
                 // Generate a normal random variate using Box-Muller with LCG
                 // LCG: x_{n+1} = (a * x_n + c) mod m
-                rng_state = rng_state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+                rng_state = rng_state
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
                 let u1 = (rng_state >> 11) as f64 / (1u64 << 53) as f64;
                 let u1 = if u1 < 1e-15 { 1e-15 } else { u1 };
-                rng_state = rng_state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+                rng_state = rng_state
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
                 let u2 = (rng_state >> 11) as f64 / (1u64 << 53) as f64;
 
-                let normal_variate = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
+                let normal_variate =
+                    (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
                 let shock = sigma * normal_variate;
 
                 let ti = n + h;
@@ -769,8 +774,9 @@ impl ArimaResult {
         }
 
         // h-step forecast error variance: sigma2 * sum_{j=0}^{h-1} psi_j^2
-        let normal = NormalDist::new(0.0, 1.0)
-            .map_err(|e| GreenersError::InvalidOperation(format!("Normal distribution error: {}", e)))?;
+        let normal = NormalDist::new(0.0, 1.0).map_err(|e| {
+            GreenersError::InvalidOperation(format!("Normal distribution error: {}", e))
+        })?;
         let z_crit = normal.inverse_cdf(1.0 - alpha / 2.0);
 
         let mut cum_psi2 = 0.0;

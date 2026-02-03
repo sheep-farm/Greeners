@@ -28,7 +28,12 @@ impl fmt::Display for MSTLResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "\n{:=^60}", " MSTL Decomposition ")?;
         writeln!(f, "{:<20} {:>10}", "Observations:", self.n_obs)?;
-        writeln!(f, "{:<20} {:>10}", "Seasonal periods:", format!("{:?}", self.periods))?;
+        writeln!(
+            f,
+            "{:<20} {:>10}",
+            "Seasonal periods:",
+            format!("{:?}", self.periods)
+        )?;
         writeln!(
             f,
             "{:<20} {:>10.4}",
@@ -43,12 +48,7 @@ impl fmt::Display for MSTLResult {
                 std_dev(s)
             )?;
         }
-        writeln!(
-            f,
-            "{:<20} {:>10.4}",
-            "Residual std:",
-            std_dev(&self.resid)
-        )?;
+        writeln!(f, "{:<20} {:>10.4}", "Residual std:", std_dev(&self.resid))?;
         writeln!(f, "{:=^60}", "")
     }
 }
@@ -82,17 +82,16 @@ impl MSTL {
         }
         for &p in periods {
             if p < 2 {
-                return Err(GreenersError::ShapeMismatch(
-                    format!("Seasonal period must be >= 2, got {}", p),
-                ));
+                return Err(GreenersError::ShapeMismatch(format!(
+                    "Seasonal period must be >= 2, got {}",
+                    p
+                )));
             }
             if p > n {
-                return Err(GreenersError::ShapeMismatch(
-                    format!(
-                        "Seasonal period {} exceeds series length {}",
-                        p, n
-                    ),
-                ));
+                return Err(GreenersError::ShapeMismatch(format!(
+                    "Seasonal period {} exceeds series length {}",
+                    p, n
+                )));
             }
         }
 
@@ -218,7 +217,7 @@ fn stl_decompose(
         }
 
         // LOESS-smooth each cycle-subseries
-        for p in 0..period {
+        for (p, &avg_p) in new_avgs.iter().enumerate().take(period) {
             let indices: Vec<usize> = (p..n).step_by(period).collect();
             if indices.len() >= 3 {
                 let sub_values: Vec<f64> = indices.iter().map(|&i| new_detrended[i]).collect();
@@ -228,7 +227,7 @@ fn stl_decompose(
                 }
             } else {
                 for &idx in &indices {
-                    seasonal[idx] = new_avgs[p];
+                    seasonal[idx] = avg_p;
                 }
             }
         }

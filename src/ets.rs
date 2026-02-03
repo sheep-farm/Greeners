@@ -608,7 +608,11 @@ impl ETSModelResult {
             };
 
             let trend_val = if !has_trend {
-                if mul_trend { 1.0 } else { 0.0 }
+                if mul_trend {
+                    1.0
+                } else {
+                    0.0
+                }
             } else if mul_trend {
                 b.powf(phi_sum)
             } else {
@@ -673,8 +677,11 @@ impl fmt::Display for ETSModelResult {
     }
 }
 
-/// Internal: run the ETS recursion for the full framework, returning
+/// Return type for ets_full_recursion:
 /// (level, trend, seasonal, fitted, errors, neg_log_likelihood).
+type EtsRecursionResult = (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, f64);
+
+/// Internal: run the ETS recursion for the full framework.
 /// `params` layout: [alpha, (beta), (gamma), (phi), l0, (b0), (s0..s_{m-1})]
 #[allow(clippy::too_many_arguments)]
 fn ets_full_recursion(
@@ -687,7 +694,7 @@ fn ets_full_recursion(
     has_seasonal: bool,
     mul_seasonal: bool,
     m: usize,
-) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, f64) {
+) -> EtsRecursionResult {
     let n = y.len();
     let mut idx = 0;
     let alpha = params[idx];
@@ -726,9 +733,7 @@ fn ets_full_recursion(
     };
     let mut s_init = vec![if mul_seasonal { 1.0 } else { 0.0 }; m.max(1)];
     if has_seasonal {
-        for j in 0..m {
-            s_init[j] = params[idx + j];
-        }
+        s_init[..m].copy_from_slice(&params[idx..idx + m]);
     }
 
     let mut level = vec![0.0; n];
@@ -739,9 +744,7 @@ fn ets_full_recursion(
 
     // Place initial seasonal values
     if has_seasonal {
-        for j in 0..m {
-            seasonal_v[j] = s_init[j];
-        }
+        seasonal_v[..m].copy_from_slice(&s_init[..m]);
     }
 
     let mut l_prev = l0;
@@ -795,13 +798,11 @@ fn ets_full_recursion(
                     }
                 }
                 (true, false) => {
-                    alpha * (y[t] - s_prev)
-                        + (1.0 - alpha) * l_prev * b_prev.powf(phi)
+                    alpha * (y[t] - s_prev) + (1.0 - alpha) * l_prev * b_prev.powf(phi)
                 }
                 (true, true) => {
                     if s_prev.abs() > 1e-15 {
-                        alpha * (y[t] / s_prev)
-                            + (1.0 - alpha) * l_prev * b_prev.powf(phi)
+                        alpha * (y[t] / s_prev) + (1.0 - alpha) * l_prev * b_prev.powf(phi)
                     } else {
                         return (level, trend_v, seasonal_v, fitted, errors, f64::MAX);
                     }
@@ -814,7 +815,8 @@ fn ets_full_recursion(
             if mul_error {
                 if mul_trend {
                     if l_prev.abs() > 1e-15 {
-                        b_prev.powf(phi) * (1.0 + beta * e_t) * new_l / (l_prev * b_prev.powf(phi) + 1e-30)
+                        b_prev.powf(phi) * (1.0 + beta * e_t) * new_l
+                            / (l_prev * b_prev.powf(phi) + 1e-30)
                             * (l_prev * b_prev.powf(phi))
                             / new_l
                     } else {
@@ -900,11 +902,7 @@ fn ets_full_recursion(
     )
 }
 
-fn ets_numerical_gradient(
-    f: &dyn Fn(&[f64]) -> f64,
-    params: &[f64],
-    eps: f64,
-) -> Vec<f64> {
+fn ets_numerical_gradient(f: &dyn Fn(&[f64]) -> f64, params: &[f64], eps: f64) -> Vec<f64> {
     let n = params.len();
     let mut grad = vec![0.0; n];
     for i in 0..n {
@@ -1082,7 +1080,7 @@ impl ETSModel {
 
         // Build initial parameter vector
         // Layout: [alpha, (beta), (gamma), (phi), l0, (b0), (s0..s_{m-1})]
-        let y_mean = y.iter().sum::<f64>() / n as f64;
+        let _y_mean = y.iter().sum::<f64>() / n as f64;
         let mut init = Vec::new();
         init.push(0.3); // alpha
         if has_trend {
@@ -1214,7 +1212,11 @@ impl ETSModel {
         let mut best_nll = neg_ll_fn(&init);
 
         let beta_vals: &[f64] = if has_trend { &beta_grid } else { &[0.0][..] };
-        let gamma_vals: &[f64] = if has_seasonal { &gamma_grid } else { &[0.0][..] };
+        let gamma_vals: &[f64] = if has_seasonal {
+            &gamma_grid
+        } else {
+            &[0.0][..]
+        };
         let phi_vals: &[f64] = if damped { &phi_grid } else { &[1.0][..] };
 
         for &a in &alpha_grid {
@@ -1287,7 +1289,7 @@ impl ETSModel {
         };
         let phi_opt = if damped {
             let v = best_params[idx];
-            idx += 1;
+            // idx += 1;
             Some(v)
         } else {
             None

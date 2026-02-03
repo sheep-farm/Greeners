@@ -30,7 +30,9 @@ fn make_trend_data(n: usize, seed: u64) -> Array1<f64> {
 fn make_seasonal_data(n: usize, seed: u64) -> Array1<f64> {
     let mut y = vec![0.0; n];
     let mut state = seed;
-    let seasonal_pattern = [2.0, 1.5, 0.5, -0.5, -1.5, -2.0, -1.5, -0.5, 0.5, 1.5, 2.0, 1.0];
+    let seasonal_pattern = [
+        2.0, 1.5, 0.5, -0.5, -1.5, -2.0, -1.5, -0.5, 0.5, 1.5, 2.0, 1.0,
+    ];
     let mut level = 10.0;
     for i in 0..n {
         state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
@@ -78,7 +80,11 @@ fn test_local_linear_trend() {
     assert_eq!(trend.len(), 200);
     // Trend should generally be positive for data with drift
     let mean_trend = trend.mean().unwrap_or(0.0);
-    assert!(mean_trend > -1.0, "Expected positive trend, got {}", mean_trend);
+    assert!(
+        mean_trend > -1.0,
+        "Expected positive trend, got {}",
+        mean_trend
+    );
     assert_eq!(result.params.len(), 3); // irregular + level + trend
 }
 
