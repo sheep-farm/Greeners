@@ -17,7 +17,7 @@ pub struct BinaryModelResult {
     pub log_likelihood: f64,
     pub pseudo_r2: f64, // McFadden's R2
     // Store X for marginal effects calculations
-    _x_data: Option<Array2<f64>>,
+    pub(crate) _x_data: Option<Array2<f64>>,
     pub inference_type: InferenceType, // Always Normal for MLE
     pub variable_names: Option<Vec<String>>,
     pub omitted_vars: Vec<String>,
@@ -118,6 +118,13 @@ impl Logit {
         variable_names: Option<Vec<String>>,
     ) -> Result<BinaryModelResult, GreenersError> {
         let n = x.nrows();
+
+        // Check for NaN/Inf in input data
+        if y.iter().any(|v| !v.is_finite()) || x.iter().any(|v| !v.is_finite()) {
+            return Err(GreenersError::InvalidOperation(
+                "Input data contains NaN or Inf values".into(),
+            ));
+        }
 
         // Detect collinearity
         let tolerance = 1e-10;
@@ -466,6 +473,13 @@ impl Probit {
         variable_names: Option<Vec<String>>,
     ) -> Result<BinaryModelResult, GreenersError> {
         let n = x.nrows();
+
+        // Check for NaN/Inf in input data
+        if y.iter().any(|v| !v.is_finite()) || x.iter().any(|v| !v.is_finite()) {
+            return Err(GreenersError::InvalidOperation(
+                "Input data contains NaN or Inf values".into(),
+            ));
+        }
 
         // Detect collinearity
         let tolerance = 1e-10;

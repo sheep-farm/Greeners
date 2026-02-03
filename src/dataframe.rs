@@ -487,6 +487,37 @@ impl DataFrame {
                 }
 
                 count += n_categories - 1; // Drop first category
+            } else if var_name.starts_with("log(")
+                || var_name.starts_with("exp(")
+                || var_name.starts_with("sqrt(")
+            {
+                count += 1;
+            } else if var_name.starts_with("poly(") && var_name.ends_with(')') {
+                // poly(var, degree) => degree columns
+                let inner = &var_name[5..var_name.len() - 1];
+                let parts: Vec<&str> = inner.split(',').collect();
+                if parts.len() == 2 {
+                    if let Ok(deg) = parts[1].trim().parse::<usize>() {
+                        count += deg;
+                    } else {
+                        count += 1;
+                    }
+                } else {
+                    count += 1;
+                }
+            } else if var_name.starts_with("bs(") && var_name.ends_with(')') {
+                // bs(var, df) => df columns
+                let inner = &var_name[3..var_name.len() - 1];
+                let parts: Vec<&str> = inner.split(',').collect();
+                if parts.len() >= 2 {
+                    if let Ok(df) = parts[1].trim().parse::<usize>() {
+                        count += df;
+                    } else {
+                        count += 1;
+                    }
+                } else {
+                    count += 1;
+                }
             } else {
                 // Regular, interaction, or polynomial: 1 column each
                 count += 1;
@@ -634,6 +665,86 @@ impl DataFrame {
                         expr
                     )));
                 }
+            }
+            // Function transforms: log(var), exp(var), sqrt(var)
+            else if var_name.starts_with("log(") && var_name.ends_with(')') {
+                let var = &var_name[4..var_name.len() - 1].trim();
+                let column = self.get_column(var)?;
+                let col_data = column.to_float();
+                for i in 0..n_rows {
+                    x_mat[[i, col_idx]] = col_data[i].ln();
+                }
+            } else if var_name.starts_with("exp(") && var_name.ends_with(')') {
+                let var = &var_name[4..var_name.len() - 1].trim();
+                let column = self.get_column(var)?;
+                let col_data = column.to_float();
+                for i in 0..n_rows {
+                    x_mat[[i, col_idx]] = col_data[i].exp();
+                }
+            } else if var_name.starts_with("sqrt(") && var_name.ends_with(')') {
+                let var = &var_name[5..var_name.len() - 1].trim();
+                let column = self.get_column(var)?;
+                let col_data = column.to_float();
+                for i in 0..n_rows {
+                    x_mat[[i, col_idx]] = col_data[i].sqrt();
+                }
+            } else if var_name.starts_with("poly(") && var_name.ends_with(')') {
+                let inner = &var_name[5..var_name.len() - 1];
+                let parts: Vec<&str> = inner.split(',').collect();
+                if parts.len() != 2 {
+                    return Err(GreenersError::FormulaError(format!(
+                        "poly() requires 2 arguments: poly(var, degree), got '{}'",
+                        var_name
+                    )));
+                }
+                let var = parts[0].trim();
+                let degree: usize = parts[1].trim().parse().map_err(|_| {
+                    GreenersError::FormulaError(format!(
+                        "Invalid degree in poly(): '{}'",
+                        parts[1].trim()
+                    ))
+                })?;
+                let column = self.get_column(var)?;
+                let col_data = column.to_float();
+                for d in 1..=degree {
+                    for i in 0..n_rows {
+                        x_mat[[i, col_idx]] = col_data[i].powi(d as i32);
+                    }
+                    col_idx += 1;
+                }
+                continue; // already incremented col_idx
+            } else if var_name.starts_with("bs(") && var_name.ends_with(')') {
+                let inner = &var_name[3..var_name.len() - 1];
+                let parts: Vec<&str> = inner.split(',').collect();
+                if parts.len() < 2 {
+                    return Err(GreenersError::FormulaError(format!(
+                        "bs() requires at least 2 arguments: bs(var, df), got '{}'",
+                        var_name
+                    )));
+                }
+                let var = parts[0].trim();
+                let df: usize = parts[1].trim().parse().map_err(|_| {
+                    GreenersError::FormulaError(format!(
+                        "Invalid df in bs(): '{}'",
+                        parts[1].trim()
+                    ))
+                })?;
+                let degree: usize = if parts.len() >= 3 {
+                    parts[2].trim().parse().unwrap_or(3)
+                } else {
+                    3
+                };
+                let column = self.get_column(var)?;
+                let col_data = column.to_float();
+                // Generate B-spline basis using equally spaced knots
+                let basis = crate::glmgam::BSplineBasis::generate(&col_data, df, degree)?;
+                for j in 0..df {
+                    for i in 0..n_rows {
+                        x_mat[[i, col_idx]] = basis[[i, j]];
+                    }
+                    col_idx += 1;
+                }
+                continue; // already incremented col_idx
             }
             // Check if this is an interaction term (contains ':')
             else if var_name.contains(':') {

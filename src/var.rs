@@ -72,6 +72,38 @@ impl VarResult {
         Ok(irf_tensor)
     }
 
+    /// Forecast Error Variance Decomposition (FEVD).
+    ///
+    /// Returns Array3 of dimension (steps x k x k).
+    /// Element [h, i, j] = proportion of variance of variable i at horizon h
+    /// attributable to shocks in variable j.
+    /// Each row sums to 1.0.
+    pub fn fevd(&self, steps: usize) -> Result<Array3<f64>, GreenersError> {
+        let k = self.n_vars;
+        let irf = self.irf(steps)?;
+
+        let mut fevd_tensor = Array3::<f64>::zeros((steps, k, k));
+
+        for i in 0..k {
+            // Cumulative MSE for variable i from each shock j
+            let mut cum_mse = vec![0.0f64; k]; // contribution of shock j to var i
+            for h in 0..steps {
+                for j in 0..k {
+                    cum_mse[j] += irf[[h, i, j]].powi(2);
+                }
+                let total_mse: f64 = cum_mse.iter().sum();
+
+                if total_mse > 1e-15 {
+                    for j in 0..k {
+                        fevd_tensor[[h, i, j]] = cum_mse[j] / total_mse;
+                    }
+                }
+            }
+        }
+
+        Ok(fevd_tensor)
+    }
+
     /// Teste de Causalidade de Granger (Placeholder).
     /// Retorna erro por enquanto, pois requer reestimação do modelo restrito.
     pub fn granger_causality(

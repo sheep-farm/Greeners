@@ -358,6 +358,16 @@ impl IV {
             )));
         }
 
+        // Check for NaN/Inf in input data
+        if y.iter().any(|v| !v.is_finite())
+            || x.iter().any(|v| !v.is_finite())
+            || z.iter().any(|v| !v.is_finite())
+        {
+            return Err(GreenersError::InvalidOperation(
+                "Input data contains NaN or Inf values".into(),
+            ));
+        }
+
         // Detect collinearity in X (endogenous variables)
         let tolerance = 1e-10;
         let (x_clean, keep_indices_x, omit_indices_x) = OLS::detect_collinearity(x, tolerance);

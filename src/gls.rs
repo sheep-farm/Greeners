@@ -122,6 +122,16 @@ impl FGLS {
             ));
         }
 
+        // Check for NaN/Inf in input data
+        if y.iter().any(|v| !v.is_finite())
+            || x.iter().any(|v| !v.is_finite())
+            || weights.iter().any(|v| !v.is_finite())
+        {
+            return Err(GreenersError::InvalidOperation(
+                "Input data contains NaN or Inf values".into(),
+            ));
+        }
+
         // GLS Transformation: Multiply X and y by the square root of weights
         // y* = sqrt(w) * y
         // X* = sqrt(w) * X
