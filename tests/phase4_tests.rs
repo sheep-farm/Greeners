@@ -355,7 +355,7 @@ fn test_cox_ph() {
     let events = Array1::from_vec((0..n).map(|i| if i % 3 != 0 { 1u8 } else { 0 }).collect());
     let x = Array2::from_shape_fn((n, 2), |(i, j)| {
         if j == 0 {
-            (i as f64 / n as f64)
+            i as f64 / n as f64
         } else {
             ((i * 3) as f64).sin()
         }

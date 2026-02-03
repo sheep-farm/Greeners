@@ -1,4 +1,4 @@
-use greeners::{MSTLResult, MSTL};
+use greeners::MSTL;
 use ndarray::Array1;
 use std::f64::consts::PI;
 

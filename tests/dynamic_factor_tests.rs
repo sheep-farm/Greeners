@@ -1,4 +1,4 @@
-use greeners::{DynamicFactor, DynamicFactorResult};
+use greeners::DynamicFactor;
 use ndarray::Array2;
 
 fn generate_factor_data(t: usize) -> Array2<f64> {
