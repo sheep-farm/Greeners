@@ -63,7 +63,10 @@ fn test_markov_autoreg_two_regime_ar1() {
     assert_eq!(result.transition_matrix.shape(), &[2, 2]);
 
     // Log-likelihood should be finite
-    assert!(result.log_likelihood.is_finite(), "log_likelihood not finite");
+    assert!(
+        result.log_likelihood.is_finite(),
+        "log_likelihood not finite"
+    );
     assert!(result.aic.is_finite());
     assert!(result.bic.is_finite());
 

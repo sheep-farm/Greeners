@@ -32,8 +32,8 @@ pub mod markov;
 pub mod markov_autoreg;
 pub mod mixed;
 pub mod mnlogit;
-pub mod mstl;
 pub mod model_selection;
+pub mod mstl;
 pub mod multipletests;
 pub mod multivariate;
 pub mod negbin;
@@ -99,8 +99,8 @@ pub use markov::{MarkovSwitching, MarkovSwitchingResult};
 pub use markov_autoreg::{MarkovAutoregResult, MarkovAutoregression};
 pub use mixed::{BayesMixedGLM, BayesMixedGLMResult, MixedLM, MixedResult};
 pub use mnlogit::{MNLogit, MNLogitResult};
-pub use mstl::{MSTLResult, MSTL};
 pub use model_selection::{ModelSelection, PanelDiagnostics, SummaryStats};
+pub use mstl::{MSTLResult, MSTL};
 pub use multipletests::{MultiTestMethod, MultipleTests};
 pub use multivariate::{
     CanCorr, CanCorrResult, FactorAnalysis, FactorResult, ManovaResult, PCAResult, Rotation,

@@ -48,7 +48,10 @@ pub trait ExportableResult {
         }
         s.push_str("\\midrule\n");
         for (key, val) in &d.extra_stats {
-            s.push_str(&format!("{} & \\multicolumn{{6}}{{c}}{{{}}} \\\\\n", key, val));
+            s.push_str(&format!(
+                "{} & \\multicolumn{{6}}{{c}}{{{}}} \\\\\n",
+                key, val
+            ));
         }
         s.push_str(&format!(
             "N & \\multicolumn{{6}}{{c}}{{{}}} \\\\\n",
@@ -146,7 +149,10 @@ impl ExportableResult for OlsResult {
                     "Adj. R-squared".to_string(),
                     format!("{:.4}", self.adj_r_squared),
                 ),
-                ("F-statistic".to_string(), format!("{:.4}", self.f_statistic)),
+                (
+                    "F-statistic".to_string(),
+                    format!("{:.4}", self.f_statistic),
+                ),
                 (
                     "Log-Likelihood".to_string(),
                     format!("{:.4}", self.log_likelihood),
