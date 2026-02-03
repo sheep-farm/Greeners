@@ -14,25 +14,33 @@ fn test_markov_autoreg_two_regime_ar1() {
     let mut seed: u64 = 42;
     let mut next_rand = || -> f64 {
         seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
-        let bits = (seed >> 33) as f64 / (1u64 << 31) as f64;
-        bits
+        (seed >> 33) as f64 / (1u64 << 31) as f64
     };
 
-    // Box-Muller for normal samples
-    let mut next_normal = || -> f64 {
-        let u1 = next_rand().max(1e-10);
-        let u2 = next_rand();
+    // Pre-generate all random numbers needed
+    // We need: 1 normal for y[0], then for each t in 1..n: 1 uniform + 1 normal
+    // Each normal needs 2 uniforms (Box-Muller), so total = 2 + (n-1)*3 uniforms
+    let mut all_u: Vec<f64> = Vec::with_capacity(2 + (n - 1) * 3);
+    for _ in 0..(2 + (n - 1) * 3) {
+        all_u.push(next_rand());
+    }
+    let mut ui = 0;
+    let next_normal_from = |idx: &mut usize| -> f64 {
+        let u1 = all_u[*idx].max(1e-10);
+        let u2 = all_u[*idx + 1];
+        *idx += 2;
         (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
     };
 
     // Switch regimes every ~50 obs
     let mut current_regime = 0_usize;
-    y[0] = next_normal();
+    y[0] = next_normal_from(&mut ui);
     regime[0] = current_regime;
 
     for t in 1..n {
         // Switch regime with probability ~0.02
-        let u = next_rand();
+        let u = all_u[ui];
+        ui += 1;
         if u < 0.02 {
             current_regime = 1 - current_regime;
         }
@@ -44,7 +52,7 @@ fn test_markov_autoreg_two_regime_ar1() {
             (2.0, -0.3, 0.5)
         };
 
-        y[t] = mu + phi * y[t - 1] + sigma * next_normal();
+        y[t] = mu + phi * y[t - 1] + sigma * next_normal_from(&mut ui);
     }
 
     let y_arr = Array1::from_vec(y);
