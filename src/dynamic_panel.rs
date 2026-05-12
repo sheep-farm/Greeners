@@ -1,6 +1,6 @@
+use crate::linalg::LinalgInverse as _;
 use crate::{CovarianceType, GreenersError, OLS};
 use ndarray::{s, Array1, Array2, Axis};
-use ndarray_linalg::Inverse;
 use std::fmt;
 
 #[derive(Debug)]

@@ -364,7 +364,11 @@ fn test_negative_binomial() {
 // ============================================================
 #[test]
 fn test_inverse_gaussian() {
-    let y = Array1::from(vec![0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]);
+    // y ≈ 1/sqrt(0.1 + 0.1*x): decreasing series compatible with InverseGaussian canonical link
+    // (canonical link is η = 1/μ², which is increasing when y is decreasing)
+    let y = Array1::from(vec![
+        2.24, 1.83, 1.58, 1.41, 1.29, 1.20, 1.12, 1.05, 1.00, 0.95,
+    ]);
     let x = with_intercept(
         &Array2::from_shape_vec(
             (10, 1),

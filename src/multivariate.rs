@@ -1,6 +1,6 @@
 use crate::error::GreenersError;
+use crate::linalg::{LinalgEigh as _, LinalgInverse as _, UPLO};
 use ndarray::{s, Array1, Array2, Axis};
-use ndarray_linalg::{Eigh, Inverse, UPLO};
 use statrs::distribution::{ContinuousCDF, FisherSnedecor};
 use std::fmt;
 
