@@ -219,7 +219,8 @@ fn test_ols_model_stats() {
 #[test]
 fn test_ols_confidence_intervals() {
     let x_data = vec![1.0, 2.0, 3.0, 4.0, 5.0];
-    let y_data = vec![3.0, 5.0, 7.0, 9.0, 11.0];
+    // Noisy y so se > 0 and CI bounds are strictly ordered
+    let y_data = vec![3.1, 4.9, 7.2, 8.8, 11.1];
 
     let mut data = HashMap::new();
     data.insert("y".to_string(), Array1::from(y_data));

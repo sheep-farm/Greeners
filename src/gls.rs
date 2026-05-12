@@ -216,6 +216,10 @@ impl FGLS {
             // Regressão simples sem intercepto: rho = (u_{t-1}' u_{t-1})^-1 u_{t-1}' u_t
             let num = u_tm1.dot(&u_t);
             let den = u_tm1.dot(&u_tm1);
+            // den ≈ 0 means residuals are essentially zero (perfect fit) → no autocorrelation
+            if den.abs() < 1e-14 {
+                break;
+            }
             rho = num / den;
 
             // 3. Transformação Cochrane-Orcutt (Quase-Diferença)

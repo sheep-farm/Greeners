@@ -1,5 +1,5 @@
+use crate::linalg::LinalgInverse as _;
 use ndarray::{Array1, Array2};
-use ndarray_linalg::Inverse;
 use statrs::distribution::{ChiSquared, ContinuousCDF, FisherSnedecor};
 
 /// Specification tests for regression models

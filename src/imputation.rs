@@ -307,7 +307,7 @@ impl BayesGaussMI {
                 }
 
                 // mu_cond = mu_m + Sigma_mo Sigma_oo^-1 (x_o - mu_o)
-                use ndarray_linalg::Inverse;
+                use crate::linalg::LinalgInverse as _;
                 let sigma_oo_inv = sigma_oo.inv().unwrap_or(Array2::eye(n_o));
                 let mu_cond = &mu_m + &sigma_mo.dot(&sigma_oo_inv).dot(&(&x_o - &mu_o));
 

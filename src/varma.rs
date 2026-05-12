@@ -1,6 +1,6 @@
+use crate::linalg::{LinalgDeterminant as _, LinalgInverse as _};
 use crate::GreenersError;
 use ndarray::{s, Array2};
-use ndarray_linalg::{Determinant, Inverse};
 use std::fmt;
 
 #[derive(Debug)]

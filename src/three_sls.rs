@@ -1,6 +1,6 @@
+use crate::linalg::LinalgInverse as _;
 use crate::GreenersError;
 use ndarray::{Array1, Array2};
-use ndarray_linalg::Inverse;
 use statrs::distribution::ContinuousCDF;
 use std::fmt;
 

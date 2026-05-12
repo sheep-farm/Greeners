@@ -1,3 +1,7 @@
+// FFI exports for Odre plugin system (enabled with --features odre-ffi)
+#[cfg(feature = "odre-ffi")]
+pub mod odre_ffi;
+
 pub mod arima;
 pub mod autoreg;
 pub mod beta_model;
@@ -28,6 +32,7 @@ pub mod hausman;
 pub mod imputation;
 pub mod influence;
 pub mod iv;
+pub mod linalg;
 pub mod markov;
 pub mod markov_autoreg;
 pub mod mixed;

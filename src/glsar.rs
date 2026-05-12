@@ -1,7 +1,7 @@
 use crate::error::GreenersError;
+use crate::linalg::LinalgInverse as _;
 use crate::{CovarianceType, DataFrame, Formula, OLS};
 use ndarray::{Array1, Array2};
-use ndarray_linalg::Inverse;
 use std::fmt;
 
 /// Result of GLSAR estimation.
@@ -163,7 +163,14 @@ impl GLSAR {
             let ata = ar_x.t().dot(&ar_x);
             let aty = ar_x.t().dot(&ar_y);
             let new_rho = match ata.inv() {
-                Ok(inv) => inv.dot(&aty),
+                Ok(inv) => {
+                    let candidate = inv.dot(&aty);
+                    if candidate.iter().all(|v| v.is_finite()) {
+                        candidate
+                    } else {
+                        rho.clone()
+                    }
+                }
                 Err(_) => rho.clone(),
             };
 

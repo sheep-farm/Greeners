@@ -1,8 +1,8 @@
 use crate::error::GreenersError;
+use crate::linalg::{LinalgInverse as _, LinalgQR as _};
 use crate::{CovarianceType, InferenceType};
 use crate::{DataFrame, Formula};
 use ndarray::{Array1, Array2};
-use ndarray_linalg::{Inverse, QR};
 use statrs::distribution::{ContinuousCDF, FisherSnedecor, Normal, StudentsT};
 use std::fmt;
 
@@ -158,7 +158,7 @@ impl OlsResult {
         }
 
         // Fit restricted model (simple OLS)
-        use ndarray_linalg::Inverse;
+        use crate::linalg::LinalgInverse as _;
         let xt_x = x_restricted.t().dot(&x_restricted);
         let xt_y = x_restricted.t().dot(y);
 
@@ -331,16 +331,22 @@ impl OlsResult {
 
         let t_stat = diff / se;
 
-        let p_value = match self.inference_type {
-            InferenceType::StudentT => {
-                let t_dist = StudentsT::new(0.0, 1.0, self.df_resid as f64)
-                    .map_err(|_| GreenersError::OptimizationFailed)?;
-                2.0 * (1.0 - t_dist.cdf(t_stat.abs()))
-            }
-            InferenceType::Normal => {
-                let normal_dist =
-                    Normal::new(0.0, 1.0).map_err(|_| GreenersError::OptimizationFailed)?;
-                2.0 * (1.0 - normal_dist.cdf(t_stat.abs()))
+        let p_value = if t_stat.is_nan() {
+            f64::NAN
+        } else if !t_stat.is_finite() {
+            0.0
+        } else {
+            match self.inference_type {
+                InferenceType::StudentT => {
+                    let t_dist = StudentsT::new(0.0, 1.0, self.df_resid as f64)
+                        .map_err(|_| GreenersError::OptimizationFailed)?;
+                    2.0 * (1.0 - t_dist.cdf(t_stat.abs()))
+                }
+                InferenceType::Normal => {
+                    let normal_dist =
+                        Normal::new(0.0, 1.0).map_err(|_| GreenersError::OptimizationFailed)?;
+                    2.0 * (1.0 - normal_dist.cdf(t_stat.abs()))
+                }
             }
         };
 
@@ -372,13 +378,29 @@ impl OlsResult {
             InferenceType::StudentT => {
                 let t_dist = StudentsT::new(0.0, 1.0, df_resid as f64)
                     .map_err(|_| GreenersError::OptimizationFailed)?;
-                let p_vals = t_values.mapv(|t| 2.0 * (1.0 - t_dist.cdf(t.abs())));
+                let p_vals = t_values.mapv(|t| {
+                    if t.is_nan() {
+                        f64::NAN
+                    } else if !t.is_finite() {
+                        0.0
+                    } else {
+                        2.0 * (1.0 - t_dist.cdf(t.abs()))
+                    }
+                });
                 (p_vals, t_dist.inverse_cdf(0.975))
             }
             InferenceType::Normal => {
                 let normal_dist =
                     Normal::new(0.0, 1.0).map_err(|_| GreenersError::OptimizationFailed)?;
-                let p_vals = t_values.mapv(|t| 2.0 * (1.0 - normal_dist.cdf(t.abs())));
+                let p_vals = t_values.mapv(|t| {
+                    if t.is_nan() {
+                        f64::NAN
+                    } else if !t.is_finite() {
+                        0.0
+                    } else {
+                        2.0 * (1.0 - normal_dist.cdf(t.abs()))
+                    }
+                });
                 (p_vals, normal_dist.inverse_cdf(0.975))
             }
         };
@@ -1085,7 +1107,7 @@ impl OLS {
         };
 
         // 4. Standard Errors & Inference
-        let std_errors = cov_matrix.diag().mapv(f64::sqrt);
+        let std_errors = cov_matrix.diag().mapv(|v| v.max(0.0).sqrt());
         let t_values = &beta / &std_errors;
 
         // Use default inference type (StudentT)
@@ -1111,10 +1133,12 @@ impl OLS {
         let msm = (sst - ssr) / (df_model as f64);
         let f_statistic = if sigma2 < 1e-12 { 0.0 } else { msm / sigma2 };
 
-        let prob_f = if df_model > 0 {
+        let prob_f = if df_model > 0 && f_statistic.is_finite() {
             let f_dist = FisherSnedecor::new(df_model as f64, df_resid as f64)
                 .map_err(|_| GreenersError::OptimizationFailed)?;
             1.0 - f_dist.cdf(f_statistic)
+        } else if f_statistic.is_infinite() {
+            0.0
         } else {
             f64::NAN
         };

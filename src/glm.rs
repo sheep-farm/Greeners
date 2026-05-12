@@ -1,7 +1,7 @@
 use crate::error::GreenersError;
+use crate::linalg::LinalgInverse as _;
 use crate::{CovarianceType, DataFrame, Formula, InferenceType, OLS};
 use ndarray::{Array1, Array2, Axis};
-use ndarray_linalg::Inverse;
 use statrs::distribution::{ContinuousCDF, Normal};
 use std::fmt;
 
@@ -130,7 +130,8 @@ impl Family {
         let mu = mu.max(1e-10);
         match self {
             Family::Gaussian => {
-                let sigma2 = dispersion;
+                // Floor prevents ln(0) when dispersion=0 (perfect fit)
+                let sigma2 = dispersion.max(1e-300);
                 -0.5 * ((y - mu).powi(2) / sigma2 + sigma2.ln() + std::f64::consts::TAU.ln())
             }
             Family::Binomial => {
@@ -241,7 +242,8 @@ impl Link {
                 normal.cdf(eta)
             }
             Link::InversePower => 1.0 / eta.max(1e-10),
-            Link::InverseSquared => 1.0 / eta.max(1e-10).sqrt(),
+            // Tighter clamp: eta=1e-4 → μ=100, keeping IRLS weights (μ³/4) bounded
+            Link::InverseSquared => 1.0 / eta.max(1e-4).sqrt(),
             Link::CLogLog => {
                 // g^-1(eta) = 1 - exp(-exp(eta))
                 1.0 - (-eta.clamp(-30.0, 30.0).exp()).exp()

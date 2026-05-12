@@ -1,6 +1,6 @@
+use crate::linalg::LinalgInverse as _;
 use crate::GreenersError;
 use ndarray::{Array1, Array2};
-use ndarray_linalg::Inverse;
 use std::fmt;
 
 /// State space model specification:
@@ -253,6 +253,6 @@ fn det_positive(m: &Array2<f64>) -> f64 {
             .max(1e-30);
     }
     // For larger, use LU
-    use ndarray_linalg::Determinant;
+    use crate::linalg::LinalgDeterminant as _;
     m.det().unwrap_or(1e-30).abs().max(1e-30)
 }
