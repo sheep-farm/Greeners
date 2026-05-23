@@ -1,7 +1,7 @@
+use crate::linalg::{LinalgCholesky as _, LinalgInverse as _, UPLO};
 use crate::var::VarResult;
 use crate::{GreenersError, VAR};
 use ndarray::{s, Array2, Array3};
-use ndarray_linalg::{Cholesky, Inverse, UPLO};
 use std::fmt;
 
 /// Identification scheme for SVAR.

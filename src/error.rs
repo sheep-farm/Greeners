@@ -16,10 +16,6 @@ pub enum GreenersError {
     #[error("Statistical distribution error (optimization/initialization failed)")]
     OptimizationFailed,
 
-    /// Wrapper for errors coming from the ndarray-linalg backend.
-    #[error("Linear Algebra backend error: {0}")]
-    LinalgError(#[from] ndarray_linalg::error::LinalgError),
-
     /// Error thrown when parsing a formula string
     #[error("Formula parsing error: {0}")]
     FormulaError(String),

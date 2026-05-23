@@ -1,6 +1,6 @@
+use crate::linalg::LinalgInverse as _;
 use crate::{CovarianceType, GreenersError, OLS};
 use ndarray::{Array1, Array2};
-use ndarray_linalg::Inverse;
 use std::fmt;
 
 /// Estrutura de entrada para o SUR

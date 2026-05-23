@@ -1,6 +1,6 @@
+use crate::linalg::{LinalgCholesky as _, LinalgEig as _, LinalgInverse as _, UPLO};
 use crate::GreenersError;
 use ndarray::{Array1, Array2};
-use ndarray_linalg::{Cholesky, Eig, Inverse}; // Adicionado Cholesky
 use num_complex::Complex64;
 use std::fmt;
 
@@ -126,7 +126,7 @@ impl VECM {
 
         // Resolver autovalores generalizados
         let s11_chol = s11
-            .cholesky(ndarray_linalg::UPLO::Lower)
+            .cholesky(UPLO::Lower)
             .map_err(|_| GreenersError::SingularMatrix)?;
 
         let s11_inv_chol = s11_chol.inv().map_err(|_| GreenersError::SingularMatrix)?;

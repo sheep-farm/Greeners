@@ -1,14 +1,21 @@
 [package]
 name = "greeners"
-version = "1.4.0"
+version = "1.4.1"
 edition = "2021"
 authors = ["Flávio de Vasconcellos Corrêa <contact@greeners.io>"]
 description = "High-performance econometrics with R/Python formulas. Two-Way Clustering, Marginal Effects (AME/MEM), HC1-4, IV Predictions, Categorical C(var), Polynomial I(x^2), Interactions, Diagnostics. OLS, IV/2SLS, DiD, Logit/Probit, Panel (FE/RE), Time Series (VAR/VECM), Quantile!"
 license = "GPL-3.0-or-later"
-repository = "https://github.com/sheep-farm/Greeners" # Link OBRIGATÓRIO para o GitHub
+repository = "https://github.com/sheep-farm/Greeners"
 readme = "README.md"
 keywords = ["econometrics", "statistics", "finance", "gmm", "data-analysis"]
 categories = ["science", "mathematics", "simulation"]
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
+[features]
+default = []
+odre-ffi = []  # Enable FFI exports for Odre plugin system
 
 # Otimização para release (deixa a lib mais rápida para quem baixar)
 [profile.release]
@@ -18,9 +25,8 @@ lto = true
 [dependencies]
 # Core N-dimensional array library
 ndarray = "0.17.1"
-# Linear algebra backend (Lapack/Blas bindings are required for inversion)
-# You might need to install OpenBLAS on your OS (e.g., `sudo apt install libopenblas-dev`)
-ndarray-linalg = { version = "0.18.0", features = ["openblas-system"] }
+# Pure-Rust linear algebra backend (no system BLAS/LAPACK required)
+faer = "0.22"
 # Error handling
 thiserror = "2.0.17"
 statrs = "0.18.0" # Essential for p-values and distributions

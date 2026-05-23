@@ -1,7 +1,7 @@
 use crate::error::GreenersError;
+use crate::linalg::{LinalgEigh as _, LinalgInverse as _, UPLO};
 use crate::statespace::{KalmanFilter, KalmanSmoother, StateSpaceModel};
 use ndarray::{s, Array1, Array2, Axis};
-use ndarray_linalg::{Eigh, Inverse, UPLO};
 use std::fmt;
 
 /// Dynamic Factor Model estimator.

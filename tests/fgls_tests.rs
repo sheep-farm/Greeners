@@ -187,7 +187,8 @@ fn test_cochrane_orcutt_convergence() {
 #[test]
 fn test_wls_heteroscedasticity_correction() {
     // Test that WLS handles heteroscedasticity better than OLS
-    let y = Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+    // Slightly noisy data so residuals are non-zero and std_errors are finite positive
+    let y = Array1::from(vec![1.1, 2.3, 2.8, 4.1, 5.2, 5.9, 7.1, 8.2]);
     let x = ndarray::Array2::from_shape_vec(
         (8, 2),
         vec![

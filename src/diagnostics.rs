@@ -1,8 +1,8 @@
 use crate::error::GreenersError;
+use crate::linalg::{LinalgInverse as _, LinalgSVD as _};
 use crate::CovarianceType; // Needed to call OLS fit
 use crate::OLS; // We reuse OLS for the Breusch-Pagan auxiliary regression
 use ndarray::{Array1, Array2};
-use ndarray_linalg::{Inverse, SVD};
 use statrs::distribution::{ChiSquared, ContinuousCDF};
 
 /// Result of Anderson-Darling normality test.

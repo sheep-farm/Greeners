@@ -1,6 +1,6 @@
+use crate::linalg::LinalgInverse as _;
 use crate::{GreenersError, InferenceType};
 use ndarray::{s, Array1, Array2};
-use ndarray_linalg::Inverse;
 use statrs::distribution::{ChiSquared, ContinuousCDF, Normal as NormalDist};
 use std::fmt;
 
