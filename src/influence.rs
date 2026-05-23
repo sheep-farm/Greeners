@@ -1,7 +1,7 @@
 use crate::error::GreenersError;
+use crate::linalg::LinalgInverse as _;
 use crate::{CovarianceType, OLS};
 use ndarray::{Array1, Array2};
-use ndarray_linalg::Inverse;
 use std::fmt;
 
 /// Influence diagnostics for regression models (DFBetas, DFFITS, CUSUM).

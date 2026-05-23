@@ -1,6 +1,6 @@
 use crate::error::GreenersError;
+use crate::linalg::LinalgInverse as _;
 use ndarray::{Array1, Array2};
-use ndarray_linalg::Inverse;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 

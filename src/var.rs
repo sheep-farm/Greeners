@@ -1,6 +1,6 @@
+use crate::linalg::{LinalgCholesky as _, LinalgDeterminant as _, LinalgInverse as _, UPLO};
 use crate::GreenersError; // Removidos OLS, CovarianceType
 use ndarray::{s, Array2, Array3}; // Removidos Array1, Axis
-use ndarray_linalg::{Cholesky, Determinant, Inverse}; // <--- Adicionado Determinant
 use std::fmt;
 
 #[derive(Debug)]
@@ -28,7 +28,7 @@ impl VarResult {
         // P * P' = Sigma_u. P é triangular inferior.
         let p_chol = self
             .sigma_u
-            .cholesky(ndarray_linalg::UPLO::Lower)
+            .cholesky(UPLO::Lower)
             .map_err(|_| GreenersError::SingularMatrix)?;
 
         // 2. Extrair matrizes A_1, ..., A_p dos parâmetros achatados

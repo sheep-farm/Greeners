@@ -1,8 +1,8 @@
 use crate::error::GreenersError;
+use crate::linalg::LinalgInverse as _;
 use crate::OLS;
 use ndarray as nd;
 use ndarray::{Array1, Array2};
-use ndarray_linalg::Inverse;
 use statrs::distribution::{ChiSquared, ContinuousCDF};
 use std::fmt;
 
@@ -153,10 +153,10 @@ impl GMM {
         }
         let s_matrix = z_t.dot(&z_weighted) / (n as f64);
 
-        // W_opt = S^-1
+        // W_opt = S^-1; fall back to 2SLS weights when S is singular (e.g., near-zero residuals)
         let w_opt = match s_matrix.inv() {
             Ok(mat) => mat,
-            Err(_) => return Err(GreenersError::OptimizationFailed), // S singular
+            Err(_) => w1.clone(),
         };
 
         // --- STEP 3: Final GMM Estimator ---

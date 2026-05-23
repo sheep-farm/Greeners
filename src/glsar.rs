@@ -1,4 +1,5 @@
 use crate::error::GreenersError;
+use crate::linalg::LinalgInverse as _;
 use crate::{CovarianceType, DataFrame, Formula, OLS};
 use ndarray::{Array1, Array2};
 use std::fmt;
@@ -161,8 +162,15 @@ impl GLSAR {
             // Direct: rho = (ar_x' ar_x)^-1 ar_x' ar_y
             let ata = ar_x.t().dot(&ar_x);
             let aty = ar_x.t().dot(&ar_y);
-            let new_rho = match ndarray_linalg::Inverse::inv(&ata) {
-                Ok(inv) => inv.dot(&aty),
+            let new_rho = match ata.inv() {
+                Ok(inv) => {
+                    let candidate = inv.dot(&aty);
+                    if candidate.iter().all(|v| v.is_finite()) {
+                        candidate
+                    } else {
+                        rho.clone()
+                    }
+                }
                 Err(_) => rho.clone(),
             };
 

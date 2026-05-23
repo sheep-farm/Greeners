@@ -1,7 +1,7 @@
+#[allow(unused_imports)]
+use crate::linalg::{LinalgEigh as _, LinalgInverse as _, UPLO};
 use crate::{CovarianceType, GreenersError, OLS};
 use ndarray::{s, Array1, Array2};
-#[allow(unused_imports)]
-use ndarray_linalg::{Eigh, Inverse, UPLO};
 use statrs::distribution::{ChiSquared, ContinuousCDF, FisherSnedecor};
 
 // ─── Result structs ──────────────────────────────────────────────────────────

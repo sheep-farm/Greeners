@@ -245,7 +245,8 @@ fn test_fevd_sums_to_one() {
 
 #[test]
 fn test_ols_conf_int() {
-    let y = Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+    // Noisy data so se > 0 and CI widths are strictly positive and ordered
+    let y = Array1::from(vec![1.2, 2.1, 3.3, 3.9, 5.1, 5.8, 7.2, 7.9, 9.1, 10.2]);
     let mut x = Array2::<f64>::zeros((10, 2));
     x.column_mut(0).fill(1.0);
     for i in 0..10 {
@@ -268,7 +269,8 @@ fn test_ols_conf_int() {
 
 #[test]
 fn test_ols_get_prediction() {
-    let y = Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+    // Noisy data so prediction se > 0
+    let y = Array1::from(vec![1.2, 2.1, 3.3, 3.9, 5.1, 5.8, 7.2, 7.9, 9.1, 10.2]);
     let mut x = Array2::<f64>::zeros((10, 2));
     x.column_mut(0).fill(1.0);
     for i in 0..10 {

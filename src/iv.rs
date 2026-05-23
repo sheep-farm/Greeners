@@ -1,8 +1,8 @@
 use crate::error::GreenersError;
+use crate::linalg::LinalgInverse as _;
 use crate::{CovarianceType, InferenceType};
 use crate::{DataFrame, Formula, OLS};
 use ndarray::{Array1, Array2};
-use ndarray_linalg::Inverse;
 use statrs::distribution::{ContinuousCDF, Normal, StudentsT};
 use std::fmt;
 // Alias to facilitate Axis usage in Newey-West loop
