@@ -1,40 +1,43 @@
 
 # Greeners
 
-**High-performance econometrics in Rust.**
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/Rust-2021-orange.svg)](https://www.rust-lang.org)
+[![Version](https://img.shields.io/badge/version-1.4.1-blue.svg)](Cargo.toml)
+[![Examples](https://img.shields.io/badge/examples-59-green.svg)](examples/)
 
-![Version](https://img.shields.io/badge/version-1.4.0-blue)
-![License](https://img.shields.io/badge/license-GPLv3-green)
-![Build](https://img.shields.io/badge/build-passing-brightgreen)
+> High-performance econometrics in Rust — statsmodels-grade coverage,
+> compiled-language speed, and Rust's type safety guarantees.
+> Named in honor of William H. Greene.
 
-A self-contained econometrics library with R/Python-style formulas, robust inference, and comprehensive coverage of cross-sectional, time series, panel data, and system estimation methods. No external statistical dependencies — DataFrame, formula parser, and all estimators are built in.
+---
 
-## Installation
+## Why Greeners?
 
-### System dependencies
+Every serious econometrics tool makes a trade-off:
 
-```sh
-# Debian/Ubuntu
-sudo apt-get install gfortran libopenblas-dev liblapack-dev pkg-config
+| Tool | Strength | Weakness |
+|------|----------|----------|
+| R (`plm`, `AER`, `sandwich`) | Deep econometrics, mature | Slow on large panels, no type safety |
+| Python (`statsmodels`) | Broad coverage, readable | GIL, interpreter overhead, silent type errors |
+| Julia (`FixedEffectModels`) | Fast | Small ecosystem, GC pauses |
+| C++ | Maximum speed | No econometrics library exists |
 
-# Fedora/RHEL
-sudo dnf install gcc-gfortran openblas-devel lapack-devel pkg-config
+**Greeners fills the gap**: the estimator coverage of statsmodels, the
+performance of compiled code, and Rust's guarantee that type errors and
+data races are caught at compile time — not at 2 AM in production.
 
-# Arch
-sudo pacman -S gcc-fortran openblas lapack base-devel
+No Python or R runtime. No system BLAS or LAPACK. Built on
+[faer](https://github.com/sarah-ek/faer-rs) — pure-Rust linear algebra
+with performance competitive with OpenBLAS, and a single `cargo add greeners`
+to install.
 
-# macOS
-brew install openblas lapack
-```
+Beyond parity, Greeners includes methods statsmodels does not: panel fixed and
+random effects, Arellano-Bond GMM, IV/2SLS, Difference-in-Differences, and
+automatic binary variable detection — all in a self-contained library with
+built-in DataFrame, formula parser, and estimators.
 
-### Cargo.toml
-
-```toml
-[dependencies]
-greeners = "1.4.0"
-ndarray = "0.17"
-ndarray-linalg = { version = "0.18", features = ["openblas-system"] }
-```
+---
 
 ## Quick start
 
@@ -49,6 +52,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+---
+
+## Installation
+
+```toml
+[dependencies]
+greeners = "1.4"
+```
+
+No system dependencies required.
+
+---
 
 ## What's covered
 
@@ -168,6 +184,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 | RollingOLS / RollingWLS | `rolling` | Moving-window estimation |
 | RecursiveLS | `rolling` | Expanding-window least squares |
 
+---
+
 ## Diagnostics & tests
 
 ### Regression diagnostics (`diagnostics`)
@@ -202,6 +220,8 @@ Bonferroni, Holm, Hochberg, Hommel, Benjamini-Hochberg, Benjamini-Yekutieli.
 
 Proportion tests (one/two-sample, equivalence), weighted descriptive statistics, Hausman test.
 
+---
+
 ## Inference
 
 All linear models support two inference distributions via `.with_inference()`:
@@ -215,18 +235,22 @@ let result_z = result.with_inference(InferenceType::Normal)?;
 // Normal/z (asymptotic, statsmodels-compatible)
 ```
 
+---
+
 ## Covariance types
 
 ```rust
-CovarianceType::NonRobust           // Classical
-CovarianceType::HC1                 // White (1980)
-CovarianceType::HC2                 // Leverage-adjusted
-CovarianceType::HC3                 // Jackknife (recommended for small samples)
-CovarianceType::HC4                 // Cribari-Neto (2004)
-CovarianceType::NeweyWest(lags)     // HAC
-CovarianceType::Clustered(ids)      // One-way clustering
-CovarianceType::ClusteredTwoWay(a, b) // Two-way clustering (Cameron-Gelbach-Miller)
+CovarianceType::NonRobust               // Classical
+CovarianceType::HC1                     // White (1980)
+CovarianceType::HC2                     // Leverage-adjusted
+CovarianceType::HC3                     // Jackknife (recommended for small samples)
+CovarianceType::HC4                     // Cribari-Neto (2004)
+CovarianceType::NeweyWest(lags)         // HAC
+CovarianceType::Clustered(ids)          // One-way clustering
+CovarianceType::ClusteredTwoWay(a, b)   // Two-way clustering (Cameron-Gelbach-Miller)
 ```
+
+---
 
 ## Formula syntax
 
@@ -240,7 +264,7 @@ CovarianceType::ClusteredTwoWay(a, b) // Two-way clustering (Cameron-Gelbach-Mil
 
 // Transforms
 "y ~ x + I(x^2)"                 // polynomial
-"y ~ log(x1) + sqrt(x2)"        // functions
+"y ~ log(x1) + sqrt(x2)"         // functions
 
 // Interactions
 "y ~ x1 * x2"                    // full: x1 + x2 + x1:x2
@@ -249,6 +273,8 @@ CovarianceType::ClusteredTwoWay(a, b) // Two-way clustering (Cameron-Gelbach-Mil
 // Splines
 "y ~ bs(x, df=5)"                // B-splines
 ```
+
+---
 
 ## DataFrame
 
@@ -263,27 +289,32 @@ let df = DataFrame::builder()
     .build()?;
 
 // Missing data
-let clean = df.dropna()?;
-let filled = df.fillna("x", 0.0)?;
+let clean   = df.dropna()?;
+let filled  = df.fillna("x", 0.0)?;
 let forward = df.fillna_ffill("x")?;
-let interp = df.interpolate("x")?;
+let interp  = df.interpolate("x")?;
 
 // Time series ops
-let lagged = df.lag("price", 1)?;
-let diffed = df.diff("price", 1)?;
+let lagged  = df.lag("price", 1)?;
+let diffed  = df.diff("price", 1)?;
 let returns = df.pct_change("price", 1)?;
 ```
 
-Column types are auto-detected: Float, Int, Bool (including binary detection from any two-value column), DateTime, Categorical, String.
+Column types are auto-detected: Float, Int, Bool (including binary detection
+from any two-value column), DateTime, Categorical, String.
+
+---
 
 ## Imputation
 
 ```rust
 use greeners::{MICE, BayesGaussMI};
 
-let imputed = MICE::impute(&df, 10)?;           // Multiple imputation by chained equations
-let imputed = BayesGaussMI::impute(&df, 10)?;   // Bayesian Gaussian MI
+let imputed = MICE::impute(&df, 10)?;         // Multiple imputation by chained equations
+let imputed = BayesGaussMI::impute(&df, 10)?; // Bayesian Gaussian MI
 ```
+
+---
 
 ## Examples
 
@@ -296,7 +327,35 @@ cargo run --example specification_tests
 cargo run --example panel_model_selection
 ```
 
+---
+
+## About the name
+
+William H. Greene is the author of *Econometric Analysis* — the reference text
+used in graduate econometrics programs worldwide. Greeners is named in his honor:
+the goal is to make the methods he systematized available to anyone writing
+production systems in Rust.
+
+---
+
+## Roadmap
+
+Active development targets full statsmodels parity. See [ROADMAP.md](ROADMAP.md)
+for the complete feature matrix with implementation status.
+
+---
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+Before opening a PR:
+- Add at least one example to `examples/` for new estimators
+- Verify numerical output against statsmodels or R on a reference dataset
+- Run `cargo test` and `cargo clippy -- -D warnings`
+
+---
+
 ## License
 
-GPL-3.0-or-later
-
+[GPL-3.0-or-later](LICENSE)
