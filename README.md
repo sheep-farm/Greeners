@@ -1,7 +1,7 @@
 
 # Greeners
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-2021-orange.svg)](https://www.rust-lang.org)
 [![Version](https://img.shields.io/badge/version-1.4.1-blue.svg)](Cargo.toml)
 [![Examples](https://img.shields.io/badge/examples-59-green.svg)](examples/)
@@ -358,4 +358,4 @@ Before opening a PR:
 
 ## License
 
-[GPL-3.0-or-later](LICENSE)
+[MIT](LICENSE)
