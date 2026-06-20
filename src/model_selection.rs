@@ -225,6 +225,89 @@ impl PanelDiagnostics {
 
         Ok((f_stat, p_value))
     }
+
+    /// Pesaran (2004) CD test for cross-sectional dependence in panel data.
+    ///
+    /// H₀: residuals are cross-sectionally independent (ρ_ij = 0 ∀ i≠j)
+    /// H₁: cross-sectional dependence exists
+    ///
+    /// CD = sqrt(2/(N(N-1))) * Σ_{i<j} sqrt(T_ij) * ρ̂_ij  ~ N(0,1) under H₀
+    ///
+    /// Arguments: residuals from a panel model (pooled OLS or FE) and entity IDs
+    /// in the same order as the observations.
+    pub fn pesaran_cd(
+        residuals: &Array1<f64>,
+        entity_ids: &[usize],
+    ) -> Result<(f64, f64), String> {
+        use std::collections::HashMap;
+        use statrs::distribution::{ContinuousCDF, Normal};
+
+        let n_obs = residuals.len();
+        if entity_ids.len() != n_obs {
+            return Err("entity_ids length must match residuals length".to_string());
+        }
+
+        // Group residuals by entity, preserving observation order (= time order)
+        let mut groups: HashMap<usize, Vec<f64>> = HashMap::new();
+        for (&id, &r) in entity_ids.iter().zip(residuals.iter()) {
+            groups.entry(id).or_default().push(r);
+        }
+
+        let mut entity_list: Vec<usize> = groups.keys().copied().collect();
+        entity_list.sort();
+        let n_entities = entity_list.len();
+
+        if n_entities < 2 {
+            return Err("Need at least 2 entities for the Pesaran CD test".to_string());
+        }
+
+        let residuals_by_entity: Vec<&Vec<f64>> =
+            entity_list.iter().map(|id| &groups[id]).collect();
+
+        let mut cd_sum = 0.0;
+        let mut n_pairs = 0usize;
+
+        for i in 0..n_entities {
+            let ei = residuals_by_entity[i];
+            for j in (i + 1)..n_entities {
+                let ej = residuals_by_entity[j];
+                let t_ij = ei.len().min(ej.len());
+                if t_ij < 2 {
+                    continue;
+                }
+
+                let mean_i = ei[..t_ij].iter().sum::<f64>() / t_ij as f64;
+                let mean_j = ej[..t_ij].iter().sum::<f64>() / t_ij as f64;
+
+                let cov: f64 = ei[..t_ij]
+                    .iter()
+                    .zip(ej[..t_ij].iter())
+                    .map(|(&a, &b)| (a - mean_i) * (b - mean_j))
+                    .sum();
+                let var_i: f64 = ei[..t_ij].iter().map(|&a| (a - mean_i).powi(2)).sum();
+                let var_j: f64 = ej[..t_ij].iter().map(|&b| (b - mean_j).powi(2)).sum();
+
+                let denom = (var_i * var_j).sqrt();
+                if denom < 1e-15 {
+                    continue;
+                }
+
+                cd_sum += (t_ij as f64).sqrt() * (cov / denom);
+                n_pairs += 1;
+            }
+        }
+
+        if n_pairs == 0 {
+            return Err("No valid entity pairs found for CD test".to_string());
+        }
+
+        let cd = (2.0 / (n_entities * (n_entities - 1)) as f64).sqrt() * cd_sum;
+
+        let normal = Normal::new(0.0, 1.0).map_err(|e| e.to_string())?;
+        let p_value = 2.0 * (1.0 - normal.cdf(cd.abs()));
+
+        Ok((cd, p_value))
+    }
 }
 
 /// Summary statistics helper
