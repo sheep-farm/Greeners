@@ -1,56 +1,85 @@
+use crate::error::GreenersError;
 use crate::linalg::LinalgInverse as _;
-use crate::{CovarianceType, GreenersError, OLS};
-use ndarray::{s, Array1, Array2, Axis};
+use ndarray::{s, Array1, Array2};
 use std::fmt;
 
-#[derive(Debug)]
+/// Resultado do estimador Arellano-Bond (Diff-GMM).
+#[derive(Debug, Clone)]
 pub struct ArellanoBondResult {
     pub params: Array1<f64>,
     pub std_errors: Array1<f64>,
     pub t_values: Array1<f64>,
     pub p_values: Array1<f64>,
-    pub r_squared: f64,
-    pub sargan_stat: f64, // Teste de validade dos instrumentos
-    pub n_obs: usize,
+    pub sargan_stat: f64,
+    pub sargan_pvalue: f64,
+    pub sargan_df: usize,
+    pub n_obs: usize,        // observações efetivas (após FD)
+    pub n_entities: usize,
+    pub t_bar: f64,          // média de T por entidade
+    pub n_instruments: usize,
+    pub max_lags: usize,
+    pub step: usize,
+    pub m1_stat: f64,
+    pub m1_pval: f64,
+    pub m2_stat: f64,
+    pub m2_pval: f64,
+    pub variable_names: Option<Vec<String>>,
 }
 
 impl fmt::Display for ArellanoBondResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "\n{:=^78}", " Dynamic Panel (Arellano-Bond / Diff-GMM) ")?;
-        writeln!(
-            f,
-            "{:<20} {:>15}",
-            "Estimator:", "IV-GMM on First Differences"
-        )?;
-        writeln!(f, "{:<20} {:>15.4}", "Sargan Test:", self.sargan_stat)?;
-        writeln!(f, "{:<20} {:>15}", "Obs (Effective):", self.n_obs)?;
+        let step_label = if self.step == 2 { "Two-Step" } else { "One-Step" };
+        writeln!(f, "\n{:=^78}", format!(" Arellano-Bond Diff-GMM ({step_label}) "))?;
+        writeln!(f, "{:<24} {:>10} || {:<20} {:>12}",
+            "Observations:", self.n_obs, "Entities:", self.n_entities)?;
+        writeln!(f, "{:<24} {:>10.2} || {:<20} {:>12}",
+            "Avg. T:", self.t_bar, "Instruments:", self.n_instruments)?;
+        writeln!(f, "{:<24} {:>10} || {:<20} {:>12}",
+            "Lags used:", self.max_lags, "Sargan df:", self.sargan_df)?;
 
         writeln!(f, "\n{:-^78}", "")?;
-        writeln!(
-            f,
-            "{:<15} | {:>10} | {:>10} | {:>8} | {:>8}",
-            "Variable", "Coef", "Std Err", "t", "P>|t|"
-        )?;
+        writeln!(f, "{:<14} | {:>10} | {:>10} | {:>8} | {:>8}",
+            "Variable", "Coef", "Std Err", "z", "P>|z|")?;
         writeln!(f, "{:-^78}", "")?;
 
-        // O primeiro coeficiente é sempre o Lag da Dependente
-        writeln!(
-            f,
-            "{:<15} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
-            "L1.DepVar", self.params[0], self.std_errors[0], self.t_values[0], self.p_values[0]
-        )?;
-
-        for i in 1..self.params.len() {
-            writeln!(
-                f,
-                "D.x{:<11} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
-                i - 1,
-                self.params[i],
-                self.std_errors[i],
-                self.t_values[i],
-                self.p_values[i]
-            )?;
+        for i in 0..self.params.len() {
+            let name = self.variable_names
+                .as_ref()
+                .and_then(|n| n.get(i).cloned())
+                .unwrap_or_else(|| if i == 0 { "LD.y".into() } else { format!("Δx{}", i) });
+            writeln!(f, "{:<14} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
+                name, self.params[i], self.std_errors[i],
+                self.t_values[i], self.p_values[i])?;
         }
+
+        writeln!(f, "{:-^78}", "")?;
+        writeln!(f, "\n── Sargan Test (H₀: instrumentos válidos)")?;
+        if self.sargan_df == 0 {
+            writeln!(f, "   Modelo exatamente identificado — sem teste de sobreidentificação")?;
+        } else {
+            let sig = if self.sargan_pvalue < 0.01 { "***" }
+                      else if self.sargan_pvalue < 0.05 { "**" }
+                      else if self.sargan_pvalue < 0.10 { "*" } else { "" };
+            writeln!(f, "   χ²({}) = {:.4}   p = {:.4}  {}",
+                self.sargan_df, self.sargan_stat, self.sargan_pvalue, sig)?;
+            if self.sargan_pvalue < 0.05 {
+                writeln!(f, "   ⚠  Rejeita H₀ — considere reduzir lags ou revisar instrumentos")?;
+            }
+        }
+
+        writeln!(f, "\n── Arellano-Bond Autocorrelation Tests")?;
+        let sig_m = |p: f64| if p < 0.01 { "***" } else if p < 0.05 { "**" }
+                             else if p < 0.10 { "*" } else { "" };
+        writeln!(f, "   m1: z = {:>8.4}   p = {:.4}  {}   (deve rejeitar — AR(1) esperado em FD)",
+            self.m1_stat, self.m1_pval, sig_m(self.m1_pval))?;
+        writeln!(f, "   m2: z = {:>8.4}   p = {:.4}  {}   (não deve rejeitar — valida instrumentos)",
+            self.m2_stat, self.m2_pval, sig_m(self.m2_pval))?;
+        if self.m2_pval < 0.05 {
+            writeln!(f, "   ⚠  m2 rejeita H₀ — AR(2) detectado; instrumentos y_{{t-2}} podem ser inválidos")?;
+        }
+
+        writeln!(f, "\n{:-^78}", "")?;
+        writeln!(f, "   *** p<0.01  ** p<0.05  * p<0.10   |   SE robustos (sandwich)")?;
         writeln!(f, "{:=^78}", "")
     }
 }
@@ -58,167 +87,312 @@ impl fmt::Display for ArellanoBondResult {
 pub struct ArellanoBond;
 
 impl ArellanoBond {
-    /// Estima um painel dinâmico: y_it = rho * y_{i,t-1} + beta * x_it + alpha_i + e_it
-    /// Método: Diferença Primeira instrumentada por y_{i,t-2} (Anderson-Hsiao / Diff GMM).
-    /// Assume que x_it são estritamente exógenos (instrumentam a si mesmos na diferença).
+    /// Estima o modelo dinâmico de painel via Diff-GMM (Arellano-Bond 1991).
+    ///
+    /// Modelo: y_it = ρ y_{i,t-1} + X_it'β + α_i + ε_it
+    ///
+    /// Método:
+    ///   1. Primeira diferença para eliminar α_i
+    ///   2. Instrumenta Δy_{i,t-1} com lags de nível y_{i,t-2}, ..., y_{i,t-max_lags-1}
+    ///      (matriz de instrumentos collapsed — max_lags colunas por lag)
+    ///   3. GMM em 1 passo (com matriz H) ou 2 passos (peso ótimo)
+    ///   4. SE robustos sandwich em 1 passo; SE GMM em 2 passos
+    ///   5. Teste de Sargan + m1/m2
+    ///
+    /// Argumentos:
+    ///   y           — variável dependente (níveis)
+    ///   x           — regressores estritamente exógenos (níveis, inclui const)
+    ///   entity_ids  — ID de entidade por observação
+    ///   time_ids    — ID de tempo por observação (inteiros)
+    ///   max_lags    — número máximo de lags de y como instrumentos (default 2)
+    ///   two_step    — se true, estima em 2 passos com peso ótimo
+    ///   variable_names — nomes dos regressores (da fórmula)
     pub fn fit(
         y: &Array1<f64>,
         x: &Array2<f64>,
-        entity_ids: &Array1<i64>,
-        time_ids: &Array1<i64>,
+        entity_ids: &[i64],
+        time_ids: &[i64],
+        max_lags: usize,
+        two_step: bool,
+        variable_names: Option<Vec<String>>,
     ) -> Result<ArellanoBondResult, GreenersError> {
-        let n_total = y.len();
+        use statrs::distribution::{ContinuousCDF, Normal};
 
+        let n_total = y.len();
+        let k_x = x.ncols();
+
+        if max_lags < 1 {
+            return Err(GreenersError::InvalidOperation(
+                "max_lags deve ser >= 1".into(),
+            ));
+        }
         if entity_ids.len() != n_total || time_ids.len() != n_total {
             return Err(GreenersError::ShapeMismatch("IDs mismatch".into()));
         }
 
-        // 1. Organizar dados (Sort by Entity, then Time)
-        // Precisamos garantir a ordem para calcular lags e diferenças corretamente
-        let mut indices: Vec<usize> = (0..n_total).collect();
-        indices.sort_by_key(|&i| (entity_ids[i], time_ids[i]));
+        // 1. Ordenar por entidade, depois por tempo
+        let mut ord: Vec<usize> = (0..n_total).collect();
+        ord.sort_by_key(|&i| (entity_ids[i], time_ids[i]));
 
-        // Reconstruir arrays ordenados
-        let y_sorted = y.select(Axis(0), &indices);
-        let x_sorted = x.select(Axis(0), &indices);
-        let id_sorted = entity_ids.select(Axis(0), &indices);
-        let _t_sorted = time_ids.select(Axis(0), &indices);
+        let ys: Vec<f64> = ord.iter().map(|&i| y[i]).collect();
+        let xs: Vec<Vec<f64>> = ord.iter()
+            .map(|&i| (0..k_x).map(|c| x[[i, c]]).collect())
+            .collect();
+        let ids: Vec<i64> = ord.iter().map(|&i| entity_ids[i]).collect();
 
-        // 2. Construir Variáveis Transformadas (D.y, D.lag_y, D.x, lag2_y)
-        // Perderemos 2 observações por indivíduo (uma pelo lag, uma pela diferença)
-
-        let mut dy_vec = Vec::new(); // Dependente: Delta y_t
-        let mut dlag_y_vec = Vec::new(); // Regressor Endógeno: Delta y_{t-1}
-        let mut dx_vec = Vec::new(); // Regressores Exógenos: Delta x_t
-        let mut inst_lag2_vec = Vec::new(); // Instrumento: y_{t-2} (Nível)
-
-        // Precisamos percorrer por indivíduo
+        // 2. Agrupar por entidade
+        let mut entity_slices: Vec<std::ops::Range<usize>> = Vec::new();
         let mut start = 0;
         while start < n_total {
-            let current_id = id_sorted[start];
-            let mut end = start;
-            while end < n_total && id_sorted[end] == current_id {
-                end += 1;
-            }
-
-            // Slice do indivíduo
-            let y_i = y_sorted.slice(s![start..end]);
-            let x_i = x_sorted.slice(s![start..end, ..]);
-            // let t_i = t_sorted.slice(s![start..end]); // Assumindo continuidade temporal para simplificar
-
-            let t_len = end - start;
-            if t_len >= 3 {
-                // Precisa de pelo menos 3 períodos (t, t-1, t-2)
-                for t in 2..t_len {
-                    // Y: Delta y_t = y_t - y_{t-1}
-                    let dy = y_i[t] - y_i[t - 1];
-
-                    // X Endógeno: Delta y_{t-1} = y_{t-1} - y_{t-2}
-                    let dlag_y = y_i[t - 1] - y_i[t - 2];
-
-                    // Instrumento: y_{t-2} (Nível)
-                    // Este é o pulo do gato do Arellano-Bond: usar nível passado para instrumentar diferença futura
-                    let z_level = y_i[t - 2];
-
-                    // X Exógeno: Delta x_t = x_t - x_{t-1}
-                    // Loop pelas colunas de X
-                    let mut dx_row = Vec::new();
-                    for k in 0..x_sorted.ncols() {
-                        dx_row.push(x_i[[t, k]] - x_i[[t - 1, k]]);
-                    }
-
-                    // Push nos vetores globais
-                    dy_vec.push(dy);
-                    dlag_y_vec.push(dlag_y);
-                    inst_lag2_vec.push(z_level);
-                    dx_vec.extend(dx_row);
-                }
-            }
+            let eid = ids[start];
+            let end = ids[start..].iter().position(|&id| id != eid)
+                .map(|p| start + p)
+                .unwrap_or(n_total);
+            entity_slices.push(start..end);
             start = end;
         }
+        let n_entities = entity_slices.len();
 
-        // 3. Montar Matrizes Finais
+        // 3. Construir dados de primeira diferença + instrumentos
+        //    Equações FD por entidade i: j=2,...,T_i-1  (T_i-2 equações, precisa T >= 3)
+        //    W = [ΔYlag | ΔX_active]  (regressores)
+        //    Z = [Y_lags_collapsed | ΔX_active]  (instrumentos)
+        let mut dy_vec: Vec<f64> = Vec::new();      // Δy_jt
+        let mut dyl_vec: Vec<f64> = Vec::new();     // Δy_{j,t-1} (endógeno)
+        let mut dx_rows: Vec<Vec<f64>> = Vec::new(); // ΔX rows
+        let mut zinst_rows: Vec<Vec<f64>> = Vec::new(); // Y instrument rows
+        let mut entity_fd_count: Vec<usize> = Vec::new();
+
+        for slice in &entity_slices {
+            let t_i = slice.len();
+            if t_i < 3 {
+                entity_fd_count.push(0);
+                continue;
+            }
+            let idx: Vec<usize> = slice.clone().collect();
+            let mut count = 0;
+
+            for j in 2..t_i {
+                // Δy[j] = y[j] - y[j-1]
+                dy_vec.push(ys[idx[j]] - ys[idx[j - 1]]);
+                // ΔYlag[j] = y[j-1] - y[j-2]
+                dyl_vec.push(ys[idx[j - 1]] - ys[idx[j - 2]]);
+                // ΔX[j]
+                dx_rows.push((0..k_x).map(|c| xs[idx[j]][c] - xs[idx[j - 1]][c]).collect());
+                // Y instruments: lag l+2 = y[j-(l+2)] for l=0,...,max_lags-1
+                zinst_rows.push(
+                    (0..max_lags)
+                        .map(|l| {
+                            let lag = l + 2;
+                            if j >= lag { ys[idx[j - lag]] } else { 0.0 }
+                        })
+                        .collect(),
+                );
+                count += 1;
+            }
+            entity_fd_count.push(count);
+        }
+
         let n_eff = dy_vec.len();
         if n_eff == 0 {
-            return Err(GreenersError::ShapeMismatch(
-                "Not enough time periods (need T>=3)".into(),
+            return Err(GreenersError::InvalidOperation(
+                "Nenhuma equação FD efetiva — precisa T ≥ 3 por entidade".into(),
             ));
         }
 
-        let k_x = x.ncols();
-        let dy_final = Array1::from(dy_vec);
+        let dy = Array1::from_vec(dy_vec);
 
-        // Matriz de Regressores W = [D.y_{t-1}, D.X]
-        let mut w_data = Vec::with_capacity(n_eff * (1 + k_x));
+        // 4. Identificar colunas ativas de ΔX (variância > 0 após FD)
+        let active_x: Vec<usize> = (0..k_x)
+            .filter(|&c| dx_rows.iter().any(|row| row[c].abs() > 1e-12))
+            .collect();
+        let k_dx = active_x.len();
+        let k_reg = 1 + k_dx; // ΔYlag + ΔX_active
+        let n_inst = max_lags + k_dx;
+
+        if n_inst < k_reg {
+            return Err(GreenersError::InvalidOperation(format!(
+                "Sub-identificado: {} instrumentos < {} regressores. Aumente max_lags.",
+                n_inst, k_reg
+            )));
+        }
+
+        // 5. Construir matrizes W e Z
+        let mut w_mat = Array2::<f64>::zeros((n_eff, k_reg));
+        let mut z_mat = Array2::<f64>::zeros((n_eff, n_inst));
         for i in 0..n_eff {
-            w_data.push(dlag_y_vec[i]); // Primeira coluna: Endógena
-            for j in 0..k_x {
-                w_data.push(dx_vec[i * k_x + j]); // Colunas seguintes: Exógenas
+            w_mat[[i, 0]] = dyl_vec[i];
+            for (nc, &oc) in active_x.iter().enumerate() {
+                w_mat[[i, 1 + nc]] = dx_rows[i][oc];
+                z_mat[[i, max_lags + nc]] = dx_rows[i][oc];
+            }
+            for l in 0..max_lags {
+                z_mat[[i, l]] = zinst_rows[i][l];
             }
         }
-        let w_matrix = Array2::from_shape_vec((n_eff, 1 + k_x), w_data)
-            .map_err(|e| GreenersError::ShapeMismatch(e.to_string()))?;
 
-        // Matriz de Instrumentos Z = [y_{t-2}, D.X]
-        // Assumimos que D.X instrumenta a si mesmo (exógeno estrito)
-        let mut z_data = Vec::with_capacity(n_eff * (1 + k_x));
-        for i in 0..n_eff {
-            z_data.push(inst_lag2_vec[i]); // Instrumento principal
-            for j in 0..k_x {
-                z_data.push(dx_vec[i * k_x + j]); // Instrumentos exógenos
+        // 6. Matriz de peso A_1 = (Z' H Z)^{-1}
+        //    H = block_diag(H_1,...,H_N)  H_i = tridiag(2,-1,-1)
+        let mut zthz = Array2::<f64>::zeros((n_inst, n_inst));
+        let mut rptr = 0usize;
+        for &fc in &entity_fd_count {
+            if fc == 0 { continue; }
+            let zi = z_mat.slice(s![rptr..rptr + fc, ..]).to_owned();
+            let mut hi = Array2::<f64>::zeros((fc, fc));
+            for s in 0..fc {
+                hi[[s, s]] = 2.0;
+                if s > 0 { hi[[s, s - 1]] = -1.0; }
+                if s < fc - 1 { hi[[s, s + 1]] = -1.0; }
             }
+            zthz = zthz + zi.t().dot(&hi).dot(&zi);
+            rptr += fc;
         }
-        let z_matrix = Array2::from_shape_vec((n_eff, 1 + k_x), z_data)
-            .map_err(|e| GreenersError::ShapeMismatch(e.to_string()))?;
+        let a1 = zthz.inv().map_err(|_| GreenersError::SingularMatrix)?;
 
-        // 4. Estimação 2SLS (GMM)
-        // beta_iv = (W' P_z W)^-1 W' P_z y
-        // Onde P_z = Z (Z'Z)^-1 Z'
+        // 7. Estimador GMM 1 passo
+        let wtz = w_mat.t().dot(&z_mat);   // (k_reg × n_inst)
+        let zty = z_mat.t().dot(&dy);       // (n_inst,)
+        let wtz_a1 = wtz.dot(&a1);          // (k_reg × n_inst)
+        let lhs1 = wtz_a1.dot(&wtz.t());    // (k_reg × k_reg)
+        let lhs1_inv = lhs1.inv().map_err(|_| GreenersError::SingularMatrix)?;
+        let params1 = lhs1_inv.dot(&wtz_a1.dot(&zty));
+        let resid1 = &dy - &w_mat.dot(&params1);
 
-        // Hat Matrix: X_hat = Z * (Z'Z)^-1 * Z'W
-        let zt_z = z_matrix.t().dot(&z_matrix);
-        let zt_z_inv = zt_z.inv().map_err(|_| GreenersError::SingularMatrix)?;
+        // 8. Variância sandwich robusta (1 passo)
+        let mut sigma = Array2::<f64>::zeros((n_inst, n_inst));
+        rptr = 0;
+        for &fc in &entity_fd_count {
+            if fc == 0 { continue; }
+            let zi = z_mat.slice(s![rptr..rptr + fc, ..]).to_owned();
+            let ui = resid1.slice(s![rptr..rptr + fc]).to_owned();
+            let zui = zi.t().dot(&ui); // (n_inst,)
+            for r in 0..n_inst {
+                for c in 0..n_inst {
+                    sigma[[r, c]] += zui[r] * zui[c];
+                }
+            }
+            rptr += fc;
+        }
+        let meat1 = wtz_a1.dot(&sigma).dot(&a1).dot(&wtz.t());
+        let var1 = lhs1_inv.dot(&meat1).dot(&lhs1_inv);
+        let se1: Array1<f64> = var1.diag().mapv(|v| v.max(0.0).sqrt());
 
-        let projection = z_matrix.dot(&zt_z_inv).dot(&z_matrix.t());
-        let w_hat = projection.dot(&w_matrix); // Instrumentando os regressores
+        // 9. 2 passos (opcional)
+        let (params, std_errors, step_used) = if two_step {
+            let a2 = sigma.inv().map_err(|_| GreenersError::SingularMatrix)?;
+            let wtz_a2 = wtz.dot(&a2);
+            let lhs2 = wtz_a2.dot(&wtz.t());
+            let lhs2_inv = lhs2.inv().map_err(|_| GreenersError::SingularMatrix)?;
+            let params2 = lhs2_inv.dot(&wtz_a2.dot(&zty));
+            let se2: Array1<f64> = lhs2_inv.diag().mapv(|v| v.max(0.0).sqrt());
+            (params2, se2, 2usize)
+        } else {
+            (params1.clone(), se1, 1usize)
+        };
 
-        // Rodar OLS de dy contra w_hat
-        let ols_iv = OLS::fit(&dy_final, &w_hat, CovarianceType::NonRobust)?;
-
-        // Recalcular erros padrão corretos (usando resíduos originais, não projetados)
-        let params = ols_iv.params;
-        let residuals = &dy_final - &w_matrix.dot(&params); // Resíduos reais u = y - W*beta
-        let sigma2 = residuals.mapv(|x| x.powi(2)).sum() / (n_eff as f64 - params.len() as f64);
-
-        // Var(beta) = sigma2 * (W_hat' W_hat)^-1
-        let wt_w_inv = w_hat
-            .t()
-            .dot(&w_hat)
-            .inv()
-            .map_err(|_| GreenersError::SingularMatrix)?;
-        let var_beta = wt_w_inv * sigma2;
-        let std_errors = var_beta.diag().mapv(f64::sqrt);
-
-        // Estatísticas t e p
+        // 10. Estatísticas t e p (assintoticamente normais)
+        let normal = Normal::new(0.0, 1.0).unwrap();
         let t_values = &params / &std_errors;
-        let normal = statrs::distribution::Normal::new(0.0, 1.0).unwrap();
-        use statrs::distribution::ContinuousCDF;
         let p_values = t_values.mapv(|t| 2.0 * (1.0 - normal.cdf(t.abs())));
 
-        // Teste de Sargan (Validade dos Instrumentos)
-        // Como o número de inst (Z) == número de vars (W) neste caso simplificado,
-        // o Sargan será zero (identificado exatamente).
-        // Em um AB completo com mais lags, isso seria > 0.
-        let sargan = 0.0; // Placeholder para esta implementação exactly-identified
+        // 11. Teste de Sargan (1 passo, resíduos de 1 passo)
+        let sargan_df = n_inst.saturating_sub(k_reg);
+        let (sargan_stat, sargan_pvalue) = if sargan_df > 0 {
+            use statrs::distribution::ChiSquared;
+            let zu1 = z_mat.t().dot(&resid1);
+            let s = zu1.dot(&a1.dot(&zu1)) * (n_eff as f64 / resid1.dot(&resid1));
+            let chi2 = ChiSquared::new(sargan_df as f64)
+                .map_err(|e| GreenersError::InvalidOperation(e.to_string()))?;
+            (s, 1.0 - chi2.cdf(s.max(0.0)))
+        } else {
+            (0.0, 1.0)
+        };
+
+        // 12. Testes m1 / m2 de autocorrelação serial
+        let (m1_stat, m1_pval, m2_stat, m2_pval) =
+            compute_m_stats(&resid1, &entity_fd_count, &normal)?;
+
+        // 13. Nomes das variáveis
+        let vnames = variable_names.map(|vn| {
+            let non_const: Vec<&str> = vn.iter()
+                .filter(|n| n.as_str() != "const")
+                .map(|s| s.as_str())
+                .collect();
+            let mut names = vec!["LD.y".to_string()];
+            for (ni, &oc) in active_x.iter().enumerate() {
+                // oc é índice na matriz x original (com const em 0)
+                // se há const, non_const[oc-1] é o nome; senão non_const[oc]
+                let nm = non_const
+                    .get(oc.saturating_sub(if vn.contains(&"const".to_string()) { 1 } else { 0 }))
+                    .copied()
+                    .unwrap_or("x");
+                let _ = ni; // evita warning
+                names.push(format!("Δ{nm}"));
+            }
+            names
+        });
 
         Ok(ArellanoBondResult {
             params,
             std_errors,
             t_values,
             p_values,
-            r_squared: ols_iv.r_squared, // Note: R2 em modelos diferençados é pouco informativo
-            sargan_stat: sargan,
+            sargan_stat,
+            sargan_pvalue,
+            sargan_df,
             n_obs: n_eff,
+            n_entities,
+            t_bar: n_eff as f64 / n_entities as f64,
+            n_instruments: n_inst,
+            max_lags,
+            step: step_used,
+            m1_stat,
+            m1_pval,
+            m2_stat,
+            m2_pval,
+            variable_names: vnames,
         })
     }
+}
+
+/// Calcula as estatísticas m1 e m2 de autocorrelação serial de Arellano-Bond.
+fn compute_m_stats(
+    fd_resid: &Array1<f64>,
+    entity_fd_count: &[usize],
+    normal: &statrs::distribution::Normal,
+) -> Result<(f64, f64, f64, f64), GreenersError> {
+    use statrs::distribution::ContinuousCDF;
+
+    let m_stat = |p: usize| -> Option<(f64, f64)> {
+        let mut c_p = 0.0f64;
+        let mut v_p = 0.0f64;
+        let mut rptr = 0usize;
+        for &fc in entity_fd_count {
+            if fc > p {
+                let entity_sum: f64 = (p..fc)
+                    .map(|t| fd_resid[rptr + t] * fd_resid[rptr + t - p])
+                    .sum();
+                c_p += entity_sum;
+                v_p += entity_sum * entity_sum;
+            }
+            rptr += fc;
+        }
+        if v_p < 1e-20 { return None; }
+        let stat = c_p / v_p.sqrt();
+        let pval = 2.0 * (1.0 - normal.cdf(stat.abs()));
+        Some((stat, pval))
+    };
+
+    let (m1, p1) = m_stat(1).ok_or_else(|| {
+        GreenersError::InvalidOperation(
+            "Dados insuficientes para m1 (precisa T ≥ 4 total)".into(),
+        )
+    })?;
+    let (m2, p2) = m_stat(2).ok_or_else(|| {
+        GreenersError::InvalidOperation(
+            "Dados insuficientes para m2 (precisa T ≥ 5 total)".into(),
+        )
+    })?;
+
+    Ok((m1, p1, m2, p2))
 }

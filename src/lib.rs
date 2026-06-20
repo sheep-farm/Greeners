@@ -86,7 +86,7 @@ pub use diagnostics::{AndersonDarlingResult, ArchTestResult, Diagnostics, LjungB
 pub use did::DiffInDiff;
 pub use discrete::{Logit, Probit};
 pub use dynamic_factor::{DynamicFactor, DynamicFactorResult};
-pub use dynamic_panel::ArellanoBond;
+pub use dynamic_panel::{ArellanoBond, ArellanoBondResult};
 pub use error::GreenersError;
 pub use ets::{ETSResult, ExponentialSmoothing};
 pub use export::{ExportData, ExportableResult};
