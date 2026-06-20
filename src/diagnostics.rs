@@ -5,6 +5,17 @@ use crate::OLS; // We reuse OLS for the Breusch-Pagan auxiliary regression
 use ndarray::{Array1, Array2};
 use statrs::distribution::{ChiSquared, ContinuousCDF};
 
+/// Result of Ljung-Box portmanteau test.
+#[derive(Debug)]
+pub struct LjungBoxResult {
+    pub q_stat: f64,
+    pub p_value: f64,
+    pub lags: usize,
+    pub n_obs: usize,
+    /// Sample autocorrelations at each lag (1..=lags)
+    pub acf: Vec<f64>,
+}
+
 /// Result of Engle's ARCH LM test.
 #[derive(Debug)]
 pub struct ArchTestResult {
@@ -651,5 +662,54 @@ impl Diagnostics {
             n_obs: n_eff,
             r_squared: r2,
         })
+    }
+
+    /// Ljung-Box portmanteau test for serial autocorrelation.
+    ///
+    /// H₀: the first `lags` autocorrelations are jointly zero.
+    ///
+    /// Q = n(n+2) Σ_{k=1}^{m} ρ̂_k² / (n−k)  ~  χ²(m) under H₀.
+    ///
+    /// NaN/Inf values are removed before computation.
+    pub fn ljung_box(series: &Array1<f64>, lags: usize) -> Result<LjungBoxResult, GreenersError> {
+        let clean: Vec<f64> = series.iter().cloned().filter(|x| x.is_finite()).collect();
+        let n = clean.len();
+        if lags == 0 {
+            return Err(GreenersError::InvalidOperation("lags must be >= 1".into()));
+        }
+        if n <= lags + 1 {
+            return Err(GreenersError::ShapeMismatch(format!(
+                "Ljung-Box needs > {} observations, got {}",
+                lags + 1,
+                n
+            )));
+        }
+
+        let nf = n as f64;
+        let mean = clean.iter().sum::<f64>() / nf;
+        let denom: f64 = clean.iter().map(|&x| (x - mean).powi(2)).sum();
+
+        if denom < 1e-15 {
+            return Err(GreenersError::InvalidOperation("zero-variance series".into()));
+        }
+
+        // sample ACF at lags 1..=lags
+        let mut acf = Vec::with_capacity(lags);
+        for k in 1..=lags {
+            let num: f64 = (k..n).map(|t| (clean[t] - mean) * (clean[t - k] - mean)).sum();
+            acf.push(num / denom);
+        }
+
+        // Q = n(n+2) Σ ρ̂_k² / (n-k)
+        let q_stat = nf * (nf + 2.0)
+            * acf.iter().enumerate()
+                .map(|(i, &r)| r * r / (nf - (i + 1) as f64))
+                .sum::<f64>();
+
+        let chi2 = ChiSquared::new(lags as f64)
+            .map_err(|_| GreenersError::OptimizationFailed)?;
+        let p_value = 1.0 - chi2.cdf(q_stat);
+
+        Ok(LjungBoxResult { q_stat, p_value, lags, n_obs: n, acf })
     }
 }
