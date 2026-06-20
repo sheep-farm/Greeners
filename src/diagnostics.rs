@@ -581,6 +581,13 @@ impl Diagnostics {
     ///
     /// Returns `ArchTestResult`.
     pub fn arch_test(series: &Array1<f64>, lags: usize) -> Result<ArchTestResult, GreenersError> {
+        // drop NaN/Inf before any computation
+        let clean: Vec<f64> = series.iter()
+            .cloned()
+            .filter(|x| x.is_finite())
+            .collect();
+        let series = Array1::from_vec(clean);
+
         let n = series.len();
         if n <= lags + 2 {
             return Err(GreenersError::ShapeMismatch(format!(
