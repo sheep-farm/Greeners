@@ -1,4 +1,4 @@
-use ndarray::Array1;
+use ndarray::{Array1, Array2};
 
 type ModelStats = (f64, f64, f64, f64, f64, f64, f64, usize);
 
@@ -224,6 +224,178 @@ impl PanelDiagnostics {
         let p_value = 1.0 - f_dist.cdf(f_stat);
 
         Ok((f_stat, p_value))
+    }
+
+    /// Wooldridge (2002) test for serial correlation in panel data.
+    ///
+    /// H₀: no first-order serial correlation in idiosyncratic errors (ρ = -0.5)
+    /// H₁: serial correlation exists
+    ///
+    /// Procedure:
+    ///   1. Sort by time within entity, first-difference y and X
+    ///   2. Run OLS on first-differenced model to get residuals ê
+    ///   3. Regress ê_it on ê_{i,t-1} (no intercept, pooled across entities)
+    ///   4. Test H₀: ρ̂ = -0.5 using t(N-1) distribution
+    ///
+    /// Requires T ≥ 3 for at least some entities (to build residual lag pairs).
+    ///
+    /// Returns (rho_hat, t_stat, p_value, n_pairs)
+    pub fn wooldridge_serial(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        entity_ids: &[i64],
+        time_vals: &[f64],
+    ) -> Result<(f64, f64, f64, usize), String> {
+        use crate::{CovarianceType, OLS};
+        use statrs::distribution::{ContinuousCDF, StudentsT};
+        use std::collections::HashMap;
+
+        let n = y.len();
+        if entity_ids.len() != n || time_vals.len() != n {
+            return Err("entity_ids e time_vals devem ter o mesmo comprimento que y".to_string());
+        }
+        let k = x.ncols();
+        if n < 4 {
+            return Err("Observações insuficientes para o teste de Wooldridge".to_string());
+        }
+
+        // 1. Group indices by entity, sorted by time
+        let mut entity_idx: HashMap<i64, Vec<usize>> = HashMap::new();
+        for (i, &eid) in entity_ids.iter().enumerate() {
+            entity_idx.entry(eid).or_default().push(i);
+        }
+        for indices in entity_idx.values_mut() {
+            indices.sort_by(|&a, &b| {
+                time_vals[a]
+                    .partial_cmp(&time_vals[b])
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+        }
+
+        let n_entities = entity_idx.len();
+        let mut sorted_entities: Vec<i64> = entity_idx.keys().copied().collect();
+        sorted_entities.sort();
+
+        // 2. First-difference y and X within each entity
+        let mut dy_vec: Vec<f64> = Vec::new();
+        let mut dx_rows: Vec<Vec<f64>> = Vec::new();
+
+        for eid in &sorted_entities {
+            let indices = &entity_idx[eid];
+            let t = indices.len();
+            if t < 2 {
+                continue;
+            }
+            for s in 1..t {
+                let i_curr = indices[s];
+                let i_prev = indices[s - 1];
+                dy_vec.push(y[i_curr] - y[i_prev]);
+                let row: Vec<f64> = (0..k).map(|c| x[[i_curr, c]] - x[[i_prev, c]]).collect();
+                dx_rows.push(row);
+            }
+        }
+
+        let n_fd = dy_vec.len();
+        if n_fd == 0 {
+            return Err("Nenhuma observação após primeira diferença".to_string());
+        }
+
+        let dy = Array1::from_vec(dy_vec);
+        let mut dx = Array2::<f64>::zeros((n_fd, k));
+        for (i, row) in dx_rows.iter().enumerate() {
+            for (j, &v) in row.iter().enumerate() {
+                dx[[i, j]] = v;
+            }
+        }
+
+        // Drop zero columns (constants become zero after differencing)
+        let active_cols: Vec<usize> = (0..k)
+            .filter(|&c| dx.column(c).iter().any(|&v| v.abs() > 1e-12))
+            .collect();
+
+        if active_cols.is_empty() {
+            return Err("Todos os regressores tornaram-se zero após diferenciação".to_string());
+        }
+
+        let dx_active = {
+            let mut m = Array2::<f64>::zeros((n_fd, active_cols.len()));
+            for (new_c, &old_c) in active_cols.iter().enumerate() {
+                m.column_mut(new_c).assign(&dx.column(old_c));
+            }
+            m
+        };
+
+        // 3. OLS on first-differenced model
+        let fd_ols = OLS::fit(&dy, &dx_active, CovarianceType::NonRobust)
+            .map_err(|e| format!("OLS na primeira diferença falhou: {e}"))?;
+        let fd_resid = fd_ols.residuals(&dy, &dx_active);
+
+        // 4. Build residual lag pairs (ê_it, ê_{i,t-1}) within each entity
+        //    fd_resid rows correspond to entities in sorted order, consecutive FD periods
+        let mut aux_curr: Vec<f64> = Vec::new();
+        let mut aux_lag: Vec<f64> = Vec::new();
+        let mut row_ptr = 0usize;
+
+        for eid in &sorted_entities {
+            let t = entity_idx[eid].len();
+            if t < 2 {
+                continue;
+            }
+            let fd_count = t - 1;
+            // Need at least 2 FD residuals per entity (T >= 3)
+            if fd_count >= 2 {
+                for s in 1..fd_count {
+                    aux_curr.push(fd_resid[row_ptr + s]);
+                    aux_lag.push(fd_resid[row_ptr + s - 1]);
+                }
+            }
+            row_ptr += fd_count;
+        }
+
+        let n_pairs = aux_curr.len();
+        if n_pairs < 2 {
+            return Err(
+                "Poucas observações para o teste (necessário T ≥ 3 em pelo menos uma entidade)"
+                    .to_string(),
+            );
+        }
+
+        // 5. Estimate ρ: ê_it = ρ * ê_{i,t-1} + v  (no intercept)
+        let sum_xx: f64 = aux_lag.iter().map(|&v| v * v).sum();
+        let sum_xy: f64 = aux_lag
+            .iter()
+            .zip(aux_curr.iter())
+            .map(|(&xl, &xc)| xl * xc)
+            .sum();
+
+        if sum_xx < 1e-15 {
+            return Err("Matriz singular na regressão auxiliar".to_string());
+        }
+
+        let rho_hat = sum_xy / sum_xx;
+
+        let ssr_aux: f64 = aux_lag
+            .iter()
+            .zip(aux_curr.iter())
+            .map(|(&xl, &xc)| (xc - rho_hat * xl).powi(2))
+            .sum();
+
+        let df_aux = (n_pairs - 1) as f64;
+        let se_rho = (ssr_aux / df_aux / sum_xx).sqrt();
+
+        if se_rho < 1e-15 {
+            return Err("Erro padrão de ρ̂ próximo de zero".to_string());
+        }
+
+        // 6. t-statistic: H₀: ρ = -0.5, df = N - 1 (Wooldridge, 2002, p.283)
+        let t_stat = (rho_hat - (-0.5)) / se_rho;
+        let df_t = (n_entities - 1) as f64;
+
+        let t_dist =
+            StudentsT::new(0.0, 1.0, df_t).map_err(|e| format!("t-distribuição: {e}"))?;
+        let p_value = 2.0 * (1.0 - t_dist.cdf(t_stat.abs()));
+
+        Ok((rho_hat, t_stat, p_value, n_pairs))
     }
 
     /// Pesaran (2004) CD test for cross-sectional dependence in panel data.
