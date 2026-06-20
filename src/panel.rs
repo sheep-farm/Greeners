@@ -296,6 +296,7 @@ pub struct RandomEffectsResult {
     pub sigma_e: f64, // Desvio padrão do efeito individual
     pub theta: f64,   // Peso da transformação GLS
     pub inference_type: InferenceType,
+    pub variable_names: Option<Vec<String>>,
 }
 
 impl fmt::Display for RandomEffectsResult {
@@ -328,10 +329,14 @@ impl fmt::Display for RandomEffectsResult {
         writeln!(f, "{:-^78}", "")?;
 
         for i in 0..self.params.len() {
+            let label = self.variable_names.as_ref()
+                .and_then(|v| v.get(i))
+                .map(|s| s.clone())
+                .unwrap_or_else(|| format!("x{}", i));
             writeln!(
                 f,
-                "x{:<9} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
-                i, self.params[i], self.std_errors[i], self.t_values[i], self.p_values[i]
+                "{:<10} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
+                label, self.params[i], self.std_errors[i], self.t_values[i], self.p_values[i]
             )?;
         }
         writeln!(f, "{:=^78}", "")
@@ -372,7 +377,18 @@ impl RandomEffects {
         entity_ids: &Array1<i64>,
     ) -> Result<RandomEffectsResult, GreenersError> {
         let (y, x) = data.to_design_matrix(formula)?;
-        Self::fit(&y, &x, entity_ids)
+        let mut result = Self::fit(&y, &x, entity_ids)?;
+        // to_design_matrix coloca intercepto primeiro quando formula.intercept == true
+        let mut var_names: Vec<String> = if formula.intercept {
+            let mut v = vec!["const".to_string()];
+            v.extend(formula.independents.iter().cloned());
+            v
+        } else {
+            formula.independents.clone()
+        };
+        var_names.truncate(result.params.len());
+        result.variable_names = Some(var_names);
+        Ok(result)
     }
 
     pub fn fit(
@@ -536,6 +552,7 @@ impl RandomEffects {
             sigma_e: sigma_e_sq.sqrt(),
             theta,
             inference_type: final_model.inference_type,
+            variable_names: None,
         })
     }
 }
