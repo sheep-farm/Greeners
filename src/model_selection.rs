@@ -226,6 +226,112 @@ impl PanelDiagnostics {
         Ok((f_stat, p_value))
     }
 
+    /// Mundlak (1978) test for correlation between regressors and individual effects.
+    ///
+    /// H₀: γ = 0 — médias individuais não correlacionadas com os regressores (RE consistente)
+    /// H₁: γ ≠ 0 — efeitos individuais correlacionados com X (use FE)
+    ///
+    /// Procedure:
+    ///   1. Compute entity means X̄_i for each non-constant column of X
+    ///   2. Run OLS restricted: y ~ X
+    ///   3. Run OLS unrestricted: y ~ X + X̄
+    ///   4. F-test H₀: all γ = 0   F(k, n - 2k - 1) where k = non-constant regressors
+    ///
+    /// Returns (f_stat, p_value, k, gamma_hat, gamma_se)
+    pub fn mundlak(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        entity_ids: &[i64],
+    ) -> Result<(f64, f64, usize, Vec<f64>, Vec<f64>), String> {
+        use crate::{CovarianceType, OLS};
+        use statrs::distribution::{ContinuousCDF, FisherSnedecor};
+        use std::collections::HashMap;
+
+        let n = y.len();
+        let k_full = x.ncols();
+
+        if entity_ids.len() != n {
+            return Err("entity_ids deve ter o mesmo comprimento que y".to_string());
+        }
+
+        // Identify non-constant columns (positive variance)
+        let non_const_cols: Vec<usize> = (0..k_full)
+            .filter(|&c| {
+                let col: Vec<f64> = x.column(c).to_vec();
+                let mean = col.iter().sum::<f64>() / col.len() as f64;
+                col.iter().any(|&v| (v - mean).abs() > 1e-10)
+            })
+            .collect();
+
+        let k = non_const_cols.len();
+        if k == 0 {
+            return Err("Nenhum regressor variante no tempo encontrado".to_string());
+        }
+
+        // Compute entity means for non-constant columns
+        let mut entity_sums: HashMap<i64, (Vec<f64>, usize)> = HashMap::new();
+        for (i, &eid) in entity_ids.iter().enumerate() {
+            let entry = entity_sums
+                .entry(eid)
+                .or_insert_with(|| (vec![0.0; k], 0));
+            for (j, &c) in non_const_cols.iter().enumerate() {
+                entry.0[j] += x[[i, c]];
+            }
+            entry.1 += 1;
+        }
+        let entity_means: HashMap<i64, Vec<f64>> = entity_sums
+            .into_iter()
+            .map(|(eid, (sums, cnt))| {
+                (eid, sums.into_iter().map(|s| s / cnt as f64).collect())
+            })
+            .collect();
+
+        // Build augmented design matrix [X | X̄]
+        let mut x_aug = Array2::<f64>::zeros((n, k_full + k));
+        for i in 0..n {
+            for c in 0..k_full {
+                x_aug[[i, c]] = x[[i, c]];
+            }
+            let means = &entity_means[&entity_ids[i]];
+            for (j, &mean) in means.iter().enumerate() {
+                x_aug[[i, k_full + j]] = mean;
+            }
+        }
+
+        // Restricted OLS: y ~ X
+        let ols_r = OLS::fit(y, x, CovarianceType::NonRobust)
+            .map_err(|e| format!("OLS restrito falhou: {e}"))?;
+
+        // Unrestricted OLS: y ~ X + X̄
+        let ols_u = OLS::fit(y, &x_aug, CovarianceType::NonRobust)
+            .map_err(|e| format!("OLS não-restrito falhou: {e}"))?;
+
+        let ssr_r = ols_r.sigma.powi(2) * ols_r.df_resid as f64;
+        let ssr_u = ols_u.sigma.powi(2) * ols_u.df_resid as f64;
+        let df_u = ols_u.df_resid;
+
+        if df_u == 0 || ssr_u < 1e-15 {
+            return Err("Graus de liberdade insuficientes no modelo não-restrito".to_string());
+        }
+
+        let f_stat = ((ssr_r - ssr_u) / k as f64) / (ssr_u / df_u as f64);
+
+        let f_dist = FisherSnedecor::new(k as f64, df_u as f64)
+            .map_err(|e| format!("F-distribuição: {e}"))?;
+        let p_value = 1.0 - f_dist.cdf(f_stat.max(0.0));
+
+        // Extract γ̂ and SE from the unrestricted model (last k parameters)
+        let n_params = ols_u.params.len();
+        let gamma_hat: Vec<f64> = (n_params - k..n_params)
+            .map(|i| ols_u.params[i])
+            .collect();
+        let gamma_se: Vec<f64> = (n_params - k..n_params)
+            .map(|i| ols_u.std_errors[i])
+            .collect();
+
+        Ok((f_stat, p_value, k, gamma_hat, gamma_se))
+    }
+
     /// Wooldridge (2002) test for serial correlation in panel data.
     ///
     /// H₀: no first-order serial correlation in idiosyncratic errors (ρ = -0.5)
