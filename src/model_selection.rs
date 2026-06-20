@@ -226,6 +226,186 @@ impl PanelDiagnostics {
         Ok((f_stat, p_value))
     }
 
+    /// Chamberlain (1982) test for correlation between regressors and individual effects.
+    ///
+    /// Generalização do Mundlak: em vez de usar apenas a média individual X̄_i, inclui
+    /// os valores de X em TODOS os períodos — testando a forma mais geral de correlação
+    /// entre efeitos individuais e regressores.
+    ///
+    /// H₀: Π_1 = Π_2 = ... = Π_T = 0 (RE consistente)
+    /// H₁: pelo menos um Π_s ≠ 0 (efeitos correlacionados com X — use FE)
+    ///
+    /// Requer painel balanceado (mesmos períodos para todas as entidades).
+    ///
+    /// Procedure:
+    ///   1. Para cada regressor não-constante j e período s, cria coluna contendo
+    ///      o valor x_{i,j,s} para cada observação da entidade i (constante dentro da entidade)
+    ///   2. Augmenta o modelo com essas k×T colunas (descartando zero-variância)
+    ///   3. F-test H₀: todos os coeficientes das colunas augmentadas = 0
+    ///
+    /// Returns (f_stat, p_value, k_active, df_denom, n_entities, t_count)
+    pub fn chamberlain(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        entity_ids: &[i64],
+        time_vals: &[f64],
+    ) -> Result<(f64, f64, usize, usize, usize, usize), String> {
+        use crate::{CovarianceType, OLS};
+        use statrs::distribution::{ContinuousCDF, FisherSnedecor};
+        use std::collections::HashMap;
+
+        let n = y.len();
+        let k_full = x.ncols();
+
+        if entity_ids.len() != n || time_vals.len() != n {
+            return Err("entity_ids e time_vals devem ter o mesmo comprimento que y".to_string());
+        }
+
+        // Non-constant regressors
+        let non_const_cols: Vec<usize> = (0..k_full)
+            .filter(|&c| {
+                let mean = x.column(c).sum() / n as f64;
+                x.column(c).iter().any(|&v| (v - mean).abs() > 1e-10)
+            })
+            .collect();
+        let k = non_const_cols.len();
+        if k == 0 {
+            return Err("Nenhum regressor variante no tempo encontrado".to_string());
+        }
+
+        // Unique sorted time periods (via bit-based dedup to handle floats correctly)
+        let mut seen_bits: std::collections::HashSet<u64> = std::collections::HashSet::new();
+        let mut unique_times: Vec<f64> = Vec::new();
+        for &t in time_vals {
+            if seen_bits.insert(t.to_bits()) {
+                unique_times.push(t);
+            }
+        }
+        unique_times.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let t_count = unique_times.len();
+
+        if t_count < 2 {
+            return Err("O teste de Chamberlain requer pelo menos 2 períodos".to_string());
+        }
+
+        // Time value → sorted index
+        let time_to_idx: HashMap<u64, usize> = unique_times
+            .iter()
+            .enumerate()
+            .map(|(i, &t)| (t.to_bits(), i))
+            .collect();
+
+        // For each entity, collect non-const regressor values at each period
+        let mut entity_period: HashMap<i64, HashMap<usize, Vec<f64>>> = HashMap::new();
+        for (obs, &eid) in entity_ids.iter().enumerate() {
+            let t_idx = *time_to_idx
+                .get(&time_vals[obs].to_bits())
+                .ok_or("Período não encontrado no índice")?;
+            let vals: Vec<f64> = non_const_cols.iter().map(|&c| x[[obs, c]]).collect();
+            entity_period
+                .entry(eid)
+                .or_default()
+                .insert(t_idx, vals);
+        }
+
+        let n_entities = entity_period.len();
+
+        // Require balanced panel
+        for (&eid, periods) in &entity_period {
+            if periods.len() != t_count {
+                return Err(format!(
+                    "Painel desbalanceado: entidade {} tem {} períodos (esperado {}). \
+                     Filtre o dataset para incluir apenas entidades com todos os {} períodos.",
+                    eid,
+                    periods.len(),
+                    t_count,
+                    t_count
+                ));
+            }
+        }
+
+        // Build augmented design matrix: [X | Chamberlain cols]
+        // For each (j=regressor, s=period): column value for obs (i,t) = x_{i,j,s}
+        let k_chamber = k * t_count;
+        let k_aug_total = k_full + k_chamber;
+        let mut x_aug = Array2::<f64>::zeros((n, k_aug_total));
+
+        for i in 0..n {
+            for c in 0..k_full {
+                x_aug[[i, c]] = x[[i, c]];
+            }
+            let eid = entity_ids[i];
+            let ep = entity_period
+                .get(&eid)
+                .ok_or("ID de entidade não encontrado")?;
+            for (j, _) in non_const_cols.iter().enumerate() {
+                for s in 0..t_count {
+                    if let Some(vals) = ep.get(&s) {
+                        x_aug[[i, k_full + j * t_count + s]] = vals[j];
+                    }
+                }
+            }
+        }
+
+        // Drop Chamberlain columns with zero variance (e.g., time-invariant regressors
+        // or periods with identical values across all entities)
+        let active_aug: Vec<usize> = (k_full..k_aug_total)
+            .filter(|&c| {
+                let mean = x_aug.column(c).sum() / n as f64;
+                x_aug.column(c).iter().any(|&v| (v - mean).abs() > 1e-10)
+            })
+            .collect();
+
+        let k_active = active_aug.len();
+        if k_active == 0 {
+            return Err("Nenhuma coluna de augmentação com variância — regressores constantes?".to_string());
+        }
+
+        // Build final augmented matrix: [original X | active Chamberlain cols]
+        let k_final = k_full + k_active;
+        if n <= k_final {
+            return Err(format!(
+                "Graus de liberdade insuficientes: n={} ≤ colunas do modelo augmentado={}. \
+                 T muito grande relativo ao número de observações.",
+                n, k_final
+            ));
+        }
+
+        let mut x_final = Array2::<f64>::zeros((n, k_final));
+        for i in 0..n {
+            for c in 0..k_full {
+                x_final[[i, c]] = x[[i, c]];
+            }
+            for (new_c, &old_c) in active_aug.iter().enumerate() {
+                x_final[[i, k_full + new_c]] = x_aug[[i, old_c]];
+            }
+        }
+
+        // Restricted OLS: y ~ X
+        let ols_r = OLS::fit(y, x, CovarianceType::NonRobust)
+            .map_err(|e| format!("OLS restrito: {e}"))?;
+
+        // Unrestricted OLS: y ~ X + Chamberlain cols
+        let ols_u = OLS::fit(y, &x_final, CovarianceType::NonRobust)
+            .map_err(|e| format!("OLS não-restrito: {e}"))?;
+
+        let ssr_r = ols_r.sigma.powi(2) * ols_r.df_resid as f64;
+        let ssr_u = ols_u.sigma.powi(2) * ols_u.df_resid as f64;
+        let df_u = ols_u.df_resid;
+
+        if df_u == 0 || ssr_u < 1e-15 {
+            return Err("Graus de liberdade insuficientes no modelo não-restrito".to_string());
+        }
+
+        let f_stat = ((ssr_r - ssr_u) / k_active as f64) / (ssr_u / df_u as f64);
+
+        let f_dist = FisherSnedecor::new(k_active as f64, df_u as f64)
+            .map_err(|e| format!("F-distribuição: {e}"))?;
+        let p_value = 1.0 - f_dist.cdf(f_stat.max(0.0));
+
+        Ok((f_stat, p_value, k_active, df_u, n_entities, t_count))
+    }
+
     /// Mundlak (1978) test for correlation between regressors and individual effects.
     ///
     /// H₀: γ = 0 — médias individuais não correlacionadas com os regressores (RE consistente)
