@@ -689,6 +689,10 @@ fn gjrgarch_conditional_variance(
 
 // ─── Shared helpers for fit methods ──────────────────────────────────────────
 
+fn drop_nan(y: &Array1<f64>) -> Array1<f64> {
+    Array1::from_vec(y.iter().cloned().filter(|x| x.is_finite()).collect())
+}
+
 fn sample_moments(y: &Array1<f64>) -> (f64, f64) {
     let n = y.len() as f64;
     let mean = y.iter().sum::<f64>() / n;
@@ -731,6 +735,8 @@ pub struct GARCH;
 impl GARCH {
     /// Fit GARCH(p,q) with Normal errors
     pub fn fit(y: &Array1<f64>, p: usize, q: usize) -> Result<GarchResult, GreenersError> {
+        let y_clean = drop_nan(y);
+        let y = &y_clean;
         if y.len() < 10 {
             return Err(GreenersError::InvalidOperation(
                 "Need at least 10 observations".into(),
@@ -800,6 +806,8 @@ impl GARCH {
 
     /// Fit GARCH(p,q) with Student-t errors (df estimated via MLE)
     pub fn fit_t(y: &Array1<f64>, p: usize, q: usize) -> Result<GarchResult, GreenersError> {
+        let y_clean = drop_nan(y);
+        let y = &y_clean;
         if y.len() < 10 {
             return Err(GreenersError::InvalidOperation(
                 "Need at least 10 observations".into(),
@@ -928,6 +936,8 @@ impl EGARCH {
         q: usize,
         use_t: bool,
     ) -> Result<GarchResult, GreenersError> {
+        let y_clean = drop_nan(y);
+        let y = &y_clean;
         if y.len() < 10 {
             return Err(GreenersError::InvalidOperation(
                 "Need at least 10 observations".into(),
@@ -1069,6 +1079,8 @@ impl GJRGARCH {
         q: usize,
         use_t: bool,
     ) -> Result<GarchResult, GreenersError> {
+        let y_clean = drop_nan(y);
+        let y = &y_clean;
         if y.len() < 10 {
             return Err(GreenersError::InvalidOperation(
                 "Need at least 10 observations".into(),
