@@ -2,6 +2,7 @@
 #[cfg(feature = "odre-ffi")]
 pub mod odre_ffi;
 
+pub mod distributions;
 pub mod arima;
 pub mod autoreg;
 pub mod beta_model;
@@ -68,6 +69,7 @@ pub mod vecm;
 pub mod wls;
 pub mod zero_inflated;
 
+pub use distributions::{chi2_pvalue, logistic, norm_pdf, t_pvalue_two, t_quantile};
 pub use arima::{ArimaOrder, ArimaResult, SeasonalOrder, ARIMA};
 pub use autoreg::{ARDLResult, AutoReg, AutoRegResult, ARDL};
 pub use beta_model::{BetaLink, BetaModel, BetaResult};
