@@ -82,7 +82,7 @@ pub use dataframe::DataFrame;
 pub use datasets::Datasets;
 pub use decomposition::{Decomposition, DecompositionResult};
 pub use descrstatsw::DescrStatsW;
-pub use diagnostics::{AndersonDarlingResult, Diagnostics};
+pub use diagnostics::{AndersonDarlingResult, ArchTestResult, Diagnostics};
 pub use did::DiffInDiff;
 pub use discrete::{Logit, Probit};
 pub use dynamic_factor::{DynamicFactor, DynamicFactorResult};

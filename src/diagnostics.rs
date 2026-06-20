@@ -5,6 +5,18 @@ use crate::OLS; // We reuse OLS for the Breusch-Pagan auxiliary regression
 use ndarray::{Array1, Array2};
 use statrs::distribution::{ChiSquared, ContinuousCDF};
 
+/// Result of Engle's ARCH LM test.
+#[derive(Debug)]
+pub struct ArchTestResult {
+    pub lm_stat: f64,
+    pub lm_pvalue: f64,
+    pub f_stat: f64,
+    pub f_pvalue: f64,
+    pub lags: usize,
+    pub n_obs: usize,
+    pub r_squared: f64,
+}
+
 /// Result of Anderson-Darling normality test.
 #[derive(Debug)]
 pub struct AndersonDarlingResult {
@@ -555,5 +567,82 @@ impl Diagnostics {
         } else {
             Ok(sigma_max / sigma_min)
         }
+    }
+
+    /// Engle's ARCH LM test for conditional heteroskedasticity.
+    ///
+    /// H₀: no ARCH effects of order `lags` in `series`.
+    ///
+    /// Procedure:
+    ///   1. Demean the series and compute squared residuals e_t².
+    ///   2. Regress e_t² on a constant and `lags` of itself.
+    ///   3. LM = n_eff · R²  ~  χ²(lags) under H₀.
+    ///   4. F  = (R²/p) / ((1−R²)/(n_eff−p−1))  ~  F(p, n_eff−p−1).
+    ///
+    /// Returns `ArchTestResult`.
+    pub fn arch_test(series: &Array1<f64>, lags: usize) -> Result<ArchTestResult, GreenersError> {
+        let n = series.len();
+        if n <= lags + 2 {
+            return Err(GreenersError::ShapeMismatch(format!(
+                "ARCH test needs > {} observations, got {}",
+                lags + 2,
+                n
+            )));
+        }
+
+        // demean and square
+        let mean = series.mean().unwrap_or(0.0);
+        let e2: Vec<f64> = series.iter().map(|&x| (x - mean).powi(2)).collect();
+
+        let n_eff = n - lags;
+
+        // y_aux = e_t²  for t = lags..n
+        let y_aux = Array1::from_vec(e2[lags..].to_vec());
+
+        // X_aux = [1, e_{t-1}², ..., e_{t-lags}²]
+        let mut x_data = Vec::with_capacity(n_eff * (lags + 1));
+        for t in lags..n {
+            x_data.push(1.0); // intercept
+            for k in 1..=lags {
+                x_data.push(e2[t - k]);
+            }
+        }
+        let x_aux = Array2::from_shape_vec((n_eff, lags + 1), x_data)
+            .map_err(|_| GreenersError::ShapeMismatch("ARCH: matrix build failed".into()))?;
+
+        let aux = OLS::fit(&y_aux, &x_aux, CovarianceType::NonRobust)?;
+        let r2 = aux.r_squared.clamp(0.0, 1.0);
+
+        let lm_stat = n_eff as f64 * r2;
+        let df_lm = lags as f64;
+        let chi2 = ChiSquared::new(df_lm)
+            .map_err(|_| GreenersError::OptimizationFailed)?;
+        let lm_pvalue = 1.0 - chi2.cdf(lm_stat);
+
+        let df1 = lags as f64;
+        let df2 = (n_eff - lags - 1) as f64;
+        let f_stat = if df2 > 0.0 && r2 < 1.0 {
+            (r2 / df1) / ((1.0 - r2) / df2)
+        } else {
+            f64::INFINITY
+        };
+        let f_pvalue = if df2 > 0.0 {
+            use statrs::distribution::FisherSnedecor;
+            let f_dist = FisherSnedecor::new(df1, df2)
+                .map_err(|_| GreenersError::OptimizationFailed)?;
+            1.0 - ContinuousCDF::cdf(&f_dist, f_stat)
+        } else {
+            0.0
+        };
+
+        Ok(ArchTestResult {
+            lm_stat,
+            lm_pvalue,
+            f_stat,
+            f_pvalue,
+            lags,
+            n_obs: n_eff,
+            r_squared: r2,
+        })
     }
 }
