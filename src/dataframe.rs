@@ -548,6 +548,49 @@ impl DataFrame {
     /// assert_eq!(y.len(), 3);
     /// assert_eq!(x.shape(), &[3, 3]); // 3 rows, 3 cols (intercept + x1 + x2)
     /// ```
+    /// Build variable names list from a Formula, expanding C(var) into per-category names.
+    /// - Categorical column (string labels): produces `var=label` for each non-reference level.
+    /// - Numeric column: produces `C(var)_N` for each non-reference numeric code.
+    pub fn formula_var_names(&self, formula: &Formula) -> Result<Vec<String>, GreenersError> {
+        let mut names = Vec::new();
+        if formula.intercept {
+            names.push("const".to_string());
+        }
+        for var in &formula.independents {
+            if var.starts_with("C(") && var.ends_with(')') {
+                let col_name = var[2..var.len() - 1].trim();
+                let col = self.get_column(col_name)?;
+
+                match col {
+                    Column::Categorical(cat) => {
+                        // Use string level names: skip levels[0] (reference)
+                        for level in cat.levels.iter().skip(1) {
+                            names.push(format!("{}={}", col_name, level));
+                        }
+                    }
+                    _ => {
+                        // Numeric column: use sorted integer codes
+                        let col_data = col.to_float();
+                        use std::collections::BTreeSet;
+                        let mut categories: Vec<i32> = col_data
+                            .iter()
+                            .map(|&v| v.round() as i32)
+                            .collect::<BTreeSet<_>>()
+                            .into_iter()
+                            .collect();
+                        categories.sort();
+                        for &cat in categories.iter().skip(1) {
+                            names.push(format!("{}_{}", var, cat));
+                        }
+                    }
+                }
+            } else {
+                names.push(var.clone());
+            }
+        }
+        Ok(names)
+    }
+
     pub fn to_design_matrix(
         &self,
         formula: &Formula,

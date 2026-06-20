@@ -609,15 +609,7 @@ impl GLM {
         cov_type: CovarianceType,
     ) -> Result<GlmResult, GreenersError> {
         let (y, x) = data.to_design_matrix(formula)?;
-
-        let mut var_names = Vec::new();
-        if formula.intercept {
-            var_names.push("const".to_string());
-        }
-        for var in &formula.independents {
-            var_names.push(var.clone());
-        }
-
+        let var_names = data.formula_var_names(formula)?;
         let link = family.canonical_link();
         Self::fit_internal(&y, &x, family, link, cov_type, Some(var_names))
     }
