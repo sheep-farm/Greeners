@@ -85,15 +85,7 @@ impl FGLS {
         weights: &Array1<f64>,
     ) -> Result<FglsResult, GreenersError> {
         let (y, x) = data.to_design_matrix(formula)?;
-
-        // Build variable names from formula
-        let mut var_names = Vec::new();
-        if formula.intercept {
-            var_names.push("const".to_string());
-        }
-        for var in &formula.independents {
-            var_names.push(var.clone());
-        }
+        let var_names = data.formula_var_names(formula)?;
 
         Self::wls_with_names(&y, &x, weights, Some(var_names))
     }
@@ -167,15 +159,7 @@ impl FGLS {
         data: &DataFrame,
     ) -> Result<FglsResult, GreenersError> {
         let (y, x) = data.to_design_matrix(formula)?;
-
-        // Build variable names from formula
-        let mut var_names = Vec::new();
-        if formula.intercept {
-            var_names.push("const".to_string());
-        }
-        for var in &formula.independents {
-            var_names.push(var.clone());
-        }
+        let var_names = data.formula_var_names(formula)?;
 
         Self::cochrane_orcutt_with_names(&y, &x, Some(var_names))
     }
