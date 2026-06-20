@@ -226,6 +226,155 @@ impl PanelDiagnostics {
         Ok((f_stat, p_value))
     }
 
+    /// Arellano-Bond (1991) test for serial correlation in first-differenced residuals.
+    ///
+    /// Computa as estatísticas m1 e m2 para testar autocorrelação serial de ordem 1 e 2
+    /// nos resíduos da equação em primeira diferença.
+    ///
+    /// Interpretação:
+    ///   m1 DEVE rejeitar H₀ (FD induz AR(1) por construção — confirma o modelo)
+    ///   m2 NÃO deve rejeitar H₀ (valida instrumentos y_{i,t-2} do GMM)
+    ///
+    /// Estatística: m_p = C_p / √V̂_p  ~ N(0,1)
+    ///   C_p  = Σ_{i,t} Δê_it · Δê_{i,t-p}
+    ///   V̂_p = Σ_i (Σ_t Δê_it · Δê_{i,t-p})²   (sandwich sob H₀)
+    ///
+    /// Returns (m1_stat, m1_pval, m2_stat, m2_pval)
+    pub fn arellano_bond_test(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        entity_ids: &[i64],
+        time_vals: &[f64],
+    ) -> Result<(f64, f64, f64, f64), String> {
+        use crate::{CovarianceType, OLS};
+        use statrs::distribution::{ContinuousCDF, Normal};
+        use std::collections::HashMap;
+
+        let n = y.len();
+        let k = x.ncols();
+
+        if entity_ids.len() != n || time_vals.len() != n {
+            return Err("entity_ids e time_vals devem ter o mesmo comprimento que y".to_string());
+        }
+
+        // 1. Group indices by entity, sorted by time
+        let mut entity_idx: HashMap<i64, Vec<usize>> = HashMap::new();
+        for (i, &eid) in entity_ids.iter().enumerate() {
+            entity_idx.entry(eid).or_default().push(i);
+        }
+        for indices in entity_idx.values_mut() {
+            indices.sort_by(|&a, &b| {
+                time_vals[a]
+                    .partial_cmp(&time_vals[b])
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+        }
+
+        let mut sorted_entities: Vec<i64> = entity_idx.keys().copied().collect();
+        sorted_entities.sort();
+
+        // 2. First-difference y and X within each entity
+        let mut dy_vec: Vec<f64> = Vec::new();
+        let mut dx_rows: Vec<Vec<f64>> = Vec::new();
+
+        for eid in &sorted_entities {
+            let indices = &entity_idx[eid];
+            let t = indices.len();
+            if t < 2 {
+                continue;
+            }
+            for s in 1..t {
+                let curr = indices[s];
+                let prev = indices[s - 1];
+                dy_vec.push(y[curr] - y[prev]);
+                dx_rows.push((0..k).map(|c| x[[curr, c]] - x[[prev, c]]).collect());
+            }
+        }
+
+        let n_fd = dy_vec.len();
+        if n_fd == 0 {
+            return Err("Nenhuma observação após primeira diferença".to_string());
+        }
+
+        let dy = Array1::from_vec(dy_vec);
+        let mut dx = Array2::<f64>::zeros((n_fd, k));
+        for (i, row) in dx_rows.iter().enumerate() {
+            for (j, &v) in row.iter().enumerate() {
+                dx[[i, j]] = v;
+            }
+        }
+
+        // Drop zero columns (constants become zero after FD)
+        let active_cols: Vec<usize> = (0..k)
+            .filter(|&c| dx.column(c).iter().any(|&v| v.abs() > 1e-12))
+            .collect();
+
+        let dx_active = {
+            let mut m = Array2::<f64>::zeros((n_fd, active_cols.len()));
+            for (nc, &oc) in active_cols.iter().enumerate() {
+                m.column_mut(nc).assign(&dx.column(oc));
+            }
+            m
+        };
+
+        // 3. OLS on FD model → residuals Δê
+        let fd_ols = OLS::fit(&dy, &dx_active, CovarianceType::NonRobust)
+            .map_err(|e| format!("OLS na primeira diferença: {e}"))?;
+        let fd_resid = fd_ols.residuals(&dy, &dx_active);
+
+        // 4. Map FD residuals back to entity groups
+        //    fd_resid[row_ptr..row_ptr+fd_count] = entity eid's FD residuals in time order
+        let mut entity_fd_resid: HashMap<i64, Vec<f64>> = HashMap::new();
+        let mut row_ptr = 0usize;
+        for eid in &sorted_entities {
+            let t = entity_idx[eid].len();
+            if t < 2 {
+                continue;
+            }
+            let fd_count = t - 1;
+            let resids: Vec<f64> = (row_ptr..row_ptr + fd_count)
+                .map(|i| fd_resid[i])
+                .collect();
+            entity_fd_resid.insert(*eid, resids);
+            row_ptr += fd_count;
+        }
+
+        // 5. Compute m_p for p = 1 and p = 2
+        let m_stat = |p: usize| -> Option<(f64, f64)> {
+            let mut c_p = 0.0f64;
+            let mut v_p = 0.0f64;
+
+            for resids in entity_fd_resid.values() {
+                let m = resids.len();
+                if m <= p {
+                    continue;
+                }
+                // Entity-level cross-product sum: Σ_t Δê_t * Δê_{t-p}
+                let entity_sum: f64 = (p..m).map(|t| resids[t] * resids[t - p]).sum();
+                c_p += entity_sum;
+                v_p += entity_sum * entity_sum; // squared for sandwich variance
+            }
+
+            if v_p < 1e-20 {
+                return None; // Not enough data or degenerate
+            }
+
+            let stat = c_p / v_p.sqrt();
+            let normal = Normal::new(0.0, 1.0).ok()?;
+            let pval = 2.0 * (1.0 - normal.cdf(stat.abs()));
+            Some((stat, pval))
+        };
+
+        let (m1, p1) = m_stat(1).ok_or(
+            "Dados insuficientes para m1 (precisa T ≥ 3 por entidade)".to_string(),
+        )?;
+        let (m2, p2) = m_stat(2).ok_or(
+            "Dados insuficientes para m2 (precisa T ≥ 4 por entidade)".to_string(),
+        )?;
+
+        Ok((m1, p1, m2, p2))
+    }
+
     /// Chamberlain (1982) test for correlation between regressors and individual effects.
     ///
     /// Generalização do Mundlak: em vez de usar apenas a média individual X̄_i, inclui
