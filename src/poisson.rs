@@ -108,6 +108,9 @@ impl fmt::Display for PoissonResult {
 }
 
 impl PoissonResult {
+    /// X matrix used in estimation (for marginal effects).
+    pub fn x_data(&self) -> &Array2<f64> { &self._x_data }
+
     /// Predict expected counts for new data.
     pub fn predict_count(&self, x_new: &Array2<f64>) -> Array1<f64> {
         let eta = x_new.dot(&self.params);
