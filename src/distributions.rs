@@ -1,4 +1,4 @@
-use statrs::distribution::{ContinuousCDF, Normal, StudentsT, ChiSquared, Continuous};
+use statrs::distribution::{ContinuousCDF, FisherSnedecor, Normal, StudentsT, ChiSquared, Continuous};
 
 /// p-valor bilateral da distribuição t de Student.
 pub fn t_pvalue_two(t: f64, df: f64) -> f64 {
@@ -28,4 +28,10 @@ pub fn norm_pdf(x: f64) -> f64 {
 /// Função logística (sigmoid): 1 / (1 + e^{-x}).
 pub fn logistic(x: f64) -> f64 {
     1.0 / (1.0 + (-x).exp())
+}
+
+/// p-valor da distribuição F de Fisher-Snedecor (cauda superior).
+pub fn f_pvalue(f: f64, df1: f64, df2: f64) -> f64 {
+    let Ok(dist) = FisherSnedecor::new(df1, df2) else { return f64::NAN };
+    1.0 - dist.cdf(f)
 }

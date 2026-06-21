@@ -1,3 +1,4 @@
+use crate::linalg::LinalgInverse as _;
 use crate::{CovarianceType, DataFrame, Formula, GreenersError, InferenceType, OLS};
 use ndarray::{Array1, Array2, Axis};
 use std::collections::HashMap;
@@ -701,6 +702,565 @@ impl BetweenEstimator {
             r_squared: ols.r_squared,
             n_entities,
             inference_type: ols.inference_type,
+        })
+    }
+}
+
+// ===========================================================================
+// FE-2SLS (xtivreg, fe) — Hausman (1978)
+// ===========================================================================
+
+#[derive(Debug)]
+pub struct PanelIvResult {
+    pub params: Array1<f64>,
+    pub std_errors: Array1<f64>,
+    pub t_values: Array1<f64>,
+    pub p_values: Array1<f64>,
+    pub r_squared: f64,
+    pub n_obs: usize,
+    pub n_entities: usize,
+    pub df_resid: usize,
+    pub sigma: f64,
+    pub inference_type: InferenceType,
+    pub variable_names: Option<Vec<String>>,
+}
+
+impl fmt::Display for PanelIvResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let thick = "═".repeat(70);
+        let thin  = "─".repeat(70);
+        writeln!(f, "\n{thick}")?;
+        writeln!(f, " FE-2SLS (xtivreg, fe)  —  Hausman (1978)")?;
+        writeln!(f, "{thick}")?;
+        writeln!(f, " Obs: {:<8}  Entidades: {:<8}  df_resid: {}",
+            self.n_obs, self.n_entities, self.df_resid)?;
+        writeln!(f, " R² (within): {:.6}   σ: {:.6}", self.r_squared, self.sigma)?;
+        writeln!(f, "{thin}")?;
+        writeln!(f, " {:<18} {:>12}  {:>12}  {:>8}  {:>8}",
+            "Variável", "coef", "SE", "t", "P>|t|")?;
+        writeln!(f, " {}", "─".repeat(64))?;
+        for i in 0..self.params.len() {
+            let name = self.variable_names.as_ref()
+                .and_then(|v| v.get(i).cloned())
+                .unwrap_or_else(|| format!("x{}", i + 1));
+            writeln!(f, " {:<18} {:>12.4}  {:>12.4}  {:>8.3}  {:>8.4}",
+                name, self.params[i], self.std_errors[i], self.t_values[i], self.p_values[i])?;
+        }
+        writeln!(f, "{thick}")
+    }
+}
+
+pub struct FE2SLS;
+
+impl FE2SLS {
+    /// Estima FE-2SLS: `feiv(y ~ x1+x2, ~ x1+z1+z2, df, id=col)`
+    ///
+    /// * `y`      — variável dependente (n)
+    /// * `x`      — regressores estruturais sem constante (n × k); coluna endógena incluída
+    /// * `z`      — matriz de instrumentos completa sem constante (n × l), l ≥ k
+    ///               deve incluir os regressores exógenos + instrumentos excluídos
+    /// * `groups` — IDs de entidade para a transformação within
+    pub fn fit<T>(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        z: &Array2<f64>,
+        groups: &[T],
+        variable_names: Option<Vec<String>>,
+    ) -> Result<PanelIvResult, GreenersError>
+    where
+        T: Eq + Hash + Clone,
+    {
+        let n = y.len();
+        let k = x.ncols();
+        let l = z.ncols();
+
+        if x.nrows() != n || z.nrows() != n || groups.len() != n {
+            return Err(GreenersError::ShapeMismatch(
+                "FE2SLS: dimensões de y, x, z e grupos divergem".into(),
+            ));
+        }
+        if l < k {
+            return Err(GreenersError::ShapeMismatch(format!(
+                "FE2SLS: condição de ordem violada — Z tem {l} instrumentos, X tem {k} regressores"
+            )));
+        }
+        if y.iter().any(|v| !v.is_finite())
+            || x.iter().any(|v| !v.is_finite())
+            || z.iter().any(|v| !v.is_finite())
+        {
+            return Err(GreenersError::InvalidOperation(
+                "FE2SLS: dados contêm NaN ou Inf".into(),
+            ));
+        }
+
+        // ── 1. Transformação within (demean) ──
+        let y_mat = y.view().insert_axis(Axis(1)).to_owned();
+        let y_dm  = FixedEffects::within_transform(&y_mat, groups)?;
+        let x_dm  = FixedEffects::within_transform(x, groups)?;
+        let z_dm  = FixedEffects::within_transform(z, groups)?;
+
+        let y_d: Array1<f64> = y_dm.column(0).to_owned();
+
+        // ── 2. 2SLS: primeira etapa X̂ = P_Z X̃ ──
+        let zt = z_dm.t();
+        let zt_z = zt.dot(&z_dm);
+        let zt_z_inv = zt_z.inv()?;
+        let zt_x = zt.dot(&x_dm);
+        let x_hat = z_dm.dot(&zt_z_inv.dot(&zt_x));
+
+        // ── 3. Segunda etapa: β = (X̂'X̃)⁻¹ X̂'ỹ ──
+        let xht = x_hat.t();
+        let xht_xd = xht.dot(&x_dm);
+        let xht_xd_inv = xht_xd.inv()?;
+        let beta = xht_xd_inv.dot(&xht.dot(&y_d));
+
+        // ── 4. Resíduos e graus de liberdade ──
+        let fitted = x_dm.dot(&beta);
+        let resid  = &y_d - &fitted;
+        let ssr    = resid.dot(&resid);
+
+        let n_entities = {
+            let mut seen = HashMap::new();
+            for g in groups { seen.insert(g.clone(), ()); }
+            seen.len()
+        };
+        // FE consome N-1 graus de liberdade (efeitos individuais demeaned)
+        let df_resid = n.saturating_sub(k).saturating_sub(n_entities - 1);
+        if df_resid == 0 {
+            return Err(GreenersError::ShapeMismatch(
+                "FE2SLS: graus de liberdade insuficientes".into(),
+            ));
+        }
+
+        let sigma2 = ssr / df_resid as f64;
+        let sigma  = sigma2.sqrt();
+
+        // ── 5. V = σ² (X̂'X̃)⁻¹ ──
+        let cov_mat = &xht_xd_inv * sigma2;
+        let std_errors: Array1<f64> = (0..k)
+            .map(|i| cov_mat[[i, i]].max(0.0).sqrt())
+            .collect::<Vec<_>>()
+            .into();
+
+        let t_values = &beta / &std_errors;
+
+        // ── 6. p-values (t com df_resid) ──
+        use statrs::distribution::{ContinuousCDF, StudentsT};
+        let t_dist = StudentsT::new(0.0, 1.0, df_resid as f64)
+            .map_err(|e| GreenersError::InvalidOperation(e.to_string()))?;
+        let p_values: Array1<f64> = t_values
+            .iter()
+            .map(|&t| 2.0 * (1.0 - t_dist.cdf(t.abs())))
+            .collect::<Vec<_>>()
+            .into();
+
+        // ── 7. R² within: corr²(ỹ, X̃β) ──
+        let r_squared = {
+            let ymean = y_d.mean().unwrap_or(0.0);
+            let ss_tot: f64 = y_d.iter().map(|&v| (v - ymean).powi(2)).sum();
+            let ss_res: f64 = ssr;
+            if ss_tot > 1e-15 { 1.0 - ss_res / ss_tot } else { 0.0 }
+        };
+
+        Ok(PanelIvResult {
+            params: beta,
+            std_errors,
+            t_values,
+            p_values,
+            r_squared,
+            n_obs: n,
+            n_entities,
+            df_resid,
+            sigma,
+            inference_type: InferenceType::StudentT,
+            variable_names,
+        })
+    }
+}
+
+// ===========================================================================
+// Helpers compartilhados — extração de painel balanceado
+// ===========================================================================
+
+/// Extrai submatrizes por entidade a partir de dados longos, ordenando por
+/// (entity_id, time_id). Exige painel balanceado (T igual para todas as entidades).
+/// Retorna (entidades_ordenadas, y_panels, x_panels, T).
+fn extract_balanced_panels(
+    y: &Array1<f64>,
+    x: &Array2<f64>,
+    entity_ids: &[i64],
+    time_ids: &[i64],
+) -> Result<(Vec<i64>, Vec<Array1<f64>>, Vec<Array2<f64>>, usize), GreenersError> {
+    let n = y.len();
+    if x.nrows() != n || entity_ids.len() != n || time_ids.len() != n {
+        return Err(GreenersError::ShapeMismatch(
+            "dimensões de y, x, entity_ids, time_ids divergem".into(),
+        ));
+    }
+
+    // Ordena índices por (entity, time)
+    let mut order: Vec<usize> = (0..n).collect();
+    order.sort_by_key(|&i| (entity_ids[i], time_ids[i]));
+
+    // Coleta entidades únicas em ordem
+    let mut entities: Vec<i64> = Vec::new();
+    for &i in &order {
+        let e = entity_ids[i];
+        if entities.last() != Some(&e) {
+            entities.push(e);
+        }
+    }
+
+    // Conta T por entidade e verifica balance
+    let mut counts: HashMap<i64, usize> = HashMap::new();
+    for &i in &order {
+        *counts.entry(entity_ids[i]).or_insert(0) += 1;
+    }
+    let t_vec: Vec<usize> = entities.iter().map(|e| counts[e]).collect();
+    let t0 = t_vec[0];
+    if t_vec.iter().any(|&t| t != t0) {
+        return Err(GreenersError::InvalidOperation(
+            "painel não balanceado: número de períodos difere entre entidades".into(),
+        ));
+    }
+
+    let k = x.ncols();
+    let mut y_panels: Vec<Array1<f64>> = Vec::with_capacity(entities.len());
+    let mut x_panels: Vec<Array2<f64>> = Vec::with_capacity(entities.len());
+
+    for &eid in &entities {
+        let rows: Vec<usize> = order.iter()
+            .filter(|&&i| entity_ids[i] == eid)
+            .copied()
+            .collect();
+        let yi: Array1<f64> = rows.iter().map(|&i| y[i]).collect::<Vec<_>>().into();
+        let mut xi = Array2::<f64>::zeros((t0, k));
+        for (r, &src) in rows.iter().enumerate() {
+            xi.row_mut(r).assign(&x.row(src));
+        }
+        y_panels.push(yi);
+        x_panels.push(xi);
+    }
+
+    Ok((entities, y_panels, x_panels, t0))
+}
+
+fn t_pvalues(t_vals: &Array1<f64>, df: usize) -> Result<Array1<f64>, GreenersError> {
+    use statrs::distribution::{ContinuousCDF, StudentsT};
+    let dist = StudentsT::new(0.0, 1.0, df as f64)
+        .map_err(|e| GreenersError::InvalidOperation(e.to_string()))?;
+    Ok(t_vals.mapv(|t| 2.0 * (1.0 - dist.cdf(t.abs()))))
+}
+
+// ===========================================================================
+// PCSE — Panel-Corrected Standard Errors (Beck & Katz 1995)
+// Stata: xtpcse y x1 x2, id(firm) t(year)
+// ===========================================================================
+
+#[derive(Debug)]
+pub struct PcseResult {
+    pub params: Array1<f64>,
+    pub std_errors: Array1<f64>,
+    pub t_values: Array1<f64>,
+    pub p_values: Array1<f64>,
+    pub r_squared: f64,
+    pub n_obs: usize,
+    pub n_entities: usize,
+    pub t_periods: usize,
+    pub df_resid: usize,
+    pub sigma: f64,
+    pub variable_names: Option<Vec<String>>,
+}
+
+impl fmt::Display for PcseResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let thick = "═".repeat(70);
+        let thin  = "─".repeat(70);
+        writeln!(f, "\n{thick}")?;
+        writeln!(f, " PCSE — Panel-Corrected Standard Errors  (Beck & Katz 1995)")?;
+        writeln!(f, "{thick}")?;
+        writeln!(f, " Obs: {:<8}  Entidades: {:<6}  Períodos: {:<6}  df_resid: {}",
+            self.n_obs, self.n_entities, self.t_periods, self.df_resid)?;
+        writeln!(f, " R²: {:.6}   σ (OLS): {:.6}", self.r_squared, self.sigma)?;
+        writeln!(f, "{thin}")?;
+        writeln!(f, " {:<18} {:>12}  {:>12}  {:>8}  {:>8}",
+            "Variável", "coef", "PCSE", "t", "P>|t|")?;
+        writeln!(f, " {}", "─".repeat(64))?;
+        for i in 0..self.params.len() {
+            let name = self.variable_names.as_ref()
+                .and_then(|v| v.get(i).cloned())
+                .unwrap_or_else(|| format!("x{}", i + 1));
+            writeln!(f, " {:<18} {:>12.4}  {:>12.4}  {:>8.3}  {:>8.4}",
+                name, self.params[i], self.std_errors[i],
+                self.t_values[i], self.p_values[i])?;
+        }
+        writeln!(f, "{thick}")
+    }
+}
+
+pub struct PCSE;
+
+impl PCSE {
+    pub fn fit(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        entity_ids: &[i64],
+        time_ids: &[i64],
+        variable_names: Option<Vec<String>>,
+    ) -> Result<PcseResult, GreenersError> {
+        if y.iter().any(|v| !v.is_finite()) || x.iter().any(|v| !v.is_finite()) {
+            return Err(GreenersError::InvalidOperation(
+                "PCSE: dados contêm NaN ou Inf".into(),
+            ));
+        }
+
+        let (_, y_panels, x_panels, big_t) =
+            extract_balanced_panels(y, x, entity_ids, time_ids)?;
+
+        let n_entities = y_panels.len();
+        let n_obs = n_entities * big_t;
+        let k = x.ncols();
+        let df_resid = n_obs.saturating_sub(k);
+
+        // ── OLS β̂ = (X'X)⁻¹ X'y ──
+        let xtx: Array2<f64> = x_panels.iter()
+            .fold(Array2::zeros((k, k)), |acc, xi| acc + xi.t().dot(xi));
+        let xty: Array1<f64> = x_panels.iter().zip(y_panels.iter())
+            .fold(Array1::zeros(k), |acc, (xi, yi)| acc + xi.t().dot(yi));
+        let xtx_inv = xtx.inv()?;
+        let beta = xtx_inv.dot(&xty);
+
+        // ── Resíduos e σ ──
+        let resid_panels: Vec<Array1<f64>> = y_panels.iter().zip(x_panels.iter())
+            .map(|(yi, xi)| yi - &xi.dot(&beta))
+            .collect();
+        let ssr: f64 = resid_panels.iter().map(|e| e.dot(e)).sum();
+        let sigma = (ssr / df_resid as f64).sqrt();
+
+        // ── Σ̂_ij = e_i'e_j / T ──
+        let n = n_entities;
+        let mut sigma_hat = Array2::<f64>::zeros((n, n));
+        for i in 0..n {
+            for j in i..n {
+                let s = resid_panels[i].dot(&resid_panels[j]) / big_t as f64;
+                sigma_hat[[i, j]] = s;
+                sigma_hat[[j, i]] = s;
+            }
+        }
+
+        // ── Meat = Σ_i Σ_j σ̂_ij X_i'X_j ──
+        let mut meat = Array2::<f64>::zeros((k, k));
+        for i in 0..n {
+            for j in 0..n {
+                meat = meat + x_panels[i].t().dot(&x_panels[j]) * sigma_hat[[i, j]];
+            }
+        }
+
+        // ── V_PCSE = (X'X)⁻¹ Meat (X'X)⁻¹ ──
+        let v = xtx_inv.dot(&meat).dot(&xtx_inv);
+        let std_errors: Array1<f64> = (0..k)
+            .map(|i| v[[i, i]].max(0.0).sqrt())
+            .collect::<Vec<_>>().into();
+        let t_values = &beta / &std_errors;
+        let p_values = t_pvalues(&t_values, df_resid)?;
+
+        // ── R² ──
+        let ymean = y.mean().unwrap_or(0.0);
+        let ss_tot: f64 = y.iter().map(|&v| (v - ymean).powi(2)).sum();
+        let r_squared = if ss_tot > 1e-15 { 1.0 - ssr / ss_tot } else { 0.0 };
+
+        Ok(PcseResult {
+            params: beta,
+            std_errors,
+            t_values,
+            p_values,
+            r_squared,
+            n_obs,
+            n_entities,
+            t_periods: big_t,
+            df_resid,
+            sigma,
+            variable_names,
+        })
+    }
+}
+
+// ===========================================================================
+// Panel GLS — Parks (1967) / Stata xtgls
+// panels=hetero : σ²_i por entidade (diagonal Σ)
+// panels=corr   : Σ completa entre entidades (Parks clássico)
+// ===========================================================================
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum GlsPanels { Hetero, Correlated }
+
+#[derive(Debug)]
+pub struct PanelGlsResult {
+    pub params: Array1<f64>,
+    pub std_errors: Array1<f64>,
+    pub t_values: Array1<f64>,
+    pub p_values: Array1<f64>,
+    pub r_squared: f64,
+    pub n_obs: usize,
+    pub n_entities: usize,
+    pub t_periods: usize,
+    pub df_resid: usize,
+    pub sigma: f64,
+    pub panels: GlsPanels,
+    pub variable_names: Option<Vec<String>>,
+}
+
+impl fmt::Display for PanelGlsResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let method = match self.panels {
+            GlsPanels::Hetero      => "heteroscedastic (diagonal Σ)",
+            GlsPanels::Correlated  => "correlated (Parks, Σ completa)",
+        };
+        let thick = "═".repeat(70);
+        let thin  = "─".repeat(70);
+        writeln!(f, "\n{thick}")?;
+        writeln!(f, " Panel GLS  —  panels({})", method)?;
+        writeln!(f, "{thick}")?;
+        writeln!(f, " Obs: {:<8}  Entidades: {:<6}  Períodos: {:<6}  df_resid: {}",
+            self.n_obs, self.n_entities, self.t_periods, self.df_resid)?;
+        writeln!(f, " R²: {:.6}   σ (GLS): {:.6}", self.r_squared, self.sigma)?;
+        writeln!(f, "{thin}")?;
+        writeln!(f, " {:<18} {:>12}  {:>12}  {:>8}  {:>8}",
+            "Variável", "coef", "SE", "z", "P>|z|")?;
+        writeln!(f, " {}", "─".repeat(64))?;
+        for i in 0..self.params.len() {
+            let name = self.variable_names.as_ref()
+                .and_then(|v| v.get(i).cloned())
+                .unwrap_or_else(|| format!("x{}", i + 1));
+            writeln!(f, " {:<18} {:>12.4}  {:>12.4}  {:>8.3}  {:>8.4}",
+                name, self.params[i], self.std_errors[i],
+                self.t_values[i], self.p_values[i])?;
+        }
+        writeln!(f, "{thick}")
+    }
+}
+
+pub struct PanelGLS;
+
+impl PanelGLS {
+    pub fn fit(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        entity_ids: &[i64],
+        time_ids: &[i64],
+        panels: GlsPanels,
+        variable_names: Option<Vec<String>>,
+    ) -> Result<PanelGlsResult, GreenersError> {
+        if y.iter().any(|v| !v.is_finite()) || x.iter().any(|v| !v.is_finite()) {
+            return Err(GreenersError::InvalidOperation(
+                "PanelGLS: dados contêm NaN ou Inf".into(),
+            ));
+        }
+
+        let (_, y_panels, x_panels, big_t) =
+            extract_balanced_panels(y, x, entity_ids, time_ids)?;
+
+        let n_entities = y_panels.len();
+        let n_obs = n_entities * big_t;
+        let k = x.ncols();
+        let df_resid = n_obs.saturating_sub(k);
+
+        // ── Passo 1: OLS para resíduos iniciais ──
+        let xtx0: Array2<f64> = x_panels.iter()
+            .fold(Array2::zeros((k, k)), |acc, xi| acc + xi.t().dot(xi));
+        let xty0: Array1<f64> = x_panels.iter().zip(y_panels.iter())
+            .fold(Array1::zeros(k), |acc, (xi, yi)| acc + xi.t().dot(yi));
+        let beta0 = xtx0.inv()?.dot(&xty0);
+        let resid0: Vec<Array1<f64>> = y_panels.iter().zip(x_panels.iter())
+            .map(|(yi, xi)| yi - &xi.dot(&beta0))
+            .collect();
+
+        // ── Passo 2: estimar Σ̂ ──
+        let n = n_entities;
+        let (xtox, xtoy) = match panels {
+            GlsPanels::Hetero => {
+                // Diagonal: σ̂²_i = e_i'e_i / T
+                let mut xtox = Array2::<f64>::zeros((k, k));
+                let mut xtoy = Array1::<f64>::zeros(k);
+                for i in 0..n {
+                    let sigma2_i = resid0[i].dot(&resid0[i]) / big_t as f64;
+                    if sigma2_i < 1e-15 {
+                        return Err(GreenersError::InvalidOperation(format!(
+                            "PanelGLS: σ²_i ≈ 0 para entidade {i} — resíduos perfeitamente ajustados?"
+                        )));
+                    }
+                    let w = 1.0 / sigma2_i;
+                    xtox = xtox + x_panels[i].t().dot(&x_panels[i]) * w;
+                    xtoy = xtoy + x_panels[i].t().dot(&y_panels[i]) * w;
+                }
+                (xtox, xtoy)
+            }
+            GlsPanels::Correlated => {
+                // Σ̂ completa: σ̂_ij = e_i'e_j / T, depois inverte
+                let mut sigma_hat = Array2::<f64>::zeros((n, n));
+                for i in 0..n {
+                    for j in i..n {
+                        let s = resid0[i].dot(&resid0[j]) / big_t as f64;
+                        sigma_hat[[i, j]] = s;
+                        sigma_hat[[j, i]] = s;
+                    }
+                }
+                let sigma_inv = sigma_hat.inv()?;
+
+                let mut xtox = Array2::<f64>::zeros((k, k));
+                let mut xtoy = Array1::<f64>::zeros(k);
+                for i in 0..n {
+                    for j in 0..n {
+                        let w = sigma_inv[[i, j]];
+                        xtox = xtox + x_panels[i].t().dot(&x_panels[j]) * w;
+                        xtoy = xtoy + x_panels[i].t().dot(&y_panels[j]) * w;
+                    }
+                }
+                (xtox, xtoy)
+            }
+        };
+
+        // ── Passo 3: β̂_GLS = (X'Ω⁻¹X)⁻¹ X'Ω⁻¹y ──
+        let xtox_inv = xtox.inv()?;
+        let beta = xtox_inv.dot(&xtoy);
+
+        // ── Resíduos GLS e σ ──
+        let resid_gls: Vec<Array1<f64>> = y_panels.iter().zip(x_panels.iter())
+            .map(|(yi, xi)| yi - &xi.dot(&beta))
+            .collect();
+        let ssr_gls: f64 = resid_gls.iter().map(|e| e.dot(e)).sum();
+        let sigma = (ssr_gls / df_resid as f64).sqrt();
+
+        // ── V_GLS = (X'Ω⁻¹X)⁻¹  (SE assintótica, usa Normal) ──
+        let std_errors: Array1<f64> = (0..k)
+            .map(|i| xtox_inv[[i, i]].max(0.0).sqrt())
+            .collect::<Vec<_>>().into();
+        let t_values = &beta / &std_errors;
+        // Parks usa distribuição Normal (z), não t
+        use statrs::distribution::{ContinuousCDF, Normal};
+        let norm = Normal::new(0.0, 1.0)
+            .map_err(|e| GreenersError::InvalidOperation(e.to_string()))?;
+        let p_values: Array1<f64> = t_values
+            .mapv(|z| 2.0 * (1.0 - norm.cdf(z.abs())));
+
+        // ── R² ──
+        let ymean = y.mean().unwrap_or(0.0);
+        let ss_tot: f64 = y.iter().map(|&v| (v - ymean).powi(2)).sum();
+        let r_squared = if ss_tot > 1e-15 { 1.0 - ssr_gls / ss_tot } else { 0.0 };
+
+        Ok(PanelGlsResult {
+            params: beta,
+            std_errors,
+            t_values,
+            p_values,
+            r_squared,
+            n_obs,
+            n_entities,
+            t_periods: big_t,
+            df_resid,
+            sigma,
+            panels,
+            variable_names,
         })
     }
 }
