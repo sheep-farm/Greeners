@@ -372,6 +372,67 @@ impl Transforms {
             ))),
         }
     }
+
+    // ── Regex ────────────────────────────────────────────────────────────────
+
+    /// `regexm(s, pattern)` — true if pattern matches anywhere in s (Stata: `regexm()`)
+    pub fn regexm(s: &str, pattern: &str) -> bool {
+        regex::Regex::new(pattern).map(|re| re.is_match(s)).unwrap_or(false)
+    }
+
+    /// `regexr(s, pattern, replacement)` — replace first match (Stata: `regexr()`)
+    pub fn regexr(s: &str, pattern: &str, replacement: &str) -> String {
+        regex::Regex::new(pattern)
+            .map(|re| re.replace(s, replacement).into_owned())
+            .unwrap_or_else(|_| s.to_string())
+    }
+
+    /// `regexra(s, pattern, replacement)` — replace all matches
+    pub fn regexra(s: &str, pattern: &str, replacement: &str) -> String {
+        regex::Regex::new(pattern)
+            .map(|re| re.replace_all(s, replacement).into_owned())
+            .unwrap_or_else(|_| s.to_string())
+    }
+
+    /// `regexs(s, pattern)` — extract first capture group (or full match if no group)
+    pub fn regexs(s: &str, pattern: &str) -> Option<String> {
+        regex::Regex::new(pattern).ok().and_then(|re| {
+            re.captures(s).map(|caps| {
+                caps.get(1)
+                    .or_else(|| caps.get(0))
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default()
+            })
+        })
+    }
+
+    /// Apply regex match to a vector of strings, returning 1.0/0.0
+    pub fn regexm_vec(strings: &[String], pattern: &str) -> Vec<f64> {
+        let re = regex::Regex::new(pattern).ok();
+        strings.iter().map(|s| {
+            re.as_ref().map(|r| if r.is_match(s) { 1.0 } else { 0.0 }).unwrap_or(0.0)
+        }).collect()
+    }
+
+    /// Apply regex replace to a vector of strings
+    pub fn regexr_vec(strings: &[String], pattern: &str, replacement: &str) -> Vec<String> {
+        let re = regex::Regex::new(pattern).ok();
+        strings.iter().map(|s| {
+            re.as_ref().map(|r| r.replace(s, replacement).into_owned()).unwrap_or_else(|| s.clone())
+        }).collect()
+    }
+
+    /// Apply regex extract to a vector of strings
+    pub fn regexs_vec(strings: &[String], pattern: &str) -> Vec<String> {
+        let re = regex::Regex::new(pattern).ok();
+        strings.iter().map(|s| {
+            re.as_ref().and_then(|r| {
+                r.captures(s).and_then(|caps| {
+                    caps.get(1).or_else(|| caps.get(0)).map(|m| m.as_str().to_string())
+                })
+            }).unwrap_or_default()
+        }).collect()
+    }
 }
 
 #[cfg(test)]
@@ -543,5 +604,29 @@ mod tests {
         let cols = vec![vec![3.0, 1.0], vec![1.0, 5.0], vec![2.0, 3.0]];
         assert_eq!(Transforms::row_min(&cols), vec![1.0, 1.0]);
         assert_eq!(Transforms::row_max(&cols), vec![3.0, 5.0]);
+    }
+
+    #[test]
+    fn test_regexm() {
+        assert!(Transforms::regexm("hello world", "wor"));
+        assert!(!Transforms::regexm("hello world", "^wor"));
+        assert!(Transforms::regexm("abc123", r"\d+"));
+    }
+
+    #[test]
+    fn test_regexr() {
+        assert_eq!(Transforms::regexr("hello world", "world", "rust"), "hello rust");
+        assert_eq!(Transforms::regexr("aaa bbb aaa", "aaa", "x"), "x bbb aaa");
+    }
+
+    #[test]
+    fn test_regexra() {
+        assert_eq!(Transforms::regexra("aaa bbb aaa", "aaa", "x"), "x bbb x");
+    }
+
+    #[test]
+    fn test_regexs() {
+        assert_eq!(Transforms::regexs("price: $42.50", r"\$(\d+\.\d+)"), Some("42.50".to_string()));
+        assert_eq!(Transforms::regexs("no match", r"\d+"), None);
     }
 }
