@@ -21,6 +21,7 @@ pub mod dynamic_panel;
 pub mod error;
 pub mod ets;
 pub mod export;
+pub mod fama_macbeth;
 pub mod formula;
 pub mod garch;
 pub mod gee;
@@ -37,6 +38,7 @@ pub mod iv;
 pub mod linalg;
 pub mod markov;
 pub mod markov_autoreg;
+pub mod margins;
 pub mod mixed;
 pub mod mnlogit;
 pub mod model_selection;
@@ -79,6 +81,8 @@ pub use arima::{ArimaOrder, ArimaResult, SeasonalOrder, ARIMA};
 pub use autoreg::{ARDLResult, AutoReg, AutoRegResult, ARDL};
 pub use beta_model::{BetaLink, BetaModel, BetaResult};
 pub use bootstrap::{Bootstrap, HypothesisTest};
+pub use fama_macbeth::{FamaMacBeth, FamaMacBethResult};
+pub use margins::{MarginalEffectsResult, Margins};
 pub use column::{CategoricalColumn, Column, DataType};
 pub use conditional::{
     ConditionalLogit, ConditionalMNLogit, ConditionalPoisson, ConditionalResult,
