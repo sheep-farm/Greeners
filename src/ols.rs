@@ -353,6 +353,53 @@ impl OlsResult {
         Ok((t_stat, p_value))
     }
 
+    /// Nonlinear combination of coefficients via delta method.
+    ///
+    /// Computes g(β̂), SE via numerical gradient, t-stat and p-value.
+    /// The covariance matrix is reconstructed as σ²(X'X)⁻¹ (NonRobust).
+    ///
+    /// # Arguments
+    /// * `g` - Function that takes coefficient slice and returns scalar
+    /// * `x` - Design matrix (needed to reconstruct covariance)
+    ///
+    /// # Returns
+    /// (point_estimate, standard_error, t_statistic, p_value)
+    pub fn nlcom<F>(&self, g: F, x: &Array2<f64>) -> Result<(f64, f64, f64, f64), GreenersError>
+    where
+        F: Fn(&[f64]) -> f64,
+    {
+        let params = self.params.as_slice().unwrap();
+        let k = params.len();
+        let g_hat = g(params);
+
+        // Numerical gradient (central differences)
+        let h = 1e-7;
+        let mut grad = Array1::<f64>::zeros(k);
+        let mut perturbed = params.to_vec();
+        for j in 0..k {
+            let orig = perturbed[j];
+            perturbed[j] = orig + h;
+            let g_plus = g(&perturbed);
+            perturbed[j] = orig - h;
+            let g_minus = g(&perturbed);
+            grad[j] = (g_plus - g_minus) / (2.0 * h);
+            perturbed[j] = orig;
+        }
+
+        // V = σ²(X'X)⁻¹
+        let xt_x = x.t().dot(x);
+        let xt_x_inv = xt_x.inv()?;
+        let sigma2 = self.sigma * self.sigma;
+        let vcov = &xt_x_inv * sigma2;
+
+        // SE = sqrt(g' V g)
+        let se = grad.dot(&vcov.dot(&grad)).max(0.0).sqrt();
+        let t = if se > 1e-15 { g_hat / se } else { f64::NAN };
+        let p = crate::t_pvalue_two(t, self.df_resid as f64);
+
+        Ok((g_hat, se, t, p))
+    }
+
     /// Helper function to compute p-values and confidence intervals
     ///
     /// This function computes statistical inference quantities using either
