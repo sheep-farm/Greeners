@@ -4377,6 +4377,57 @@ impl DataFrame {
 
         DataFrame::new(final_columns)
     }
+
+    /// Winsorize a column at percentiles p and 1-p.
+    pub fn winsorize(&self, column: &str, p: f64) -> Result<Array1<f64>, GreenersError> {
+        let col = self.get(column)?;
+        let mut sorted: Vec<f64> = col.iter().filter(|v| v.is_finite()).copied().collect();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let n = sorted.len();
+        if n == 0 { return Ok(col.clone()); }
+        let lo_idx = (p * n as f64).floor() as usize;
+        let hi_idx = ((1.0 - p) * n as f64).ceil() as usize;
+        let lo = sorted[lo_idx.min(n - 1)];
+        let hi = sorted[hi_idx.min(n - 1).max(lo_idx)];
+        Ok(col.mapv(|v| {
+            if !v.is_finite() { v } else if v < lo { lo } else if v > hi { hi } else { v }
+        }))
+    }
+
+    /// Encode a string column as numeric (0, 1, 2, ... by first appearance).
+    pub fn encode(&self, column: &str) -> Result<(Array1<f64>, Vec<String>), GreenersError> {
+        let str_vals = self.get_string(column)?;
+        let mut label_map: Vec<String> = Vec::new();
+        let mut val_to_idx: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        let numeric: Vec<f64> = str_vals.iter().map(|s| {
+            if let Some(&idx) = val_to_idx.get(s.as_str()) { idx as f64 }
+            else { let idx = label_map.len(); label_map.push(s.clone()); val_to_idx.insert(s.clone(), idx); idx as f64 }
+        }).collect();
+        Ok((Array1::from(numeric), label_map))
+    }
+
+    /// Generate dummy variables from a column (numeric or string).
+    pub fn generate_dummies(&self, column: &str, prefix: &str) -> Result<Vec<(String, Array1<f64>)>, GreenersError> {
+        let n = self.n_rows;
+        let categories: Vec<String> = if let Ok(arr) = self.get(column) {
+            let mut unique: Vec<i64> = arr.iter().map(|&v| v as i64).collect::<std::collections::HashSet<_>>().into_iter().collect();
+            unique.sort(); unique.iter().map(|v| v.to_string()).collect()
+        } else if let Ok(arr) = self.get_string(column) {
+            let mut unique: Vec<String> = arr.iter().cloned().collect::<std::collections::HashSet<_>>().into_iter().collect();
+            unique.sort(); unique
+        } else { return Err(GreenersError::VariableNotFound(column.to_string())); };
+        let mut result = Vec::new();
+        for cat in &categories {
+            let dummy: Vec<f64> = if let Ok(arr) = self.get(column) {
+                let cv: f64 = cat.parse().unwrap_or(f64::NAN);
+                arr.iter().map(|&v| if (v - cv).abs() < 0.5 { 1.0 } else { 0.0 }).collect()
+            } else if let Ok(arr) = self.get_string(column) {
+                arr.iter().map(|s| if s == cat { 1.0 } else { 0.0 }).collect()
+            } else { vec![0.0; n] };
+            result.push((format!("{prefix}_{cat}"), Array1::from(dummy)));
+        }
+        Ok(result)
+    }
 }
 
 impl std::fmt::Display for DataFrame {
