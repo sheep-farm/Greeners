@@ -212,3 +212,66 @@ impl LinalgDeterminant for Array2<f64> {
         Ok(mat.as_ref().determinant())
     }
 }
+
+// ─── Collinearity detection ─────────────────────────────────────────────────
+
+pub struct CollinearityResult {
+    pub x_clean: Array2<f64>,
+    pub keep_indices: Vec<usize>,
+    pub omitted: Vec<(usize, String)>,
+    pub clean_names: Vec<String>,
+}
+
+pub fn drop_collinear(
+    x: &Array2<f64>,
+    var_names: &[String],
+    tolerance: f64,
+) -> CollinearityResult {
+    let n = x.nrows();
+    let k = x.ncols();
+
+    let (mut keep_indices, mut omit_indices) = match x.qr() {
+        Ok((_, r)) => {
+            let mut keep = Vec::new();
+            let mut omit = Vec::new();
+            for i in 0..k.min(n) {
+                if r[[i, i]].abs() > tolerance {
+                    keep.push(i);
+                } else {
+                    omit.push(i);
+                }
+            }
+            (keep, omit)
+        }
+        Err(_) => ((0..k).collect(), vec![]),
+    };
+
+    for i in 0..k {
+        if !keep_indices.contains(&i) && !omit_indices.contains(&i) {
+            omit_indices.push(i);
+        }
+    }
+
+    let omitted: Vec<(usize, String)> = omit_indices
+        .iter()
+        .filter_map(|&i| var_names.get(i).map(|n| (i, n.clone())))
+        .collect();
+
+    let clean_names: Vec<String> = keep_indices
+        .iter()
+        .filter_map(|&i| var_names.get(i).cloned())
+        .collect();
+
+    let x_clean = if omit_indices.is_empty() {
+        x.clone()
+    } else {
+        x.select(ndarray::Axis(1), &keep_indices)
+    };
+
+    CollinearityResult {
+        x_clean,
+        keep_indices,
+        omitted,
+        clean_names,
+    }
+}

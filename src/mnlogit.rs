@@ -27,7 +27,7 @@ pub struct MNLogitResult {
     pub category_labels: Vec<f64>,
     pub inference_type: InferenceType,
     pub variable_names: Option<Vec<String>>,
-    pub omitted_vars: Vec<String>,
+    pub omitted_vars: Vec<(usize, String)>,
     _x_data: Array2<f64>,
 }
 
@@ -90,15 +90,11 @@ impl fmt::Display for MNLogitResult {
             }
         }
 
-        if !self.omitted_vars.is_empty() {
-            writeln!(f, "\n{:-^78}", "")?;
-            writeln!(f, "Omitted due to collinearity:")?;
-            for var in &self.omitted_vars {
-                writeln!(f, "  o.{}", var)?;
-            }
+        writeln!(f, "{:=^78}", "")?;
+        for (_, name) in &self.omitted_vars {
+            writeln!(f, "note: {} omitted because of collinearity", name)?;
         }
-
-        writeln!(f, "{:=^78}", "")
+        Ok(())
     }
 }
 
@@ -229,24 +225,13 @@ impl MNLogit {
             })
             .collect();
 
-        // Detect collinearity
-        let tolerance = 1e-10;
-        let (x_clean, keep_indices, omit_indices) = OLS::detect_collinearity(x, tolerance);
-
-        let mut omitted_var_names = Vec::new();
-        let mut clean_var_names = Vec::new();
-        if let Some(ref names) = variable_names {
-            for &idx in &omit_indices {
-                if idx < names.len() {
-                    omitted_var_names.push(names[idx].clone());
-                }
-            }
-            for &idx in &keep_indices {
-                if idx < names.len() {
-                    clean_var_names.push(names[idx].clone());
-                }
-            }
-        }
+        let (x_clean, omitted_positioned, clean_var_names) =
+            if let Some(ref names) = variable_names {
+                let cr = crate::linalg::drop_collinear(x, names, 1e-10);
+                (cr.x_clean, cr.omitted, cr.clean_names)
+            } else {
+                (x.clone(), vec![], vec![])
+            };
 
         let x_use = &x_clean;
         let k_clean = x_use.ncols();
@@ -459,7 +444,7 @@ impl MNLogit {
             } else {
                 variable_names
             },
-            omitted_vars: omitted_var_names,
+            omitted_vars: omitted_positioned,
             _x_data: x_use.clone(),
         })
     }

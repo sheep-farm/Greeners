@@ -1,6 +1,6 @@
 use crate::error::GreenersError;
 use crate::linalg::LinalgInverse as _;
-use crate::{CovarianceType, DataFrame, Formula, InferenceType, OLS};
+use crate::{CovarianceType, DataFrame, Formula, InferenceType};
 use ndarray::{Array1, Array2, Axis};
 use statrs::distribution::{ContinuousCDF, Normal};
 use std::fmt;
@@ -354,7 +354,7 @@ pub struct GlmResult {
     pub link: Link,
     pub inference_type: InferenceType,
     pub variable_names: Option<Vec<String>>,
-    pub omitted_vars: Vec<String>,
+    pub omitted_vars: Vec<(usize, String)>,
     // Store design matrix and y for predict/residuals
     pub(crate) _x_data: Array2<f64>,
     pub(crate) _y_data: Array1<f64>,
@@ -561,35 +561,41 @@ impl fmt::Display for GlmResult {
         )?;
         writeln!(f, "{:-^78}", "")?;
 
-        for i in 0..self.params.len() {
-            let var_name = if let Some(ref names) = self.variable_names {
-                if i < names.len() {
-                    names[i].clone()
-                } else {
-                    format!("x{}", i)
-                }
+        let total = self.params.len() + self.omitted_vars.len();
+        let mut fit_idx = 0usize;
+        for pos in 0..total {
+            if let Some((_, ref name)) = self.omitted_vars.iter().find(|(p, _)| *p == pos) {
+                writeln!(f, "{:<12} |  (omitted)", name)?;
             } else {
-                format!("x{}", i)
-            };
+                let var_name = if let Some(ref names) = self.variable_names {
+                    if fit_idx < names.len() {
+                        names[fit_idx].clone()
+                    } else {
+                        format!("x{}", fit_idx)
+                    }
+                } else {
+                    format!("x{}", fit_idx)
+                };
 
-            writeln!(
-                f,
-                "{:<12} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3} | {:>8.3} | {:>8.3}",
-                var_name,
-                self.params[i],
-                self.std_errors[i],
-                self.z_values[i],
-                self.p_values[i],
-                self.conf_lower[i],
-                self.conf_upper[i]
-            )?;
+                writeln!(
+                    f,
+                    "{:<12} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3} | {:>8.3} | {:>8.3}",
+                    var_name,
+                    self.params[fit_idx],
+                    self.std_errors[fit_idx],
+                    self.z_values[fit_idx],
+                    self.p_values[fit_idx],
+                    self.conf_lower[fit_idx],
+                    self.conf_upper[fit_idx]
+                )?;
+                fit_idx += 1;
+            }
         }
 
         if !self.omitted_vars.is_empty() {
             writeln!(f, "{:-^78}", "")?;
-            writeln!(f, "Omitted due to collinearity:")?;
-            for var in &self.omitted_vars {
-                writeln!(f, "  o.{}", var)?;
+            for (_, ref name) in &self.omitted_vars {
+                writeln!(f, "note: {} omitted because of collinearity", name)?;
             }
         }
 
@@ -672,23 +678,17 @@ impl GLM {
         }
 
         // Detect collinearity
-        let tolerance = 1e-10;
-        let (x_clean, keep_indices, omit_indices) = OLS::detect_collinearity(x, tolerance);
-
-        let mut omitted_var_names = Vec::new();
-        let mut clean_var_names = Vec::new();
-        if let Some(ref names) = variable_names {
-            for &idx in &omit_indices {
-                if idx < names.len() {
-                    omitted_var_names.push(names[idx].clone());
+        let (x_clean, variable_names, omitted_positioned) =
+            if let Some(ref names) = variable_names {
+                let cr = crate::linalg::drop_collinear(x, names, 1e-10);
+                if cr.omitted.is_empty() {
+                    (x.clone(), variable_names, vec![])
+                } else {
+                    (cr.x_clean, Some(cr.clean_names), cr.omitted)
                 }
-            }
-            for &idx in &keep_indices {
-                if idx < names.len() {
-                    clean_var_names.push(names[idx].clone());
-                }
-            }
-        }
+            } else {
+                (x.clone(), variable_names, vec![])
+            };
 
         let x_use = &x_clean;
         let k = x_use.ncols();
@@ -942,12 +942,8 @@ impl GLM {
             family,
             link,
             inference_type: InferenceType::Normal,
-            variable_names: if !clean_var_names.is_empty() {
-                Some(clean_var_names)
-            } else {
-                variable_names
-            },
-            omitted_vars: omitted_var_names,
+            variable_names,
+            omitted_vars: omitted_positioned,
             _x_data: x_use.clone(),
             _y_data: y.clone(),
         })
