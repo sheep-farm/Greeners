@@ -2,6 +2,7 @@ use crate::{column::CategoricalColumn, column::Column, formula::Formula, Greener
 use ndarray::{Array1, Array2};
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
 
 /// A simple DataFrame-like structure for storing column-oriented data.
 ///
@@ -14,8 +15,8 @@ use std::path::Path;
 /// - Categorical: String categories with efficient integer encoding
 #[derive(Debug, Clone)]
 pub struct DataFrame {
-    /// Column data stored as Column enum (Float or Categorical)
-    columns: HashMap<String, Column>,
+    /// Column data stored as Arc<Column> for zero-copy COW semantics
+    columns: HashMap<String, Arc<Column>>,
     /// Number of rows (all columns must have the same length)
     n_rows: usize,
 }
@@ -77,10 +78,10 @@ impl DataFrame {
             }
         }
 
-        // Convert Array1<f64> to Column::Float
-        let typed_columns: HashMap<String, Column> = columns
+        // Convert Array1<f64> to Arc<Column::Float>
+        let typed_columns: HashMap<String, Arc<Column>> = columns
             .into_iter()
-            .map(|(name, arr)| (name, Column::Float(arr)))
+            .map(|(name, arr)| (name, Arc::new(Column::Float(arr))))
             .collect();
 
         Ok(DataFrame {
@@ -106,7 +107,10 @@ impl DataFrame {
     /// ```
     pub fn from_columns(columns: HashMap<String, Column>) -> Result<Self, GreenersError> {
         if columns.is_empty() {
-            return Ok(DataFrame { columns, n_rows: 0 });
+            return Ok(DataFrame {
+                columns: HashMap::new(),
+                n_rows: 0,
+            });
         }
 
         // Check that all columns have the same length
@@ -122,6 +126,35 @@ impl DataFrame {
             }
         }
 
+        let arc_columns = columns
+            .into_iter()
+            .map(|(name, col)| (name, Arc::new(col)))
+            .collect();
+
+        Ok(DataFrame {
+            columns: arc_columns,
+            n_rows: first_len,
+        })
+    }
+
+    fn from_arc_columns(columns: HashMap<String, Arc<Column>>) -> Result<Self, GreenersError> {
+        if columns.is_empty() {
+            return Ok(DataFrame {
+                columns: HashMap::new(),
+                n_rows: 0,
+            });
+        }
+        let first_len = columns.values().next().unwrap().len();
+        for (name, col) in &columns {
+            if col.len() != first_len {
+                return Err(GreenersError::ShapeMismatch(format!(
+                    "Column '{}' has length {}, expected {}",
+                    name,
+                    col.len(),
+                    first_len
+                )));
+            }
+        }
         Ok(DataFrame {
             columns,
             n_rows: first_len,
@@ -151,7 +184,7 @@ impl DataFrame {
             GreenersError::VariableNotFound(format!("Column '{}' not found", name))
         })?;
 
-        match column {
+        match column.as_ref() {
             Column::Float(arr) => Ok(arr),
             Column::Categorical(_) => Err(GreenersError::VariableNotFound(format!(
                 "Column '{}' is categorical. Use get_categorical() or get_column()",
@@ -188,7 +221,8 @@ impl DataFrame {
             GreenersError::VariableNotFound(format!("Column '{}' not found", name))
         })?;
 
-        match column {
+        // COW: Arc::make_mut clones only if refcount > 1
+        match Arc::make_mut(column) {
             Column::Float(arr) => Ok(arr),
             Column::Categorical(_) => Err(GreenersError::VariableNotFound(format!(
                 "Column '{}' is categorical. Cannot get mutable reference",
@@ -232,6 +266,7 @@ impl DataFrame {
     pub fn get_column(&self, name: &str) -> Result<&Column, GreenersError> {
         self.columns
             .get(name)
+            .map(|arc| arc.as_ref())
             .ok_or_else(|| GreenersError::VariableNotFound(format!("Column '{}' not found", name)))
     }
 
@@ -842,7 +877,7 @@ impl DataFrame {
             self.n_rows = data.len();
         }
 
-        self.columns.insert(name, Column::Float(data));
+        self.columns.insert(name, Arc::new(Column::Float(data)));
         Ok(())
     }
 
@@ -861,7 +896,7 @@ impl DataFrame {
             self.n_rows = column.len();
         }
 
-        self.columns.insert(name, column);
+        self.columns.insert(name, Arc::new(column));
         Ok(())
     }
 
@@ -1077,12 +1112,12 @@ impl DataFrame {
         }
 
         // Infer type for each column and create typed columns
-        let mut typed_columns: HashMap<String, Column> = HashMap::new();
+        let mut typed_columns: HashMap<String, Arc<Column>> = HashMap::new();
         for (name, values) in raw_columns {
-            typed_columns.insert(name, Self::infer_column_type(&values));
+            typed_columns.insert(name, Arc::new(Self::infer_column_type(&values)));
         }
 
-        DataFrame::from_columns(typed_columns)
+        DataFrame::from_arc_columns(typed_columns)
     }
 
     /// Read a DataFrame from a CSV file via URL.
@@ -1153,12 +1188,12 @@ impl DataFrame {
         }
 
         // Infer type for each column and create typed columns
-        let mut typed_columns: HashMap<String, Column> = HashMap::new();
+        let mut typed_columns: HashMap<String, Arc<Column>> = HashMap::new();
         for (name, values) in raw_columns {
-            typed_columns.insert(name, Self::infer_column_type(&values));
+            typed_columns.insert(name, Arc::new(Self::infer_column_type(&values)));
         }
 
-        DataFrame::from_columns(typed_columns)
+        DataFrame::from_arc_columns(typed_columns)
     }
 
     /// Read a DataFrame from a JSON file.
@@ -1215,11 +1250,11 @@ impl DataFrame {
             }
 
             if !raw_columns.is_empty() {
-                let mut typed_columns: HashMap<String, Column> = HashMap::new();
+                let mut typed_columns: HashMap<String, Arc<Column>> = HashMap::new();
                 for (name, values) in raw_columns {
-                    typed_columns.insert(name, Self::infer_column_type(&values));
+                    typed_columns.insert(name, Arc::new(Self::infer_column_type(&values)));
                 }
-                return DataFrame::from_columns(typed_columns);
+                return DataFrame::from_arc_columns(typed_columns);
             }
         }
 
@@ -1248,11 +1283,11 @@ impl DataFrame {
                 }
             }
 
-            let mut typed_columns: HashMap<String, Column> = HashMap::new();
+            let mut typed_columns: HashMap<String, Arc<Column>> = HashMap::new();
             for (name, values) in raw_columns {
-                typed_columns.insert(name, Self::infer_column_type(&values));
+                typed_columns.insert(name, Arc::new(Self::infer_column_type(&values)));
             }
-            return DataFrame::from_columns(typed_columns);
+            return DataFrame::from_arc_columns(typed_columns);
         }
 
         Err(GreenersError::FormulaError(
@@ -1320,11 +1355,11 @@ impl DataFrame {
             }
 
             if !raw_columns.is_empty() {
-                let mut typed_columns: HashMap<String, Column> = HashMap::new();
+                let mut typed_columns: HashMap<String, Arc<Column>> = HashMap::new();
                 for (name, values) in raw_columns {
-                    typed_columns.insert(name, Self::infer_column_type(&values));
+                    typed_columns.insert(name, Arc::new(Self::infer_column_type(&values)));
                 }
-                return DataFrame::from_columns(typed_columns);
+                return DataFrame::from_arc_columns(typed_columns);
             }
         }
 
@@ -1353,11 +1388,11 @@ impl DataFrame {
                 }
             }
 
-            let mut typed_columns: HashMap<String, Column> = HashMap::new();
+            let mut typed_columns: HashMap<String, Arc<Column>> = HashMap::new();
             for (name, values) in raw_columns {
-                typed_columns.insert(name, Self::infer_column_type(&values));
+                typed_columns.insert(name, Arc::new(Self::infer_column_type(&values)));
             }
-            return DataFrame::from_columns(typed_columns);
+            return DataFrame::from_arc_columns(typed_columns);
         }
 
         Err(GreenersError::FormulaError(
@@ -1404,10 +1439,10 @@ impl DataFrame {
 
         let mut new_columns = HashMap::new();
         for (name, col) in &self.columns {
-            new_columns.insert(name.clone(), col.filter_indices(&indices));
+            new_columns.insert(name.clone(), Arc::new(col.filter_indices(&indices)));
         }
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Return the last n rows of the DataFrame.
@@ -1431,10 +1466,10 @@ impl DataFrame {
 
         let mut new_columns = HashMap::new();
         for (name, col) in &self.columns {
-            new_columns.insert(name.clone(), col.filter_indices(&indices));
+            new_columns.insert(name.clone(), Arc::new(col.filter_indices(&indices)));
         }
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Calculate the mean of each column.
@@ -1698,7 +1733,7 @@ impl DataFrame {
             new_columns.remove(*col_name);
         }
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Drop (remove) rows by indices.
@@ -1735,10 +1770,10 @@ impl DataFrame {
 
         let mut new_columns = HashMap::new();
         for (name, col) in &self.columns {
-            new_columns.insert(name.clone(), col.filter_indices(&keep_indices));
+            new_columns.insert(name.clone(), Arc::new(col.filter_indices(&keep_indices)));
         }
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Rename columns in the DataFrame.
@@ -1769,7 +1804,7 @@ impl DataFrame {
             new_columns.insert(new_name.clone(), col.clone());
         }
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Sort the DataFrame by a column.
@@ -1808,10 +1843,10 @@ impl DataFrame {
         // Reorder all columns based on sorted indices
         let mut new_columns = HashMap::new();
         for (name, col) in &self.columns {
-            new_columns.insert(name.clone(), col.filter_indices(&indices));
+            new_columns.insert(name.clone(), Arc::new(col.filter_indices(&indices)));
         }
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Filter rows based on a predicate function.
@@ -1857,10 +1892,10 @@ impl DataFrame {
 
         let mut new_columns = HashMap::new();
         for (name, col) in &self.columns {
-            new_columns.insert(name.clone(), col.filter_indices(&keep_indices));
+            new_columns.insert(name.clone(), Arc::new(col.filter_indices(&keep_indices)));
         }
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Write DataFrame to a CSV file.
@@ -1900,7 +1935,7 @@ impl DataFrame {
                 .iter()
                 .map(|name| {
                     let col = &self.columns[name];
-                    match col {
+                    match col.as_ref() {
                         Column::Float(arr) => arr[i].to_string(),
                         Column::Categorical(cat) => cat.get_string(i).unwrap_or("NA").to_string(),
                         Column::Bool(arr) => arr[i].to_string(),
@@ -1949,7 +1984,7 @@ impl DataFrame {
         // Convert to column-oriented format
         let mut data: HashMap<String, serde_json::Value> = HashMap::new();
         for (name, col) in &self.columns {
-            let value = match col {
+            let value = match col.as_ref() {
                 Column::Float(arr) => serde_json::to_value(arr.to_vec()).unwrap(),
                 Column::Categorical(cat) => serde_json::to_value(cat.to_strings()).unwrap(),
                 Column::Bool(arr) => serde_json::to_value(arr.to_vec()).unwrap(),
@@ -2049,7 +2084,7 @@ impl DataFrame {
             new_columns.insert(col_name.to_string(), self.columns[col_name].clone());
         }
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Select rows and columns by index (similar to pandas.iloc).
@@ -2126,10 +2161,10 @@ impl DataFrame {
         let mut new_columns = HashMap::new();
         for col_name in selected_col_names {
             let col_data = &self.columns[&col_name];
-            new_columns.insert(col_name, col_data.filter_indices(&selected_rows));
+            new_columns.insert(col_name, Arc::new(col_data.filter_indices(&selected_rows)));
         }
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Concatenate another DataFrame vertically (row-wise).
@@ -2177,7 +2212,7 @@ impl DataFrame {
         for (col_name, col_data) in &self.columns {
             let other_col_data = &other.columns[col_name];
 
-            let combined = match (col_data, other_col_data) {
+            let combined = match (col_data.as_ref(), other_col_data.as_ref()) {
                 (Column::Float(arr1), Column::Float(arr2)) => {
                     // Concatenate Float columns
                     let mut combined_vec = arr1.to_vec();
@@ -2223,10 +2258,10 @@ impl DataFrame {
                 }
             };
 
-            new_columns.insert(col_name.clone(), combined);
+            new_columns.insert(col_name.clone(), Arc::new(combined));
         }
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Apply a function to each column, returning a new DataFrame.
@@ -2267,10 +2302,10 @@ impl DataFrame {
                     transformed.len()
                 )));
             }
-            new_columns.insert(col_name.clone(), Column::Float(transformed));
+            new_columns.insert(col_name.clone(), Arc::new(Column::Float(transformed)));
         }
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Apply a function to transform values in a specific column.
@@ -2308,9 +2343,9 @@ impl DataFrame {
         // Convert to float, apply function, wrap back in Column::Float
         let float_data = col_data.to_float();
         let transformed = float_data.mapv(&func);
-        new_columns.insert(column.to_string(), Column::Float(transformed));
+        new_columns.insert(column.to_string(), Arc::new(Column::Float(transformed)));
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Calculate the correlation matrix between all columns.
@@ -2496,7 +2531,7 @@ impl DataFrame {
             let mut has_nan = false;
             for col in self.columns.values() {
                 // Only check Float columns for NaN (Categorical has no NaN)
-                if let Column::Float(arr) = col {
+                if let Column::Float(arr) = col.as_ref() {
                     if arr[i].is_nan() {
                         has_nan = true;
                         break;
@@ -2553,11 +2588,12 @@ impl DataFrame {
         for i in 0..self.n_rows {
             let mut has_nan = false;
             for col_name in subset {
-                // Only check Float columns for NaN
-                if let Some(Column::Float(arr)) = self.columns.get(*col_name) {
-                    if arr[i].is_nan() {
-                        has_nan = true;
-                        break;
+                if let Some(col) = self.columns.get(*col_name) {
+                    if let Column::Float(arr) = col.as_ref() {
+                        if arr[i].is_nan() {
+                            has_nan = true;
+                            break;
+                        }
                     }
                 }
             }
@@ -2602,14 +2638,13 @@ impl DataFrame {
             let mut has_float_col = false;
 
             for col in self.columns.values() {
-                if let Column::Float(arr) = col {
+                if let Column::Float(arr) = col.as_ref() {
                     has_float_col = true;
                     if !arr[i].is_nan() {
                         all_nan = false;
                         break;
                     }
                 } else {
-                    // Non-Float columns are never NaN, so row can't be all NaN
                     all_nan = false;
                     break;
                 }
@@ -2652,20 +2687,16 @@ impl DataFrame {
 
         for (col_name, col_data) in &self.columns {
             // Only fill NaN in Float columns (Categorical, Bool, Int, and DateTime have no NaN concept)
-            let filled = match col_data {
+            let filled = match col_data.as_ref() {
                 Column::Float(arr) => {
-                    Column::Float(arr.mapv(|v| if v.is_nan() { value } else { v }))
+                    Arc::new(Column::Float(arr.mapv(|v| if v.is_nan() { value } else { v })))
                 }
-                Column::Categorical(_) => col_data.clone(), // Categorical unchanged
-                Column::Bool(_) => col_data.clone(),        // Bool unchanged
-                Column::Int(_) => col_data.clone(),         // Int unchanged
-                Column::DateTime(_) => col_data.clone(),    // DateTime unchanged
-                Column::String(_) => col_data.clone(),      // String unchanged
+                _ => col_data.clone(),
             };
             new_columns.insert(col_name.clone(), filled);
         }
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Fill NaN values in a specific column with a specified value.
@@ -2694,17 +2725,13 @@ impl DataFrame {
 
         let mut new_columns = self.columns.clone();
         let col_data = &self.columns[column];
-        let filled = match col_data {
-            Column::Float(arr) => Column::Float(arr.mapv(|v| if v.is_nan() { value } else { v })),
-            Column::Categorical(_) => col_data.clone(), // Categorical unchanged
-            Column::Bool(_) => col_data.clone(),        // Bool unchanged
-            Column::Int(_) => col_data.clone(),         // Int unchanged
-            Column::DateTime(_) => col_data.clone(),    // DateTime unchanged
-            Column::String(_) => col_data.clone(),      // String unchanged
+        let filled = match col_data.as_ref() {
+            Column::Float(arr) => Arc::new(Column::Float(arr.mapv(|v| if v.is_nan() { value } else { v }))),
+            _ => col_data.clone(),
         };
         new_columns.insert(column.to_string(), filled);
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Fill NaN values in each column with the mean of that column.
@@ -2729,31 +2756,24 @@ impl DataFrame {
         let mut new_columns = HashMap::new();
 
         for (col_name, col_data) in &self.columns {
-            let filled = match col_data {
+            let filled = match col_data.as_ref() {
                 Column::Float(arr) => {
-                    // Calculate mean excluding NaN values
                     let valid_values: Vec<f64> =
                         arr.iter().filter(|v| !v.is_nan()).copied().collect();
-
                     if valid_values.is_empty() {
-                        // If all values are NaN, keep them as NaN
                         col_data.clone()
                     } else {
                         let mean: f64 =
                             valid_values.iter().sum::<f64>() / valid_values.len() as f64;
-                        Column::Float(arr.mapv(|v| if v.is_nan() { mean } else { v }))
+                        Arc::new(Column::Float(arr.mapv(|v| if v.is_nan() { mean } else { v })))
                     }
                 }
-                Column::Categorical(_) => col_data.clone(), // Categorical unchanged
-                Column::Bool(_) => col_data.clone(),        // Bool unchanged
-                Column::Int(_) => col_data.clone(),         // Int unchanged
-                Column::DateTime(_) => col_data.clone(),    // DateTime unchanged
-                Column::String(_) => col_data.clone(),      // String unchanged
+                _ => col_data.clone(),
             };
             new_columns.insert(col_name.clone(), filled);
         }
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Fill NaN values in each column with the median of that column.
@@ -2778,14 +2798,13 @@ impl DataFrame {
         let mut new_columns = HashMap::new();
 
         for (col_name, col_data) in &self.columns {
-            let filled = match col_data {
+            let filled = match col_data.as_ref() {
                 Column::Float(arr) => {
                     // Calculate median excluding NaN values
                     let mut valid_values: Vec<f64> =
                         arr.iter().filter(|v| !v.is_nan()).copied().collect();
 
                     if valid_values.is_empty() {
-                        // If all values are NaN, keep them as NaN
                         col_data.clone()
                     } else {
                         valid_values.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -2795,20 +2814,15 @@ impl DataFrame {
                         } else {
                             valid_values[mid]
                         };
-
-                        Column::Float(arr.mapv(|v| if v.is_nan() { median } else { v }))
+                        Arc::new(Column::Float(arr.mapv(|v| if v.is_nan() { median } else { v })))
                     }
                 }
-                Column::Categorical(_) => col_data.clone(), // Categorical unchanged
-                Column::Bool(_) => col_data.clone(),        // Bool unchanged
-                Column::Int(_) => col_data.clone(),         // Int unchanged
-                Column::DateTime(_) => col_data.clone(),    // DateTime unchanged
-                Column::String(_) => col_data.clone(),      // String unchanged
+                _ => col_data.clone(),
             };
             new_columns.insert(col_name.clone(), filled);
         }
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Fill NaN values by propagating the last valid value forward (forward fill).
@@ -2841,7 +2855,7 @@ impl DataFrame {
         let mut new_columns = HashMap::new();
 
         for (col_name, col_data) in &self.columns {
-            let filled = match col_data {
+            let filled = match col_data.as_ref() {
                 Column::Float(arr) => {
                     let mut filled_vec = arr.to_vec();
                     let mut last_valid: Option<f64> = None;
@@ -2859,18 +2873,14 @@ impl DataFrame {
                         }
                     }
 
-                    Column::Float(Array1::from(filled_vec))
+                    Arc::new(Column::Float(Array1::from(filled_vec)))
                 }
-                Column::Categorical(_) => col_data.clone(), // Categorical unchanged
-                Column::Bool(_) => col_data.clone(),        // Bool unchanged
-                Column::Int(_) => col_data.clone(),         // Int unchanged
-                Column::DateTime(_) => col_data.clone(),    // DateTime unchanged
-                Column::String(_) => col_data.clone(),      // String unchanged
+                _ => col_data.clone(),
             };
             new_columns.insert(col_name.clone(), filled);
         }
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Fill NaN values by propagating the next valid value backward (backward fill).
@@ -2902,7 +2912,7 @@ impl DataFrame {
         let mut new_columns = HashMap::new();
 
         for (col_name, col_data) in &self.columns {
-            let filled = match col_data {
+            let filled = match col_data.as_ref() {
                 Column::Float(arr) => {
                     let mut filled_vec = arr.to_vec();
                     let mut next_valid: Option<f64> = None;
@@ -2921,18 +2931,14 @@ impl DataFrame {
                         }
                     }
 
-                    Column::Float(Array1::from(filled_vec))
+                    Arc::new(Column::Float(Array1::from(filled_vec)))
                 }
-                Column::Categorical(_) => col_data.clone(), // Categorical unchanged
-                Column::Bool(_) => col_data.clone(),        // Bool unchanged
-                Column::Int(_) => col_data.clone(),         // Int unchanged
-                Column::DateTime(_) => col_data.clone(),    // DateTime unchanged
-                Column::String(_) => col_data.clone(),      // String unchanged
+                _ => col_data.clone(),
             };
             new_columns.insert(col_name.clone(), filled);
         }
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Count the number of NaN values in each column.
@@ -2955,13 +2961,13 @@ impl DataFrame {
         self.columns
             .iter()
             .map(|(name, col)| {
-                let count = match col {
+                let count = match col.as_ref() {
                     Column::Float(arr) => arr.iter().filter(|v| v.is_nan()).count(),
-                    Column::Categorical(_) => 0, // Categorical has no NaN
-                    Column::Bool(_) => 0,        // Bool has no NaN
-                    Column::Int(_) => 0,         // Int has no NaN
-                    Column::DateTime(_) => 0,    // DateTime has no NaN
-                    Column::String(_) => 0,      // String has no NaN
+                    Column::Categorical(_) => 0,
+                    Column::Bool(_) => 0,
+                    Column::Int(_) => 0,
+                    Column::DateTime(_) => 0,
+                    Column::String(_) => 0,
                 };
                 (name.clone(), count)
             })
@@ -2987,13 +2993,13 @@ impl DataFrame {
     /// assert!(df2.has_na());
     /// ```
     pub fn has_na(&self) -> bool {
-        self.columns.values().any(|col| match col {
+        self.columns.values().any(|col| match col.as_ref() {
             Column::Float(arr) => arr.iter().any(|v| v.is_nan()),
-            Column::Categorical(_) => false, // Categorical has no NaN
-            Column::Bool(_) => false,        // Bool has no NaN
-            Column::Int(_) => false,         // Int has no NaN
-            Column::DateTime(_) => false,    // DateTime has no NaN
-            Column::String(_) => false,      // String has no NaN
+            Column::Categorical(_) => false,
+            Column::Bool(_) => false,
+            Column::Int(_) => false,
+            Column::DateTime(_) => false,
+            Column::String(_) => false,
         })
     }
 
@@ -3025,7 +3031,7 @@ impl DataFrame {
         let mut new_columns = HashMap::new();
 
         for (col_name, col_data) in &self.columns {
-            let na_mask = match col_data {
+            let na_mask = match col_data.as_ref() {
                 Column::Float(arr) => {
                     let mask: Vec<bool> = arr.iter().map(|v| v.is_nan()).collect();
                     Column::from_bool(Array1::from(mask))
@@ -3040,10 +3046,10 @@ impl DataFrame {
                     Column::from_bool(Array1::from(mask))
                 }
             };
-            new_columns.insert(col_name.clone(), na_mask);
+            new_columns.insert(col_name.clone(), Arc::new(na_mask));
         }
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Return a DataFrame of booleans indicating which values are not NaN.
@@ -3073,7 +3079,7 @@ impl DataFrame {
         let mut new_columns = HashMap::new();
 
         for (col_name, col_data) in &self.columns {
-            let not_na_mask = match col_data {
+            let not_na_mask = match col_data.as_ref() {
                 Column::Float(arr) => {
                     let mask: Vec<bool> = arr.iter().map(|v| !v.is_nan()).collect();
                     Column::from_bool(Array1::from(mask))
@@ -3088,10 +3094,10 @@ impl DataFrame {
                     Column::from_bool(Array1::from(mask))
                 }
             };
-            new_columns.insert(col_name.clone(), not_na_mask);
+            new_columns.insert(col_name.clone(), Arc::new(not_na_mask));
         }
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Append a single row to the DataFrame.
@@ -3140,10 +3146,10 @@ impl DataFrame {
             // Convert to float, append, wrap back in Column::Float
             let mut new_col = col_data.to_float().to_vec();
             new_col.push(row[col_name]);
-            new_columns.insert(col_name.clone(), Column::Float(Array1::from(new_col)));
+            new_columns.insert(col_name.clone(), Arc::new(Column::Float(Array1::from(new_col))));
         }
 
-        DataFrame::from_columns(new_columns)
+        DataFrame::from_arc_columns(new_columns)
     }
 
     /// Merge (join) two DataFrames on a common column.
@@ -4265,7 +4271,7 @@ impl DataFrame {
         let mut new_df = self.clone();
         new_df
             .columns
-            .insert(column.to_string(), Column::Float(Array1::from(result)));
+            .insert(column.to_string(), Arc::new(Column::Float(Array1::from(result))));
         Ok(new_df)
     }
 
@@ -4444,7 +4450,7 @@ impl std::fmt::Display for DataFrame {
         let mut widths: HashMap<String, usize> = HashMap::new();
         for name in &column_names {
             let col = &self.columns[name];
-            let max_value_width = match col {
+            let max_value_width = match col.as_ref() {
                 Column::Float(arr) => arr
                     .iter()
                     .map(|v| format!("{:.2}", v).len())
@@ -4453,9 +4459,9 @@ impl std::fmt::Display for DataFrame {
                 Column::Categorical(cat) => {
                     cat.to_strings().iter().map(|s| s.len()).max().unwrap_or(0)
                 }
-                Column::Bool(_) => 5, // "true" or "false" - max is 5
+                Column::Bool(_) => 5,
                 Column::Int(arr) => arr.iter().map(|v| v.to_string().len()).max().unwrap_or(0),
-                Column::DateTime(_) => 19, // "YYYY-MM-DD HH:MM:SS" format is always 19 chars
+                Column::DateTime(_) => 19,
                 Column::String(arr) => arr.iter().map(|s| s.len()).max().unwrap_or(0),
             };
             widths.insert(name.clone(), name.len().max(max_value_width));
@@ -4490,7 +4496,7 @@ impl std::fmt::Display for DataFrame {
                     write!(f, " │ ")?;
                 }
                 let col = &self.columns[name];
-                match col {
+                match col.as_ref() {
                     Column::Float(arr) => {
                         write!(f, "{:>width$.2}", arr[row_idx], width = widths[name])?;
                     }
@@ -4527,7 +4533,7 @@ impl std::fmt::Display for DataFrame {
 
 /// Builder for creating DataFrames conveniently
 pub struct DataFrameBuilder {
-    columns: HashMap<String, Column>,
+    columns: HashMap<String, Arc<Column>>,
 }
 
 impl DataFrameBuilder {
@@ -4551,13 +4557,13 @@ impl DataFrameBuilder {
     /// ```
     pub fn add_column(mut self, name: &str, data: Vec<f64>) -> Self {
         self.columns
-            .insert(name.to_string(), Column::Float(Array1::from(data)));
+            .insert(name.to_string(), Arc::new(Column::Float(Array1::from(data))));
         self
     }
 
     /// Add a Float column from an Array1<f64>
     pub fn add_column_array(mut self, name: &str, data: Array1<f64>) -> Self {
-        self.columns.insert(name.to_string(), Column::Float(data));
+        self.columns.insert(name.to_string(), Arc::new(Column::Float(data)));
         self
     }
 
@@ -4574,7 +4580,7 @@ impl DataFrameBuilder {
     /// ```
     pub fn add_categorical(mut self, name: &str, values: Vec<String>) -> Self {
         self.columns
-            .insert(name.to_string(), Column::from_strings(values));
+            .insert(name.to_string(), Arc::new(Column::from_strings(values)));
         self
     }
 
@@ -4591,7 +4597,7 @@ impl DataFrameBuilder {
     /// ```
     pub fn add_bool(mut self, name: &str, values: Vec<bool>) -> Self {
         self.columns
-            .insert(name.to_string(), Column::from_bool(Array1::from(values)));
+            .insert(name.to_string(), Arc::new(Column::from_bool(Array1::from(values))));
         self
     }
 
@@ -4608,7 +4614,7 @@ impl DataFrameBuilder {
     /// ```
     pub fn add_int(mut self, name: &str, values: Vec<i64>) -> Self {
         self.columns
-            .insert(name.to_string(), Column::from_int(Array1::from(values)));
+            .insert(name.to_string(), Arc::new(Column::from_int(Array1::from(values))));
         self
     }
 
@@ -4630,7 +4636,7 @@ impl DataFrameBuilder {
     pub fn add_datetime(mut self, name: &str, values: Vec<chrono::NaiveDateTime>) -> Self {
         self.columns.insert(
             name.to_string(),
-            Column::from_datetime(Array1::from(values)),
+            Arc::new(Column::from_datetime(Array1::from(values))),
         );
         self
     }
@@ -4649,20 +4655,20 @@ impl DataFrameBuilder {
     pub fn add_string(mut self, name: &str, values: Vec<String>) -> Self {
         self.columns.insert(
             name.to_string(),
-            Column::from_string_array(Array1::from(values)),
+            Arc::new(Column::from_string_array(Array1::from(values))),
         );
         self
     }
 
     /// Add a typed Column directly
     pub fn add_typed_column(mut self, name: &str, column: Column) -> Self {
-        self.columns.insert(name.to_string(), column);
+        self.columns.insert(name.to_string(), Arc::new(column));
         self
     }
 
     /// Build the DataFrame
     pub fn build(self) -> Result<DataFrame, GreenersError> {
-        DataFrame::from_columns(self.columns)
+        DataFrame::from_arc_columns(self.columns)
     }
 }
 
