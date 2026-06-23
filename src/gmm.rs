@@ -17,7 +17,7 @@ pub struct GmmResult {
     pub n_obs: usize,
     pub df_model: usize,
     pub df_overid: usize, // Over-identification degrees of freedom
-    pub omitted_vars: Vec<String>,
+    pub omitted_vars: Vec<(usize, String)>,
 }
 
 impl fmt::Display for GmmResult {
@@ -55,16 +55,11 @@ impl fmt::Display for GmmResult {
             )?;
         }
 
-        // Show omitted variables if any
-        if !self.omitted_vars.is_empty() {
-            writeln!(f, "{:-^78}", "")?;
-            writeln!(f, "Omitted due to collinearity:")?;
-            for var in &self.omitted_vars {
-                writeln!(f, "  o.{}", var)?;
-            }
+        writeln!(f, "{:=^78}", "")?;
+        for (_, name) in &self.omitted_vars {
+            writeln!(f, "note: {} omitted because of collinearity", name)?;
         }
-
-        writeln!(f, "{:=^78}", "")
+        Ok(())
     }
 }
 
@@ -89,16 +84,10 @@ impl GMM {
             )));
         }
 
-        // Detect collinearity in X
-        let tolerance = 1e-10;
-        let (x_clean, _keep_indices_x, omit_indices_x) = OLS::detect_collinearity(x, tolerance);
-
-        let mut omitted_var_names = Vec::new();
-        for &idx in &omit_indices_x {
-            omitted_var_names.push(format!("x{}", idx));
-        }
-
-        // Use cleaned matrix
+        let fallback_names: Vec<String> = (0..x.ncols()).map(|i| format!("x{}", i)).collect();
+        let cr = crate::linalg::drop_collinear(x, &fallback_names, 1e-10);
+        let omitted_var_names = cr.omitted;
+        let x_clean = cr.x_clean;
         let x_to_use = &x_clean;
         let k_clean = x_to_use.ncols();
 

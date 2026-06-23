@@ -742,51 +742,23 @@ impl OLS {
             ));
         }
 
-        // Detect and remove collinear columns ONLY when we have variable names
-        // (i.e., formula-based usage). For internal algorithmic use (variable_names = None),
-        // skip collinearity detection to preserve matrix dimensions.
         let (x_to_use, k_clean, omitted_positioned, clean_var_names, x_clean_out) =
-            if variable_names.is_some() {
-                let tolerance = 1e-10;
-                let (x_clean, keep_indices, mut omit_indices) =
-                    Self::detect_collinearity(x, tolerance);
-
-                for i in 0..k {
-                    if !keep_indices.contains(&i) && !omit_indices.contains(&i) {
-                        omit_indices.push(i);
-                    }
-                }
-
-                let mut omitted = Vec::new();
-                let mut clean_names = Vec::new();
-
-                if let Some(ref names) = variable_names {
-                    for &idx in &omit_indices {
-                        if idx < names.len() {
-                            omitted.push((idx, names[idx].clone()));
-                        }
-                    }
-                    for &idx in &keep_indices {
-                        if idx < names.len() {
-                            clean_names.push(names[idx].clone());
-                        }
-                    }
-                }
-
-                let k_clean = x_clean.ncols();
+            if let Some(ref names) = variable_names {
+                let cr = crate::linalg::drop_collinear(x, names, 1e-10);
+                let k_clean = cr.x_clean.ncols();
                 if n <= k_clean {
                     return Err(GreenersError::ShapeMismatch(
                         "Degrees of freedom <= 0 after removing collinear variables".into(),
                     ));
                 }
-
-                let has_omitted = !omitted.is_empty();
+                let has_omitted = !cr.omitted.is_empty();
+                let x_c = cr.x_clean;
                 (
-                    x_clean.clone(),
+                    x_c.clone(),
                     k_clean,
-                    omitted,
-                    clean_names,
-                    if has_omitted { Some(x_clean) } else { None },
+                    cr.omitted,
+                    cr.clean_names,
+                    if has_omitted { Some(x_c) } else { None },
                 )
             } else {
                 (x.clone(), k, Vec::new(), Vec::new(), None)

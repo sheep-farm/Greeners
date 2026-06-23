@@ -29,7 +29,7 @@ pub struct PoissonResult {
     pub converged: bool,
     pub inference_type: InferenceType,
     pub variable_names: Option<Vec<String>>,
-    pub omitted_vars: Vec<String>,
+    pub omitted_vars: Vec<(usize, String)>,
     _x_data: Array2<f64>,
     _y_data: Array1<f64>,
 }
@@ -76,34 +76,37 @@ impl fmt::Display for PoissonResult {
         )?;
         writeln!(f, "{:-^78}", "")?;
 
-        for i in 0..self.params.len() {
-            let name = self
-                .variable_names
-                .as_ref()
-                .and_then(|n| n.get(i).cloned())
-                .unwrap_or_else(|| format!("x{}", i));
-            writeln!(
-                f,
-                "{:<12} {:>10.4} {:>10.4} {:>8.3} {:>8.3} {:>10.3} {:>10.3}",
-                name,
-                self.params[i],
-                self.std_errors[i],
-                self.z_values[i],
-                self.p_values[i],
-                self.conf_lower[i],
-                self.conf_upper[i]
-            )?;
-        }
-
-        if !self.omitted_vars.is_empty() {
-            writeln!(f, "{:-^78}", "")?;
-            writeln!(f, "Omitted due to collinearity:")?;
-            for var in &self.omitted_vars {
-                writeln!(f, "  o.{}", var)?;
+        let total = self.params.len() + self.omitted_vars.len();
+        let mut fit_idx = 0usize;
+        for pos in 0..total {
+            if let Some((_, name)) = self.omitted_vars.iter().find(|(p, _)| *p == pos) {
+                writeln!(f, "{:<12} (omitted)", name)?;
+            } else {
+                let name = self
+                    .variable_names
+                    .as_ref()
+                    .and_then(|n| n.get(fit_idx).cloned())
+                    .unwrap_or_else(|| format!("x{}", fit_idx));
+                writeln!(
+                    f,
+                    "{:<12} {:>10.4} {:>10.4} {:>8.3} {:>8.3} {:>10.3} {:>10.3}",
+                    name,
+                    self.params[fit_idx],
+                    self.std_errors[fit_idx],
+                    self.z_values[fit_idx],
+                    self.p_values[fit_idx],
+                    self.conf_lower[fit_idx],
+                    self.conf_upper[fit_idx]
+                )?;
+                fit_idx += 1;
             }
         }
 
-        writeln!(f, "{:=^78}", "")
+        writeln!(f, "{:=^78}", "")?;
+        for (_, name) in &self.omitted_vars {
+            writeln!(f, "note: {} omitted because of collinearity", name)?;
+        }
+        Ok(())
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::error::GreenersError;
 use crate::linalg::LinalgInverse as _;
-use crate::{DataFrame, Formula, InferenceType, OLS};
+use crate::{DataFrame, Formula, InferenceType};
 use ndarray::{Array1, Array2, Axis};
 use statrs::distribution::{Continuous, ContinuousCDF, Normal};
 use std::fmt;
@@ -20,7 +20,7 @@ pub struct BinaryModelResult {
     pub(crate) _x_data: Option<Array2<f64>>,
     pub inference_type: InferenceType, // Always Normal for MLE
     pub variable_names: Option<Vec<String>>,
-    pub omitted_vars: Vec<String>,
+    pub omitted_vars: Vec<(usize, String)>,
 }
 
 impl fmt::Display for BinaryModelResult {
@@ -54,34 +54,35 @@ impl fmt::Display for BinaryModelResult {
         )?;
         writeln!(f, "{:-^78}", "")?;
 
-        for i in 0..self.params.len() {
-            let var_name = if let Some(ref names) = self.variable_names {
-                if i < names.len() {
-                    names[i].clone()
-                } else {
-                    format!("x{}", i)
-                }
+        let total = self.params.len() + self.omitted_vars.len();
+        let mut fit_idx = 0usize;
+        for pos in 0..total {
+            if let Some((_, name)) = self.omitted_vars.iter().find(|(p, _)| *p == pos) {
+                writeln!(f, "{:<10} |  (omitted)", name)?;
             } else {
-                format!("x{}", i)
-            };
-
-            writeln!(
-                f,
-                "{:<10} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
-                var_name, self.params[i], self.std_errors[i], self.z_values[i], self.p_values[i]
-            )?;
-        }
-
-        // Show omitted variables if any
-        if !self.omitted_vars.is_empty() {
-            writeln!(f, "{:-^78}", "")?;
-            writeln!(f, "Omitted due to collinearity:")?;
-            for var in &self.omitted_vars {
-                writeln!(f, "  o.{}", var)?;
+                let var_name = if let Some(ref names) = self.variable_names {
+                    if fit_idx < names.len() {
+                        names[fit_idx].clone()
+                    } else {
+                        format!("x{}", fit_idx)
+                    }
+                } else {
+                    format!("x{}", fit_idx)
+                };
+                writeln!(
+                    f,
+                    "{:<10} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
+                    var_name, self.params[fit_idx], self.std_errors[fit_idx], self.z_values[fit_idx], self.p_values[fit_idx]
+                )?;
+                fit_idx += 1;
             }
         }
 
-        writeln!(f, "{:=^78}", "")
+        writeln!(f, "{:=^78}", "")?;
+        for (_, name) in &self.omitted_vars {
+            writeln!(f, "note: {} omitted because of collinearity", name)?;
+        }
+        Ok(())
     }
 }
 
@@ -118,28 +119,18 @@ impl Logit {
         }
 
         // Detect collinearity
-        let tolerance = 1e-10;
-        let (x_clean, keep_indices, omit_indices) = OLS::detect_collinearity(x, tolerance);
-
-        let mut omitted_var_names = Vec::new();
-        let mut clean_var_names = Vec::new();
-
-        if let Some(ref names) = variable_names {
-            for &idx in &omit_indices {
-                if idx < names.len() {
-                    omitted_var_names.push(names[idx].clone());
-                }
+        let (x_to_use, variable_names, omitted_positioned) = if let Some(ref names) = variable_names {
+            let cr = crate::linalg::drop_collinear(x, names, 1e-10);
+            if cr.omitted.is_empty() {
+                (x.clone(), variable_names, vec![])
+            } else {
+                (cr.x_clean, Some(cr.clean_names), cr.omitted)
             }
-            for &idx in &keep_indices {
-                if idx < names.len() {
-                    clean_var_names.push(names[idx].clone());
-                }
-            }
-        }
-
-        // Use cleaned matrix
-        let x_to_use = &x_clean;
-        let k_clean = x_to_use.ncols();
+        } else {
+            (x.clone(), variable_names, vec![])
+        };
+        let x = &x_to_use;
+        let k_clean = x.ncols();
 
         if n <= k_clean {
             return Err(GreenersError::ShapeMismatch(
@@ -157,23 +148,23 @@ impl Logit {
 
         while diff > tol && iter < max_iter {
             // A. Linear Predictor
-            let xb = x_to_use.dot(&beta);
+            let xb = x.dot(&beta);
 
             // B. Sigmoid (Probabilities)
             let p = xb.mapv(|val| 1.0 / (1.0 + (-val).exp()));
 
             // C. Gradient
             let error = y - &p;
-            let gradient = x_to_use.t().dot(&error);
+            let gradient = x.t().dot(&error);
 
             // D. Hessian (W = p * (1-p))
             let w_diag = &p * &(1.0 - &p);
 
-            let mut x_weighted = x_to_use.clone();
+            let mut x_weighted = x.to_owned();
             for (i, mut row) in x_weighted.axis_iter_mut(Axis(0)).enumerate() {
                 row *= w_diag[i];
             }
-            let hessian = -x_to_use.t().dot(&x_weighted);
+            let hessian = -x.t().dot(&x_weighted);
 
             // E. Update
             let neg_hessian = -hessian;
@@ -205,15 +196,15 @@ impl Logit {
         }
 
         // Post-Estimation
-        let xb = x_to_use.dot(&beta);
+        let xb = x.dot(&beta);
         let p = xb.mapv(|val| 1.0 / (1.0 + (-val).exp()));
         let w_diag = &p * &(1.0 - &p);
 
-        let mut x_weighted = x_to_use.clone();
+        let mut x_weighted = x.to_owned();
         for (i, mut row) in x_weighted.axis_iter_mut(Axis(0)).enumerate() {
             row *= w_diag[i];
         }
-        let neg_hessian = x_to_use.t().dot(&x_weighted);
+        let neg_hessian = x.t().dot(&x_weighted);
         let cov_matrix = neg_hessian.inv()?;
 
         let std_errors = cov_matrix.diag().mapv(f64::sqrt);
@@ -235,14 +226,10 @@ impl Logit {
             iterations: iter,
             log_likelihood,
             pseudo_r2,
-            _x_data: Some(x_to_use.clone()),
+            _x_data: Some(x.to_owned()),
             inference_type: InferenceType::Normal, // MLE always uses Normal
-            variable_names: if !clean_var_names.is_empty() {
-                Some(clean_var_names)
-            } else {
-                variable_names
-            },
-            omitted_vars: omitted_var_names,
+            variable_names,
+            omitted_vars: omitted_positioned,
         })
     }
 }
@@ -464,28 +451,18 @@ impl Probit {
         }
 
         // Detect collinearity
-        let tolerance = 1e-10;
-        let (x_clean, keep_indices, omit_indices) = OLS::detect_collinearity(x, tolerance);
-
-        let mut omitted_var_names = Vec::new();
-        let mut clean_var_names = Vec::new();
-
-        if let Some(ref names) = variable_names {
-            for &idx in &omit_indices {
-                if idx < names.len() {
-                    omitted_var_names.push(names[idx].clone());
-                }
+        let (x_to_use, variable_names, omitted_positioned) = if let Some(ref names) = variable_names {
+            let cr = crate::linalg::drop_collinear(x, names, 1e-10);
+            if cr.omitted.is_empty() {
+                (x.clone(), variable_names, vec![])
+            } else {
+                (cr.x_clean, Some(cr.clean_names), cr.omitted)
             }
-            for &idx in &keep_indices {
-                if idx < names.len() {
-                    clean_var_names.push(names[idx].clone());
-                }
-            }
-        }
-
-        // Use cleaned matrix
-        let x_to_use = &x_clean;
-        let k_clean = x_to_use.ncols();
+        } else {
+            (x.clone(), variable_names, vec![])
+        };
+        let x = &x_to_use;
+        let k_clean = x.ncols();
 
         if n <= k_clean {
             return Err(GreenersError::ShapeMismatch(
@@ -503,7 +480,7 @@ impl Probit {
         let mut log_likelihood = 0.0;
 
         while diff > tol && iter < max_iter {
-            let xb = x_to_use.dot(&beta);
+            let xb = x.dot(&beta);
 
             // 1. Probabilities (p) & Densities (f)
             let mut p = Array1::<f64>::zeros(n);
@@ -522,16 +499,16 @@ impl Probit {
 
             let error = y - &p;
             let score_term = &error * &weight_factor;
-            let gradient = x_to_use.t().dot(&score_term);
+            let gradient = x.t().dot(&score_term);
 
             // 3. Hessian Weight: W = f^2 / (p*(1-p))
             let w_diag = (&f * &f) / &denominator;
 
-            let mut x_weighted = x_to_use.clone();
+            let mut x_weighted = x.to_owned();
             for (i, mut row) in x_weighted.axis_iter_mut(Axis(0)).enumerate() {
                 row *= w_diag[i];
             }
-            let hessian = -x_to_use.t().dot(&x_weighted);
+            let hessian = -x.t().dot(&x_weighted);
 
             // 4. Update
             let neg_hessian = -hessian;
@@ -562,7 +539,7 @@ impl Probit {
         }
 
         // Post-Estimation Stats
-        let xb = x_to_use.dot(&beta);
+        let xb = x.dot(&beta);
         let mut w_diag = Array1::<f64>::zeros(n);
 
         for i in 0..n {
@@ -572,11 +549,11 @@ impl Probit {
             w_diag[i] = (f_val * f_val) / (p_val * (1.0 - p_val));
         }
 
-        let mut x_weighted = x_to_use.clone();
+        let mut x_weighted = x.to_owned();
         for (i, mut row) in x_weighted.axis_iter_mut(Axis(0)).enumerate() {
             row *= w_diag[i];
         }
-        let neg_hessian = x_to_use.t().dot(&x_weighted);
+        let neg_hessian = x.t().dot(&x_weighted);
         let cov_matrix = neg_hessian.inv()?;
 
         let std_errors = cov_matrix.diag().mapv(f64::sqrt);
@@ -596,14 +573,10 @@ impl Probit {
             iterations: iter,
             log_likelihood,
             pseudo_r2,
-            _x_data: Some(x_to_use.clone()),
+            _x_data: Some(x.to_owned()),
             inference_type: InferenceType::Normal, // MLE always uses Normal
-            variable_names: if !clean_var_names.is_empty() {
-                Some(clean_var_names)
-            } else {
-                variable_names
-            },
-            omitted_vars: omitted_var_names,
+            variable_names,
+            omitted_vars: omitted_positioned,
         })
     }
 }

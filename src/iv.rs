@@ -1,7 +1,7 @@
 use crate::error::GreenersError;
 use crate::linalg::LinalgInverse as _;
 use crate::{CovarianceType, InferenceType};
-use crate::{DataFrame, Formula, OLS};
+use crate::{DataFrame, Formula};
 use ndarray::{Array1, Array2};
 use statrs::distribution::{ContinuousCDF, Normal, StudentsT};
 use std::fmt;
@@ -21,7 +21,7 @@ pub struct IvResult {
     pub cov_type: CovarianceType,
     pub inference_type: InferenceType,
     pub variable_names: Option<Vec<String>>,
-    pub omitted_vars: Vec<String>,
+    pub omitted_vars: Vec<(usize, String)>,
 }
 
 impl fmt::Display for IvResult {
@@ -88,34 +88,36 @@ impl fmt::Display for IvResult {
         )?;
         writeln!(f, "{:-^78}", "")?;
 
-        for i in 0..self.params.len() {
-            let var_name = if let Some(ref names) = self.variable_names {
-                if i < names.len() {
-                    names[i].clone()
-                } else {
-                    format!("x{}", i)
-                }
+        let total = self.params.len() + self.omitted_vars.len();
+        let mut fit_idx = 0usize;
+        for pos in 0..total {
+            if let Some((_, name)) = self.omitted_vars.iter().find(|(p, _)| *p == pos) {
+                writeln!(f, "{:<10} |  (omitted)", name)?;
             } else {
-                format!("x{}", i)
-            };
+                let var_name = if let Some(ref names) = self.variable_names {
+                    if fit_idx < names.len() {
+                        names[fit_idx].clone()
+                    } else {
+                        format!("x{}", fit_idx)
+                    }
+                } else {
+                    format!("x{}", fit_idx)
+                };
 
-            writeln!(
-                f,
-                "{:<10} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
-                var_name, self.params[i], self.std_errors[i], self.t_values[i], self.p_values[i]
-            )?;
-        }
-
-        // Show omitted variables if any
-        if !self.omitted_vars.is_empty() {
-            writeln!(f, "{:-^78}", "")?;
-            writeln!(f, "Omitted due to collinearity:")?;
-            for var in &self.omitted_vars {
-                writeln!(f, "  o.{}", var)?;
+                writeln!(
+                    f,
+                    "{:<10} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
+                    var_name, self.params[fit_idx], self.std_errors[fit_idx], self.t_values[fit_idx], self.p_values[fit_idx]
+                )?;
+                fit_idx += 1;
             }
         }
 
-        writeln!(f, "{:=^78}", "")
+        writeln!(f, "{:=^78}", "")?;
+        for (_, name) in &self.omitted_vars {
+            writeln!(f, "note: {} omitted because of collinearity", name)?;
+        }
+        Ok(())
     }
 }
 
@@ -360,28 +362,21 @@ impl IV {
             ));
         }
 
-        // Detect collinearity in X (endogenous variables)
-        let tolerance = 1e-10;
-        let (x_clean, keep_indices_x, omit_indices_x) = OLS::detect_collinearity(x, tolerance);
-
-        let mut omitted_var_names = Vec::new();
-        let mut clean_var_names = Vec::new();
-
-        if let Some(ref names) = variable_names {
-            for &idx in &omit_indices_x {
-                if idx < names.len() {
-                    omitted_var_names.push(names[idx].clone());
-                }
+        // Detect collinearity in X (regressors only, not instruments Z)
+        let (x_clean, variable_names, omitted_positioned) = if let Some(ref names) = variable_names {
+            let cr = crate::linalg::drop_collinear(x, names, 1e-10);
+            if cr.omitted.is_empty() {
+                (x.clone(), variable_names, vec![])
+            } else {
+                (cr.x_clean, Some(cr.clean_names), cr.omitted)
             }
-            for &idx in &keep_indices_x {
-                if idx < names.len() {
-                    clean_var_names.push(names[idx].clone());
-                }
-            }
-        }
+        } else {
+            (x.clone(), variable_names, vec![])
+        };
+        let x = &x_clean;
 
         // Use cleaned matrix
-        let x_to_use = &x_clean;
+        let x_to_use = x;
         let k_clean = x_to_use.ncols();
 
         if n <= k_clean {
@@ -712,12 +707,8 @@ impl IV {
             sigma,
             cov_type,
             inference_type: InferenceType::default(),
-            variable_names: if !clean_var_names.is_empty() {
-                Some(clean_var_names)
-            } else {
-                variable_names
-            },
-            omitted_vars: omitted_var_names,
+            variable_names,
+            omitted_vars: omitted_positioned,
         })
     }
 }
