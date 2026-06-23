@@ -40,7 +40,8 @@ pub struct OlsResult {
     pub cov_type: CovarianceType,            // Store which type was used
     pub inference_type: InferenceType,       // Distribution for hypothesis testing
     pub variable_names: Option<Vec<String>>, // Names of variables (from Formula)
-    pub omitted_vars: Vec<String>,           // Variables dropped due to collinearity
+    pub omitted_vars: Vec<(usize, String)>,  // (position, name) of vars dropped for collinearity
+    pub x_clean: Option<Array2<f64>>,        // Design matrix after collinearity removal
 }
 
 impl OlsResult {
@@ -588,40 +589,41 @@ impl fmt::Display for OlsResult {
         )?;
         writeln!(f, "{:-^78}", "")?;
 
-        for i in 0..self.params.len() {
-            let var_name = if let Some(ref names) = self.variable_names {
-                if i < names.len() {
-                    names[i].clone()
-                } else {
-                    format!("x{}", i)
-                }
+        let total = self.params.len() + self.omitted_vars.len();
+        let mut fit_idx = 0usize;
+        for pos in 0..total {
+            if let Some((_, name)) = self.omitted_vars.iter().find(|(p, _)| *p == pos) {
+                writeln!(f, "{:<10} |  (omitted)", name)?;
             } else {
-                format!("x{}", i)
-            };
-
-            writeln!(
-                f,
-                "{:<10} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3} | {:>8.4}  {:>8.4}",
-                var_name,
-                self.params[i],
-                self.std_errors[i],
-                self.t_values[i],
-                self.p_values[i],
-                self.conf_lower[i],
-                self.conf_upper[i]
-            )?;
-        }
-
-        // Show omitted variables if any
-        if !self.omitted_vars.is_empty() {
-            writeln!(f, "{:-^78}", "")?;
-            writeln!(f, "Omitted due to collinearity:")?;
-            for var in &self.omitted_vars {
-                writeln!(f, "  o.{}", var)?;
+                let var_name = if let Some(ref names) = self.variable_names {
+                    if fit_idx < names.len() {
+                        names[fit_idx].clone()
+                    } else {
+                        format!("x{}", fit_idx)
+                    }
+                } else {
+                    format!("x{}", fit_idx)
+                };
+                writeln!(
+                    f,
+                    "{:<10} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3} | {:>8.4}  {:>8.4}",
+                    var_name,
+                    self.params[fit_idx],
+                    self.std_errors[fit_idx],
+                    self.t_values[fit_idx],
+                    self.p_values[fit_idx],
+                    self.conf_lower[fit_idx],
+                    self.conf_upper[fit_idx]
+                )?;
+                fit_idx += 1;
             }
         }
 
-        writeln!(f, "{:=^78}", "")
+        writeln!(f, "{:=^78}", "")?;
+        for (_, name) in &self.omitted_vars {
+            writeln!(f, "note: {} omitted because of collinearity", name)?;
+        }
+        Ok(())
     }
 }
 
@@ -653,7 +655,6 @@ impl OLS {
         cov_type: CovarianceType,
     ) -> Result<OlsResult, GreenersError> {
         let (y, x) = data.to_design_matrix(formula)?;
-
         let var_names = data.formula_var_names(formula)?;
         Self::fit_with_names(&y, &x, cov_type, Some(var_names))
     }
@@ -728,7 +729,7 @@ impl OLS {
                 n
             )));
         }
-        if n <= k {
+        if variable_names.is_none() && n <= k {
             return Err(GreenersError::ShapeMismatch(
                 "Degrees of freedom <= 0".into(),
             ));
@@ -744,38 +745,52 @@ impl OLS {
         // Detect and remove collinear columns ONLY when we have variable names
         // (i.e., formula-based usage). For internal algorithmic use (variable_names = None),
         // skip collinearity detection to preserve matrix dimensions.
-        let (x_to_use, k_clean, omitted_var_names, clean_var_names) = if variable_names.is_some() {
-            let tolerance = 1e-10;
-            let (x_clean, keep_indices, omit_indices) = Self::detect_collinearity(x, tolerance);
+        let (x_to_use, k_clean, omitted_positioned, clean_var_names, x_clean_out) =
+            if variable_names.is_some() {
+                let tolerance = 1e-10;
+                let (x_clean, keep_indices, mut omit_indices) =
+                    Self::detect_collinearity(x, tolerance);
 
-            let mut omitted_names = Vec::new();
-            let mut clean_names = Vec::new();
-
-            if let Some(ref names) = variable_names {
-                for &idx in &omit_indices {
-                    if idx < names.len() {
-                        omitted_names.push(names[idx].clone());
+                for i in 0..k {
+                    if !keep_indices.contains(&i) && !omit_indices.contains(&i) {
+                        omit_indices.push(i);
                     }
                 }
-                for &idx in &keep_indices {
-                    if idx < names.len() {
-                        clean_names.push(names[idx].clone());
+
+                let mut omitted = Vec::new();
+                let mut clean_names = Vec::new();
+
+                if let Some(ref names) = variable_names {
+                    for &idx in &omit_indices {
+                        if idx < names.len() {
+                            omitted.push((idx, names[idx].clone()));
+                        }
+                    }
+                    for &idx in &keep_indices {
+                        if idx < names.len() {
+                            clean_names.push(names[idx].clone());
+                        }
                     }
                 }
-            }
 
-            let k_clean = x_clean.ncols();
-            if n <= k_clean {
-                return Err(GreenersError::ShapeMismatch(
-                    "Degrees of freedom <= 0 after removing collinear variables".into(),
-                ));
-            }
+                let k_clean = x_clean.ncols();
+                if n <= k_clean {
+                    return Err(GreenersError::ShapeMismatch(
+                        "Degrees of freedom <= 0 after removing collinear variables".into(),
+                    ));
+                }
 
-            (x_clean, k_clean, omitted_names, clean_names)
-        } else {
-            // No collinearity detection for internal use
-            (x.clone(), k, Vec::new(), Vec::new())
-        };
+                let has_omitted = !omitted.is_empty();
+                (
+                    x_clean.clone(),
+                    k_clean,
+                    omitted,
+                    clean_names,
+                    if has_omitted { Some(x_clean) } else { None },
+                )
+            } else {
+                (x.clone(), k, Vec::new(), Vec::new(), None)
+            };
 
         let x_to_use = &x_to_use;
 
@@ -1213,7 +1228,8 @@ impl OLS {
             } else {
                 variable_names
             },
-            omitted_vars: omitted_var_names,
+            omitted_vars: omitted_positioned,
+            x_clean: x_clean_out,
         })
     }
 }
