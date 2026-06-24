@@ -107,7 +107,7 @@ pub use glm::{Family, GlmResult, Link, GLM};
 pub use glmgam::{BSplineBasis, GLMGam, GamResult};
 pub use gls::FGLS;
 pub use glsar::{GlsarResult, GLSAR};
-pub use gmm::GMM;
+pub use gmm::{GMM, GmmResult};
 pub use hausman::HausmanTest;
 pub use heckman::{Heckman, HeckmanResult};
 pub use imputation::{BayesGaussMI, BayesGaussMIResult, MICEResult, MICE};
