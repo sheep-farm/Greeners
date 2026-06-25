@@ -706,7 +706,7 @@ dependencies = [
 
 [[package]]
 name = "greeners"
-version = "1.4.7-dev"
+version = "1.4.7"
 dependencies = [
  "chrono",
  "csv",
