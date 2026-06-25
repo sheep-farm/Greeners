@@ -3,7 +3,7 @@ use crate::linalg::{LinalgInverse as _, LinalgSVD as _};
 use crate::CovarianceType; // Needed to call OLS fit
 use crate::OLS; // We reuse OLS for the Breusch-Pagan auxiliary regression
 use ndarray::{Array1, Array2};
-use statrs::distribution::{ChiSquared, ContinuousCDF};
+use statrs::distribution::{ChiSquared, ContinuousCDF, Normal};
 
 /// Result of Ljung-Box portmanteau test.
 #[derive(Debug)]
@@ -35,6 +35,20 @@ pub struct AndersonDarlingResult {
     /// Critical values at [15%, 10%, 5%, 2.5%, 1%]
     pub critical_values: [f64; 5],
     pub significance_levels: [f64; 5],
+    pub n_obs: usize,
+}
+
+#[derive(Debug)]
+pub struct ShapiroWilkResult {
+    pub w: f64,
+    pub p_value: f64,
+    pub n_obs: usize,
+}
+
+#[derive(Debug)]
+pub struct ShapiroFranciaResult {
+    pub w_prime: f64,
+    pub p_value: f64,
     pub n_obs: usize,
 }
 
@@ -711,5 +725,155 @@ impl Diagnostics {
         let p_value = 1.0 - chi2.cdf(q_stat);
 
         Ok(LjungBoxResult { q_stat, p_value, lags, n_obs: n, acf })
+    }
+
+    /// Expected normal order statistics via Blom's approximation.
+    /// m_i = Φ⁻¹((i - 3/8) / (n + 1/4))
+    fn normal_order_statistics(n: usize) -> Vec<f64> {
+        let norm = Normal::new(0.0, 1.0).unwrap();
+        (1..=n)
+            .map(|i| {
+                let p = (i as f64 - 0.375) / (n as f64 + 0.25);
+                norm.inverse_cdf(p)
+            })
+            .collect()
+    }
+
+    /// Shapiro-Wilk test for normality (Royston 1995 algorithm).
+    ///
+    /// Valid for 3 ≤ n ≤ 5000. Returns W statistic and approximate p-value.
+    /// H₀: data is normally distributed.
+    pub fn shapiro_wilk(data: &Array1<f64>) -> Result<ShapiroWilkResult, GreenersError> {
+        let clean: Vec<f64> = data.iter().copied().filter(|x| x.is_finite()).collect();
+        let n = clean.len();
+        if n < 3 {
+            return Err(GreenersError::ShapeMismatch(
+                "Shapiro-Wilk requires at least 3 observations".into(),
+            ));
+        }
+        if n > 5000 {
+            return Err(GreenersError::ShapeMismatch(
+                "Shapiro-Wilk is unreliable for n > 5000; use Shapiro-Francia".into(),
+            ));
+        }
+
+        let mut sorted = clean.clone();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        let mean = sorted.iter().sum::<f64>() / n as f64;
+        let ss: f64 = sorted.iter().map(|x| (x - mean).powi(2)).sum();
+        if ss < 1e-15 {
+            return Err(GreenersError::InvalidOperation("Zero variance data".into()));
+        }
+
+        let m = Self::normal_order_statistics(n);
+        let m_ss: f64 = m.iter().map(|x| x * x).sum();
+
+        // Coefficients: a = m / ||m||, with correction for n ≤ 5
+        let mut a: Vec<f64> = m.iter().map(|x| x / m_ss.sqrt()).collect();
+
+        if n <= 5 {
+            // Small-sample correction (Shapiro-Wilk 1965 exact coefficients approximation)
+            let c: f64 = 1.0 / a.iter().map(|x| x * x).sum::<f64>().sqrt();
+            for ai in a.iter_mut() {
+                *ai *= c;
+            }
+        }
+
+        // W = (Σ aᵢ x₍ᵢ₎)² / SS
+        let numerator: f64 = a.iter().zip(sorted.iter()).map(|(ai, xi)| ai * xi).sum::<f64>();
+        let w = numerator * numerator / ss;
+        let w = w.clamp(0.0, 1.0);
+
+        // P-value via Royston (1995) log-normal approximation
+        let nf = n as f64;
+        let p_value = if n <= 11 {
+            // Small sample: polynomial approximation
+            let gamma = 0.459 * nf - 2.273;
+            let mu = -0.0006714 * nf.powi(3) + 0.025054 * nf.powi(2) - 0.39978 * nf + 0.5440;
+            let sigma = (-0.0020322 * nf.powi(3) + 0.062767 * nf.powi(2) - 0.77857 * nf + 1.3822)
+                .exp();
+            let z = if 1.0 - w > 0.0 {
+                -((1.0 - w).powf(gamma) - mu) / sigma
+            } else {
+                5.0
+            };
+            let norm = Normal::new(0.0, 1.0).unwrap();
+            1.0 - norm.cdf(z)
+        } else {
+            // Large sample: Royston (1995) transformation
+            let ln_1mw = (1.0 - w).ln();
+            let mu = 0.0038915 * nf.ln().powi(3) - 0.083751 * nf.ln().powi(2)
+                - 0.31082 * nf.ln()
+                - 1.5861;
+            let sigma = (0.0030302 * nf.ln().powi(2) - 0.082676 * nf.ln() - 0.4803).exp();
+            let z = (ln_1mw - mu) / sigma;
+            let norm = Normal::new(0.0, 1.0).unwrap();
+            1.0 - norm.cdf(z)
+        };
+
+        Ok(ShapiroWilkResult {
+            w,
+            p_value: p_value.clamp(0.0, 1.0),
+            n_obs: n,
+        })
+    }
+
+    /// Shapiro-Francia test for normality (Royston 1993).
+    ///
+    /// Valid for 5 ≤ n ≤ 5000. Based on correlation between order statistics
+    /// and expected normal order statistics.
+    /// H₀: data is normally distributed.
+    pub fn shapiro_francia(data: &Array1<f64>) -> Result<ShapiroFranciaResult, GreenersError> {
+        let clean: Vec<f64> = data.iter().copied().filter(|x| x.is_finite()).collect();
+        let n = clean.len();
+        if n < 5 {
+            return Err(GreenersError::ShapeMismatch(
+                "Shapiro-Francia requires at least 5 observations".into(),
+            ));
+        }
+        if n > 5000 {
+            return Err(GreenersError::ShapeMismatch(
+                "Shapiro-Francia is designed for n ≤ 5000".into(),
+            ));
+        }
+
+        let mut sorted = clean.clone();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        let mean_x = sorted.iter().sum::<f64>() / n as f64;
+        let ss_x: f64 = sorted.iter().map(|x| (x - mean_x).powi(2)).sum();
+        if ss_x < 1e-15 {
+            return Err(GreenersError::InvalidOperation("Zero variance data".into()));
+        }
+
+        let m = Self::normal_order_statistics(n);
+        let mean_m: f64 = m.iter().sum::<f64>() / n as f64;
+        let ss_m: f64 = m.iter().map(|x| (x - mean_m).powi(2)).sum();
+
+        // W' = [Σ mᵢ x₍ᵢ₎]² / (SS_x · SS_m)
+        let cross: f64 = m
+            .iter()
+            .zip(sorted.iter())
+            .map(|(mi, xi)| (mi - mean_m) * (xi - mean_x))
+            .sum();
+        let w_prime = (cross * cross) / (ss_x * ss_m);
+        let w_prime = w_prime.clamp(0.0, 1.0);
+
+        // P-value via Royston (1993) log transformation
+        let nf = n as f64;
+        let ln_1mw = (1.0 - w_prime).ln();
+        let ln_n = nf.ln();
+        let mu = -1.2725 + 1.0521 * ln_n;
+        let sigma = (1.0308 - 0.26758 * ln_n).exp();
+        let z = (ln_1mw - mu) / sigma;
+        let norm = Normal::new(0.0, 1.0).unwrap();
+        let p_value = 1.0 - norm.cdf(z);
+
+        Ok(ShapiroFranciaResult {
+            w_prime,
+            p_value: p_value.clamp(0.0, 1.0),
+            n_obs: n,
+        })
     }
 }
