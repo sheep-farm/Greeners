@@ -1596,9 +1596,13 @@ impl DataFrame {
             .iter()
             .map(|(name, col)| {
                 let arr = col.to_float();
-                let mean = arr.sum() / arr.len() as f64;
-                let variance =
-                    arr.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / arr.len() as f64;
+                let n = arr.len();
+                let mean = arr.sum() / n as f64;
+                let variance = if n > 1 {
+                    arr.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / (n - 1) as f64
+                } else {
+                    f64::NAN
+                };
                 (name.clone(), variance.sqrt())
             })
             .collect()
@@ -1623,9 +1627,13 @@ impl DataFrame {
             .iter()
             .map(|(name, col)| {
                 let arr = col.to_float();
-                let mean = arr.sum() / arr.len() as f64;
-                let variance =
-                    arr.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / arr.len() as f64;
+                let n = arr.len();
+                let mean = arr.sum() / n as f64;
+                let variance = if n > 1 {
+                    arr.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / (n - 1) as f64
+                } else {
+                    f64::NAN
+                };
                 (name.clone(), variance)
             })
             .collect()
@@ -2465,7 +2473,8 @@ impl DataFrame {
                 for k in 0..arr_i.len() {
                     covariance += (arr_i[k] - mean_i) * (arr_j[k] - mean_j);
                 }
-                covariance /= arr_i.len() as f64;
+                let n = arr_i.len();
+                covariance /= if n > 1 { (n - 1) as f64 } else { f64::NAN };
 
                 cov_matrix[[i, j]] = covariance;
             }
