@@ -3,7 +3,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-2021-orange.svg)](https://www.rust-lang.org)
-[![Version](https://img.shields.io/badge/version-1.4.4-blue.svg)](Cargo.toml)
+[![Version](https://img.shields.io/badge/version-1.4.8-blue.svg)](Cargo.toml)
 [![Examples](https://img.shields.io/badge/examples-59-green.svg)](examples/)
 
 > High-performance econometrics in Rust — statsmodels-grade coverage,
