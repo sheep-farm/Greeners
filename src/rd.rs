@@ -100,8 +100,13 @@ impl fmt::Display for RdResult {
         }
 
         writeln!(f, " Efeito de Tratamento (τ̂):")?;
-        writeln!(f, "   {:>10.4}   SE {:>10.4}   z {:>8.3}   P>|z| {:>8.4}  {}",
-            self.tau, self.se, self.z, self.p_value, sig(self.p_value))?;
+        let z_str = if self.z.abs() > 1e10 {
+            format!("{:.3e}", self.z)
+        } else {
+            format!("{:.3}", self.z)
+        };
+        writeln!(f, "   {:>10.4}   SE {:>10.4}   z {:>8}   P>|z| {:>8.4}  {}",
+            self.tau, self.se, z_str, self.p_value, sig(self.p_value))?;
         writeln!(f, " IC 95%: [{:.4}, {:.4}]", self.ci_lower, self.ci_upper)?;
         writeln!(f, "{thick}")?;
         writeln!(f, " *** p<0.01  ** p<0.05  * p<0.10")

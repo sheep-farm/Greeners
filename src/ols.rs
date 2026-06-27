@@ -555,15 +555,25 @@ impl fmt::Display for OlsResult {
             "{:<20} {:>15} || {:<20} {:>15.4}",
             "Model:", "OLS", "Adj. R-squared:", self.adj_r_squared
         )?;
+        let f_str = if self.f_statistic.is_infinite() {
+            "Inf".to_string()
+        } else {
+            format!("{:.4}", self.f_statistic)
+        };
+        let prob_f_str = if self.f_statistic.is_infinite() {
+            "0.0".to_string()
+        } else {
+            format!("{:.4e}", self.prob_f)
+        };
         writeln!(
             f,
-            "{:<20} {:>15} || {:<20} {:>15.4}",
-            "Covariance Type:", cov_str, "F-statistic:", self.f_statistic
+            "{:<20} {:>15} || {:<20} {:>15}",
+            "Covariance Type:", cov_str, "F-statistic:", f_str
         )?;
         writeln!(
             f,
-            "{:<20} {:>15} || {:<20} {:>15.4e}",
-            "No. Observations:", self.n_obs, "Prob (F-statistic):", self.prob_f
+            "{:<20} {:>15} || {:<20} {:>15}",
+            "No. Observations:", self.n_obs, "Prob (F-statistic):", prob_f_str
         )?;
         writeln!(
             f,
@@ -604,13 +614,19 @@ impl fmt::Display for OlsResult {
                 } else {
                     format!("x{}", fit_idx)
                 };
+                let t_val = self.t_values[fit_idx];
+                let t_str = if t_val.abs() > 1e10 {
+                    format!("{:.3e}", t_val)
+                } else {
+                    format!("{:.3}", t_val)
+                };
                 writeln!(
                     f,
-                    "{:<10} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3} | {:>8.4}  {:>8.4}",
+                    "{:<10} | {:>10.4} | {:>10.4} | {:>8} | {:>8.3} | {:>8.4}  {:>8.4}",
                     var_name,
                     self.params[fit_idx],
                     self.std_errors[fit_idx],
-                    self.t_values[fit_idx],
+                    t_str,
                     self.p_values[fit_idx],
                     self.conf_lower[fit_idx],
                     self.conf_upper[fit_idx]
@@ -1157,7 +1173,7 @@ impl OLS {
         let adj_r_squared = 1.0 - (1.0 - r_squared) * ((n as f64 - 1.0) / (df_resid as f64));
 
         let msm = (sst - ssr) / (df_model as f64);
-        let f_statistic = if sigma2 < 1e-12 { 0.0 } else { msm / sigma2 };
+        let f_statistic = if sigma2 < 1e-12 { f64::INFINITY } else { msm / sigma2 };
 
         let prob_f = if df_model > 0 && f_statistic.is_finite() {
             let f_dist = FisherSnedecor::new(df_model as f64, df_resid as f64)
