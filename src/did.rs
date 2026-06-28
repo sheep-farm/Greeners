@@ -96,11 +96,14 @@ impl DiffInDiff {
         // Extract y from formula
         let y = data.get(&formula.dependent)?;
 
-        // Extract treated and post variables
-        let treated = data.get(treated_var)?;
-        let post = data.get(post_var)?;
+        // Extract treated and post variables (supporting any column type)
+        let treated_col = data.get_column(treated_var)?;
+        let treated = treated_col.to_float();
 
-        Self::fit(y, treated, post, cov_type)
+        let post_col = data.get_column(post_var)?;
+        let post = post_col.to_float();
+
+        Self::fit(y, &treated, &post, cov_type)
     }
 
     /// Estimates the Canonical 2x2 DiD model.

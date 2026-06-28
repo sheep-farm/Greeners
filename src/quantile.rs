@@ -112,7 +112,7 @@ impl QuantileReg {
         let (params, iter) = Self::irls_solver(y, x, tau)?;
 
         // 2. Erros Padrão via Bootstrap (Pairs Bootstrap)
-        let std_errors = Self::bootstrap_se(y, x, tau, n_boot)?;
+        let std_errors = Self::bootstrap_se(y, x, tau, n_boot, &params)?;
 
         // 3. Estatísticas Finais
         let t_values = &params / &std_errors;
@@ -220,10 +220,14 @@ impl QuantileReg {
         x: &Array2<f64>,
         tau: f64,
         n_boot: usize,
+        point_estimate: &Array1<f64>,
     ) -> Result<Array1<f64>, GreenersError> {
         let n = y.len();
         let k = x.ncols();
         let mut boot_betas = Array2::<f64>::zeros((n_boot, k));
+        for mut row in boot_betas.rows_mut() {
+            row.assign(point_estimate);
+        }
 
         let mut rng = rand::thread_rng();
 

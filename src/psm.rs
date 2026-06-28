@@ -1,6 +1,7 @@
 use crate::error::GreenersError;
 use crate::linalg::LinalgInverse as _;
 use ndarray::{Array1, Array2};
+use statrs::distribution::{ContinuousCDF, Normal};
 use std::fmt;
 
 // ── Structs de resultado ──────────────────────────────────────────────────────
@@ -147,19 +148,8 @@ impl PSM {
 
         // ── 6. Inferência ─────────────────────────────────────────────────────
         let z = att / se;
-        let norm_cdf = |t: f64| {
-            use crate::distributions::norm_pdf;
-            // CDF Normal via series (approx, suficiente para p-valor)
-            let a = t.abs();
-            let b = (1.0 + 0.2316419 * a).recip();
-            let poly = b * (0.319381530
-                + b * (-0.356563782
-                + b * (1.781477937
-                + b * (-1.821255978 + b * 1.330274429))));
-            let q = 1.0 - norm_pdf(a) * poly;
-            if t >= 0.0 { q } else { 1.0 - q }
-        };
-        let p_value = 2.0 * (1.0 - norm_cdf(z.abs()));
+        let normal_dist = Normal::new(0.0, 1.0).unwrap();
+        let p_value = 2.0 * (1.0 - normal_dist.cdf(z.abs()));
         let z95 = 1.959_963_985;
 
         // ── 7. Tamanhos de amostra ────────────────────────────────────────────

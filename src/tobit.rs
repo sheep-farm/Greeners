@@ -176,11 +176,26 @@ impl Tobit {
                 } else {
                     // Censurada
                     let a = (xb - ll) / sigma;
-                    let phi_neg = norm_cdf(-a).max(1e-300);
-                    ll_val += phi_neg.ln();
+                    let (phi_neg_ln, lam, delta, c) = if a > 30.0 {
+                        let l = a + 1.0 / a;
+                        (
+                            -0.5 * a * a - LOG_SQRT_2PI - l.ln(),
+                            l,
+                            1.0 + 1.0 / (a * a),
+                            l * (a * (1.0 / a) + 1.0),
+                        )
+                    } else {
+                        let phi_neg = norm_cdf(-a).max(1e-300);
+                        let l = phi(a) / phi_neg;
+                        (
+                            phi_neg.ln(),
+                            l,
+                            l * (l - a),
+                            l * (a * (l - a) + 1.0),
+                        )
+                    };
 
-                    let lam = phi(a) / phi_neg;
-                    let delta = lam * (lam - a); // dλ/da > 0
+                    ll_val += phi_neg_ln;
 
                     // g_beta -= λ/σ * x_i
                     g_beta.scaled_add(-lam / sigma, &x.row(i));
@@ -194,11 +209,9 @@ impl Tobit {
                             h_bb[[j, kk]] -= delta * xi[j] * xi[kk] / s2;
                         }
                     }
-                    // termo comum para H_bg e H_gg
-                    let c = lam * (a * (lam - a) + 1.0);
                     // H_bg += c/σ * x_i
                     h_bg.scaled_add(c / sigma, &xi);
-                    // H_gg -= a*λ*(a*(λ-a)+1)
+                    // H_gg -= a*c
                     h_gg -= a * c;
                 }
             }
@@ -276,10 +289,14 @@ impl Tobit {
                 h_gg -= 2.0 * e * e;
             } else {
                 let a = (xb - ll) / sigma;
-                let phi_neg = norm_cdf(-a).max(1e-300);
-                let lam = phi(a) / phi_neg;
-                let delta = lam * (lam - a);
-                let c = lam * (a * (lam - a) + 1.0);
+                let (_, delta, c) = if a > 30.0 {
+                    let l = a + 1.0 / a;
+                    (l, 1.0 + 1.0 / (a * a), l * (a * (1.0 / a) + 1.0))
+                } else {
+                    let phi_neg = norm_cdf(-a).max(1e-300);
+                    let l = phi(a) / phi_neg;
+                    (l, l * (l - a), l * (a * (l - a) + 1.0))
+                };
                 for j in 0..k {
                     for kk in 0..k {
                         h_bb[[j, kk]] -= delta * xi[j] * xi[kk] / s2;
@@ -343,7 +360,12 @@ impl Tobit {
                 val += -gamma - LOG_SQRT_2PI - 0.5 * e * e;
             } else {
                 let a = (xb - ll) / sigma;
-                val += norm.cdf(-a).max(1e-300).ln();
+                if a > 30.0 {
+                    let lam = a + 1.0 / a;
+                    val += -0.5 * a * a - LOG_SQRT_2PI - lam.ln();
+                } else {
+                    val += norm.cdf(-a).max(1e-300).ln();
+                }
             }
         }
         val

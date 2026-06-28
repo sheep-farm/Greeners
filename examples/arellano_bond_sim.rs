@@ -55,7 +55,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(">>> Fixed Effects (Biased downwards due to Nickell Bias):");
     println!("Rho Estimado: {:.4} (Esperado < 0.8)", fe.params[0]);
 
-    let ab = ArellanoBond::fit(&y, &x_dummy, &id, &time)?;
+    let ab = ArellanoBond::fit(
+        &y,
+        &x_dummy,
+        id.as_slice().unwrap(),
+        time.as_slice().unwrap(),
+        2,
+        false,
+        None,
+    )?;
     println!("{}", ab);
 
     println!("Diagnóstico:");

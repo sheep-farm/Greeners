@@ -134,6 +134,14 @@ fn test_ols_no_intercept() {
     // Should have only 1 coefficient (no intercept)
     assert_eq!(result.params.len(), 1);
     assert!((result.params[0] - 2.0).abs() < 1e-10);
+
+    // Correct df_model = k_clean = 1 (not 0)
+    assert_eq!(result.df_model, 1);
+    assert_eq!(result.df_resid, 4);
+
+    // Perfect fit checks
+    assert!((result.r_squared - 1.0).abs() < 1e-10);
+    assert!((result.adj_r_squared - 1.0).abs() < 1e-10);
 }
 
 #[test]

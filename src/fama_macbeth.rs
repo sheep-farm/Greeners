@@ -36,7 +36,8 @@ impl FamaMacBeth {
         time_col: &str,
         nw_lags: usize,
     ) -> Result<FamaMacBethResult, GreenersError> {
-        let t_vals = df.get(time_col)?;
+        let t_column = df.get_column(time_col)?;
+        let t_vals = t_column.to_float();
         let mut periods: Vec<i64> = t_vals
             .iter()
             .map(|&v| v as i64)
@@ -69,7 +70,6 @@ impl FamaMacBeth {
             }
 
             let sub_df = df.iloc(Some(&mask), None)?;
-            n_obs_total += sub_df.n_rows();
 
             match OLS::from_formula(formula, &sub_df, CovarianceType::NonRobust) {
                 Ok(result) => {
@@ -77,6 +77,7 @@ impl FamaMacBeth {
                         var_names = result.variable_names.clone().unwrap_or_default();
                     }
                     all_coefs.push(result.params.to_vec());
+                    n_obs_total += sub_df.n_rows();
                 }
                 Err(_) => {}
             }

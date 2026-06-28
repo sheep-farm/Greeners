@@ -74,15 +74,10 @@ impl GMM {
         z: &Array2<f64>,
     ) -> Result<GmmResult, GreenersError> {
         let n = x.nrows();
-        let k = x.ncols(); // Regressors
+        let _k = x.ncols(); // Regressors
         let l = z.ncols(); // Instruments (Moments)
 
-        if l < k {
-            return Err(GreenersError::ShapeMismatch(format!(
-                "GMM requires L >= K (Instruments >= Params). Got L={}, K={}",
-                l, k
-            )));
-        }
+
 
         let fallback_names: Vec<String> = (0..x.ncols()).map(|i| format!("x{}", i)).collect();
         let cr = crate::linalg::drop_collinear(x, &fallback_names, 1e-10);
@@ -170,14 +165,14 @@ impl GMM {
         // --- J-TEST (Overidentifying Restrictions) ---
         // J = n * g_bar(beta)' * W_opt * g_bar(beta)
         // g_bar = (1/n) * Z' * u_final
-        let pred_final = x.dot(&beta_final);
+        let pred_final = x_to_use.dot(&beta_final);
         let resid_final = y - &pred_final;
         let g_bar = z_t.dot(&resid_final) / (n as f64);
 
         let j_stat = (n as f64) * g_bar.t().dot(&w_opt).dot(&g_bar);
 
-        // J-test degrees of freedom = L - K
-        let df_overid = l - k;
+        // J-test degrees of freedom = L - K_clean
+        let df_overid = l - k_clean;
         let j_p_value = if df_overid > 0 {
             let chi2 =
                 ChiSquared::new(df_overid as f64).map_err(|_| GreenersError::OptimizationFailed)?;
