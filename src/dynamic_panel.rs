@@ -139,6 +139,7 @@ impl ArellanoBond {
             .map(|&i| (0..k_x).map(|c| x[[i, c]]).collect())
             .collect();
         let ids: Vec<i64> = ord.iter().map(|&i| entity_ids[i]).collect();
+        let times: Vec<i64> = ord.iter().map(|&i| time_ids[i]).collect();
 
         // 2. Agrupar por entidade
         let mut entity_slices: Vec<std::ops::Range<usize>> = Vec::new();
@@ -173,6 +174,11 @@ impl ArellanoBond {
             let mut count = 0;
 
             for j in 2..t_i {
+                // Check if time is contiguous: t_j = t_{j-1} + 1 and t_{j-1} = t_{j-2} + 1
+                if times[idx[j]] != times[idx[j - 1]] + 1 || times[idx[j - 1]] != times[idx[j - 2]] + 1 {
+                    continue;
+                }
+
                 // Δy[j] = y[j] - y[j-1]
                 dy_vec.push(ys[idx[j]] - ys[idx[j - 1]]);
                 // ΔYlag[j] = y[j-1] - y[j-2]
@@ -183,8 +189,11 @@ impl ArellanoBond {
                 zinst_rows.push(
                     (0..max_lags)
                         .map(|l| {
-                            let lag = l + 2;
-                            if j >= lag { ys[idx[j - lag]] } else { 0.0 }
+                            let target_time = times[idx[j]] - (l as i64 + 2);
+                            idx.iter()
+                                .find(|&&k| times[k] == target_time)
+                                .map(|&k| ys[k])
+                                .unwrap_or(0.0)
                         })
                         .collect(),
                 );

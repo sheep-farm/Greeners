@@ -735,6 +735,16 @@ impl OLS {
         cov_type: CovarianceType,
         variable_names: Option<Vec<String>>,
     ) -> Result<OlsResult, GreenersError> {
+        Self::fit_internal(y, x, cov_type, variable_names, None)
+    }
+
+    pub(crate) fn fit_internal(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        cov_type: CovarianceType,
+        variable_names: Option<Vec<String>>,
+        force_intercept: Option<bool>,
+    ) -> Result<OlsResult, GreenersError> {
         let n = x.nrows();
         let k = x.ncols();
 
@@ -794,8 +804,18 @@ impl OLS {
         let residuals = y - &predicted;
         let ssr = residuals.dot(&residuals);
 
+        let has_intercept = force_intercept.unwrap_or_else(|| {
+            (0..k_clean).any(|j| {
+                x_to_use.column(j).iter().all(|&val| (val - 1.0).abs() < 1e-12)
+            })
+        });
+
         let df_resid = n - k_clean;
-        let df_model = k_clean - 1;
+        let df_model = if has_intercept {
+            k_clean - 1
+        } else {
+            k_clean
+        };
 
         let sigma2 = ssr / (df_resid as f64);
         let sigma = sigma2.sqrt();
@@ -1163,14 +1183,24 @@ impl OLS {
         )?;
 
         // 5. Statistics
-        let y_mean = y.mean().unwrap_or(0.0);
-        let sst = y.mapv(|val| (val - y_mean).powi(2)).sum();
+        let sst = if has_intercept {
+            let y_mean = y.mean().unwrap_or(0.0);
+            y.mapv(|val| (val - y_mean).powi(2)).sum()
+        } else {
+            y.mapv(|val| val.powi(2)).sum()
+        };
+
         let r_squared = if sst.abs() < 1e-12 {
             0.0
         } else {
             1.0 - (ssr / sst)
         };
-        let adj_r_squared = 1.0 - (1.0 - r_squared) * ((n as f64 - 1.0) / (df_resid as f64));
+
+        let adj_r_squared = if has_intercept {
+            1.0 - (1.0 - r_squared) * ((n as f64 - 1.0) / (df_resid as f64))
+        } else {
+            1.0 - (1.0 - r_squared) * ((n as f64) / (df_resid as f64))
+        };
 
         let msm = (sst - ssr) / (df_model as f64);
         let f_statistic = if sigma2 < 1e-12 { f64::INFINITY } else { msm / sigma2 };

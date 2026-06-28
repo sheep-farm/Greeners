@@ -4,7 +4,7 @@
 /// `.cholesky()`, `.det()`) that the old `ndarray_linalg` traits provided, so the
 /// only change needed in each caller is to swap the `use` line.
 use crate::error::GreenersError;
-use faer::linalg::solvers::{DenseSolveCore, Llt, PartialPivLu, Qr, SelfAdjointEigen, Svd};
+use faer::linalg::solvers::{DenseSolveCore, Llt, PartialPivLu, Qr, SelfAdjointEigen, Svd, ColPivQr};
 use faer::prelude::*;
 use faer::Side;
 use ndarray::{Array1, Array2};
@@ -229,33 +229,37 @@ pub fn drop_collinear(
 ) -> CollinearityResult {
     let n = x.nrows();
     let k = x.ncols();
+    let mat = to_faer(x);
+    let qr = ColPivQr::new(mat.as_ref());
+    let r = qr.R();
+    let (fwd, _) = qr.P().arrays();
 
-    let (mut keep_indices, mut omit_indices) = match x.qr() {
-        Ok((_, r)) => {
-            let mut keep = Vec::new();
-            let mut omit = Vec::new();
-            for i in 0..k.min(n) {
-                if r[[i, i]].abs() > tolerance {
-                    keep.push(i);
-                } else {
-                    omit.push(i);
-                }
-            }
-            (keep, omit)
-        }
-        Err(_) => ((0..k).collect(), vec![]),
-    };
+    let mut keep_indices = Vec::new();
+    let mut omit_indices = Vec::new();
 
-    for i in 0..k {
-        if !keep_indices.contains(&i) && !omit_indices.contains(&i) {
-            omit_indices.push(i);
+    for i in 0..k.min(n) {
+        let r_ii = r[(i, i)].abs();
+        let orig_col = fwd[i];
+        if r_ii > tolerance {
+            keep_indices.push(orig_col);
+        } else {
+            omit_indices.push(orig_col);
         }
     }
 
-    let omitted: Vec<(usize, String)> = omit_indices
-        .iter()
-        .filter_map(|&i| var_names.get(i).map(|n| (i, n.clone())))
-        .collect();
+    for i in (k.min(n))..k {
+        omit_indices.push(fwd[i]);
+    }
+
+    keep_indices.sort_unstable();
+
+    let mut omitted = Vec::new();
+    for &i in &omit_indices {
+        if let Some(name) = var_names.get(i) {
+            omitted.push((i, name.clone()));
+        }
+    }
+    omitted.sort_by_key(|(i, _)| *i);
 
     let clean_names: Vec<String> = keep_indices
         .iter()

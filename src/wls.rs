@@ -72,6 +72,10 @@ impl WLS {
             x_star.row_mut(i).mapv_inplace(|val| val * sqrt_w[i]);
         }
 
-        OLS::fit_with_names(&y_star, &x_star, cov_type, variable_names)
+        let has_intercept = (0..x.ncols()).any(|j| {
+            x.column(j).iter().all(|&val| (val - 1.0).abs() < 1e-12)
+        });
+
+        OLS::fit_internal(&y_star, &x_star, cov_type, variable_names, Some(has_intercept))
     }
 }

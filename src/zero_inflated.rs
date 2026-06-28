@@ -274,20 +274,17 @@ fn fit_zero_inflated(
             } else {
                 // y_i > 0
                 w[i] = 0.0;
-                let f_y = if use_negbin {
+                let log_f = if use_negbin {
                     let r = (1.0_f64 / alpha).max(1e-6);
                     let yi = y[i];
-                    // NB PMF: Γ(r+y)/(Γ(r)*y!) * (r/(r+μ))^r * (μ/(r+μ))^y
-                    let log_f = lgamma(r + yi) - lgamma(r) - lgamma(yi + 1.0)
+                    lgamma(r + yi) - lgamma(r) - lgamma(yi + 1.0)
                         + r * (r / (r + mu_i)).ln()
-                        + yi * (mu_i / (r + mu_i)).ln();
-                    log_f.exp()
+                        + yi * (mu_i / (r + mu_i)).ln()
                 } else {
-                    // Poisson PMF
                     let yi = y[i];
-                    (yi * mu_i.ln() - mu_i - lgamma(yi + 1.0)).exp()
+                    yi * mu_i.ln() - mu_i - lgamma(yi + 1.0)
                 };
-                log_likelihood += ((1.0 - p_i) * f_y).max(1e-300).ln();
+                log_likelihood += (1.0 - p_i).clamp(1e-10, 1.0 - 1e-10).ln() + log_f;
             }
         }
 
@@ -396,18 +393,17 @@ fn fit_zero_inflated(
                     };
                     ll_new += (p_i + (1.0 - p_i) * f0).max(1e-15).ln();
                 } else {
-                    let f_y = if use_negbin {
+                    let log_f = if use_negbin {
                         let r = (1.0_f64 / alpha).max(1e-6);
                         let yi = y[i];
-                        let log_f = lgamma(r + yi) - lgamma(r) - lgamma(yi + 1.0)
+                        lgamma(r + yi) - lgamma(r) - lgamma(yi + 1.0)
                             + r * (r / (r + mu_i)).ln()
-                            + yi * (mu_i / (r + mu_i)).ln();
-                        log_f.exp()
+                            + yi * (mu_i / (r + mu_i)).ln()
                     } else {
                         let yi = y[i];
-                        (yi * mu_i.ln() - mu_i - lgamma(yi + 1.0)).exp()
+                        yi * mu_i.ln() - mu_i - lgamma(yi + 1.0)
                     };
-                    ll_new += ((1.0 - p_i) * f_y).max(1e-300).ln();
+                    ll_new += (1.0 - p_i).clamp(1e-10, 1.0 - 1e-10).ln() + log_f;
                 }
             }
 
@@ -551,18 +547,17 @@ fn compute_zi_ll(
             };
             ll += (p_i + (1.0 - p_i) * f0).max(1e-15).ln();
         } else {
-            let f_y = if use_negbin {
+            let log_f = if use_negbin {
                 let r = (1.0_f64 / alpha).max(1e-6);
                 let yi = y[i];
-                let log_f = lgamma(r + yi) - lgamma(r) - lgamma(yi + 1.0)
+                lgamma(r + yi) - lgamma(r) - lgamma(yi + 1.0)
                     + r * (r / (r + mu_i)).ln()
-                    + yi * (mu_i / (r + mu_i)).ln();
-                log_f.exp()
+                    + yi * (mu_i / (r + mu_i)).ln()
             } else {
                 let yi = y[i];
-                (yi * mu_i.ln() - mu_i - lgamma(yi + 1.0)).exp()
+                yi * mu_i.ln() - mu_i - lgamma(yi + 1.0)
             };
-            ll += ((1.0 - p_i) * f_y).max(1e-300).ln();
+            ll += (1.0 - p_i).clamp(1e-10, 1.0 - 1e-10).ln() + log_f;
         }
     }
     ll

@@ -301,6 +301,7 @@ fn test_logit_ame_vs_statsmodels() {
 
     let result = Logit::fit(&y, &x).unwrap();
     let ame = result.average_marginal_effects(&x).unwrap();
+    let ame_se = result.average_marginal_effects_se(&x).unwrap();
 
     // AME includes all columns (const, x1, x2); statsmodels only reports non-const
     // In Greeners, AME[0] is for const, AME[1] for x1, AME[2] for x2
@@ -308,6 +309,9 @@ fn test_logit_ame_vs_statsmodels() {
     for (j, name) in names.iter().enumerate() {
         let key = format!("logit.ame.{}", name);
         assert_close(ame[j + 1], ref_data[&key], TOL_LOOSE, &key);
+
+        let key_se = format!("logit.ame_se.{}", name);
+        assert_close(ame_se[j + 1], ref_data[&key_se], TOL_LOOSE, &key_se);
     }
 }
 

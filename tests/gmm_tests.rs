@@ -189,7 +189,11 @@ fn test_gmm_underidentified() {
     let x = Array2::from_shape_vec(
         (5, 3),
         vec![
-            1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 1.0, 3.0, 3.0, 1.0, 4.0, 4.0, 1.0, 5.0, 5.0,
+            1.0, 1.0, 1.0,
+            1.0, 2.0, 3.0,
+            1.0, 3.0, 6.0,
+            1.0, 4.0, 10.0,
+            1.0, 5.0, 15.0,
         ],
     )
     .unwrap();
@@ -245,3 +249,42 @@ fn test_gmm_finite_sample() {
     assert!(result.params[0].is_finite());
     assert!(result.params[1].is_finite());
 }
+
+#[test]
+fn test_gmm_collinearity_handling() {
+    let y = Array1::from(vec![1.2, 2.1, 3.3, 3.9, 5.1, 6.0]);
+    // Regressors with perfect collinearity (x[:, 2] = 2.0 * x[:, 1])
+    let x = Array2::from_shape_vec(
+        (6, 3),
+        vec![
+            1.0, 1.0, 2.0,
+            1.0, 2.0, 4.0,
+            1.0, 3.0, 6.0,
+            1.0, 4.0, 8.0,
+            1.0, 5.0, 10.0,
+            1.0, 6.0, 12.0,
+        ],
+    )
+    .unwrap();
+    // 3 instruments to satisfy order condition (exactly identified for clean K = 2)
+    let z = Array2::from_shape_vec(
+        (6, 2),
+        vec![
+            1.0, 1.0,
+            1.0, 2.0,
+            1.0, 3.0,
+            1.0, 4.0,
+            1.0, 5.0,
+            1.0, 6.0,
+        ],
+    )
+    .unwrap();
+
+    let result = GMM::fit(&y, &x, &z).unwrap();
+
+    // Should drop the collinear variable and not panic on shape mismatch
+    assert_eq!(result.params.len(), 2);
+    assert_eq!(result.omitted_vars.len(), 1);
+    assert!(result.omitted_vars[0].1 == "x1" || result.omitted_vars[0].1 == "x2");
+}
+

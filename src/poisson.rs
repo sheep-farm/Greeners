@@ -336,15 +336,40 @@ impl Poisson {
         exposure: &Array1<f64>,
         cov_type: CovarianceType,
     ) -> Result<PoissonResult, GreenersError> {
-        // Add ln(exposure) as an additional column with coefficient fixed to 1
-        // Approximation: include it as a regular column
-        let n = x.nrows();
-        let k = x.ncols();
-        let mut x_with_offset = Array2::<f64>::zeros((n, k + 1));
-        x_with_offset.slice_mut(ndarray::s![.., ..k]).assign(x);
-        for i in 0..n {
-            x_with_offset[[i, k]] = exposure[i].max(1e-10).ln();
-        }
-        Self::fit(y, &x_with_offset, cov_type)
+        let offset = exposure.mapv(|val| val.max(1e-10).ln());
+        let glm_result = GLM::fit_with_names_and_offset(
+            y,
+            x,
+            Family::Poisson,
+            cov_type,
+            None,
+            Some(&offset),
+        )?;
+
+        Ok(PoissonResult {
+            params: glm_result.params,
+            std_errors: glm_result.std_errors,
+            z_values: glm_result.z_values,
+            p_values: glm_result.p_values,
+            conf_lower: glm_result.conf_lower,
+            conf_upper: glm_result.conf_upper,
+            log_likelihood: glm_result.log_likelihood,
+            deviance: glm_result.deviance,
+            null_deviance: glm_result.null_deviance,
+            aic: glm_result.aic,
+            bic: glm_result.bic,
+            pseudo_r2: glm_result.pseudo_r2,
+            pearson_chi2: glm_result.pearson_chi2,
+            n_obs: glm_result.n_obs,
+            df_resid: glm_result.df_resid,
+            df_model: glm_result.df_model,
+            n_iter: glm_result.n_iter,
+            converged: glm_result.converged,
+            inference_type: glm_result.inference_type,
+            variable_names: glm_result.variable_names,
+            omitted_vars: glm_result.omitted_vars,
+            _x_data: glm_result._x_data.clone(),
+            _y_data: glm_result._y_data.clone(),
+        })
     }
 }

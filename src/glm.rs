@@ -617,7 +617,7 @@ impl GLM {
         let (y, x) = data.to_design_matrix(formula)?;
         let var_names = data.formula_var_names(formula)?;
         let link = family.canonical_link();
-        Self::fit_internal(&y, &x, family, link, cov_type, Some(var_names))
+        Self::fit_internal(&y, &x, family, link, cov_type, Some(var_names), None)
     }
 
     /// Fit GLM from arrays using canonical link.
@@ -628,7 +628,7 @@ impl GLM {
         cov_type: CovarianceType,
     ) -> Result<GlmResult, GreenersError> {
         let link = family.canonical_link();
-        Self::fit_internal(y, x, family, link, cov_type, None)
+        Self::fit_internal(y, x, family, link, cov_type, None, None)
     }
 
     /// Fit GLM from arrays with variable names using canonical link.
@@ -640,7 +640,7 @@ impl GLM {
         variable_names: Option<Vec<String>>,
     ) -> Result<GlmResult, GreenersError> {
         let link = family.canonical_link();
-        Self::fit_internal(y, x, family, link, cov_type, variable_names)
+        Self::fit_internal(y, x, family, link, cov_type, variable_names, None)
     }
 
     /// Fit GLM with an explicit (possibly non-canonical) link.
@@ -651,7 +651,32 @@ impl GLM {
         link: Link,
         cov_type: CovarianceType,
     ) -> Result<GlmResult, GreenersError> {
-        Self::fit_internal(y, x, family, link, cov_type, None)
+        Self::fit_internal(y, x, family, link, cov_type, None, None)
+    }
+
+    /// Fit GLM with offset.
+    pub fn fit_with_offset(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        family: Family,
+        cov_type: CovarianceType,
+        offset: &Array1<f64>,
+    ) -> Result<GlmResult, GreenersError> {
+        let link = family.canonical_link();
+        Self::fit_internal(y, x, family, link, cov_type, None, Some(offset))
+    }
+
+    /// Fit GLM with variable names and offset.
+    pub fn fit_with_names_and_offset(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        family: Family,
+        cov_type: CovarianceType,
+        variable_names: Option<Vec<String>>,
+        offset: Option<&Array1<f64>>,
+    ) -> Result<GlmResult, GreenersError> {
+        let link = family.canonical_link();
+        Self::fit_internal(y, x, family, link, cov_type, variable_names, offset)
     }
 
     fn fit_internal(
@@ -661,6 +686,7 @@ impl GLM {
         link: Link,
         cov_type: CovarianceType,
         variable_names: Option<Vec<String>>,
+        offset: Option<&Array1<f64>>,
     ) -> Result<GlmResult, GreenersError> {
         let n = x.nrows();
         let _k = x.ncols();
@@ -718,7 +744,14 @@ impl GLM {
                 })
                 .collect();
             let z: Array1<f64> = (0..n)
-                .map(|i| eta[i] + (y[i] - mu[i]) * link.deriv(mu[i]))
+                .map(|i| {
+                    let base = eta[i] + (y[i] - mu[i]) * link.deriv(mu[i]);
+                    if let Some(off) = offset {
+                        base - off[i]
+                    } else {
+                        base
+                    }
+                })
                 .collect();
 
             // β = (X'WX)⁻¹ X'Wz
@@ -737,8 +770,12 @@ impl GLM {
         let mut n_iter = 0;
 
         for iter in 0..max_iter {
-            // η = Xβ
-            eta = x_use.dot(&beta);
+            // η = Xβ + offset
+            eta = if let Some(off) = offset {
+                x_use.dot(&beta) + off
+            } else {
+                x_use.dot(&beta)
+            };
             // μ = g⁻¹(η)
             mu = eta.mapv(|e| link.linkinv(e));
 
@@ -751,9 +788,16 @@ impl GLM {
                 })
                 .collect();
 
-            // Working variable: z_i = η_i + (y_i - μ_i) * g'(μ_i)
+            // Working variable: z_i = η_i + (y_i - μ_i) * g'(μ_i) - offset_i
             let z: Array1<f64> = (0..n)
-                .map(|i| eta[i] + (y[i] - mu[i]) * link.deriv(mu[i]))
+                .map(|i| {
+                    let base = eta[i] + (y[i] - mu[i]) * link.deriv(mu[i]);
+                    if let Some(off) = offset {
+                        base - off[i]
+                    } else {
+                        base
+                    }
+                })
                 .collect();
 
             // Weighted least squares: β_new = (X'WX)⁻¹ X'Wz
@@ -781,7 +825,11 @@ impl GLM {
         }
 
         // Final mu/eta
-        eta = x_use.dot(&beta);
+        eta = if let Some(off) = offset {
+            x_use.dot(&beta) + off
+        } else {
+            x_use.dot(&beta)
+        };
         mu = eta.mapv(|e| link.linkinv(e));
 
         // Deviance
@@ -877,7 +925,7 @@ impl GLM {
                     let xi = x_use.row(i).to_owned();
                     let g_prime = link.deriv(mu[i]);
                     let w_i = 1.0 / (family.variance(mu[i]) * g_prime * g_prime).max(1e-10);
-                    let s = &xi * (adj_resid2[i] * w_i * w_i);
+                    let s = &xi * (adj_resid2[i] * w_i / family.variance(mu[i]).max(1e-10));
                     for j1 in 0..k {
                         for j2 in 0..k {
                             meat[[j1, j2]] += s[j1] * xi[j2];

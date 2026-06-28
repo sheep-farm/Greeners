@@ -138,7 +138,10 @@ impl FGLS {
         }
 
         // Run OLS on transformed data
-        let ols = OLS::fit(&y_transformed, &x_transformed, CovarianceType::NonRobust)?;
+        let has_intercept = (0..x.ncols()).any(|j| {
+            x.column(j).iter().all(|&val| (val - 1.0).abs() < 1e-12)
+        });
+        let ols = OLS::fit_internal(&y_transformed, &x_transformed, CovarianceType::NonRobust, None, Some(has_intercept))?;
 
         Ok(FglsResult {
             method: "WLS".to_string(),

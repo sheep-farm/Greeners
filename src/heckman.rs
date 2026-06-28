@@ -170,14 +170,24 @@ impl Heckman {
             .collect();
 
         let lambda_sel: Vec<f64> = zhat_sel.iter().map(|&zh| {
-            let phi_val = phi(zh);
-            let cdf_val = norm_cdf(zh).max(1e-300);
-            phi_val / cdf_val
+            if zh < -30.0 {
+                -zh - 1.0 / zh
+            } else {
+                let phi_val = phi(zh);
+                let cdf_val = norm_cdf(zh).max(1e-300);
+                phi_val / cdf_val
+            }
         }).collect();
 
         // δ_i = λ_i(λ_i + ẑ_i)  > 0
         let delta_i: Vec<f64> = lambda_sel.iter().zip(zhat_sel.iter())
-            .map(|(&lam, &zh)| lam * (lam + zh))
+            .map(|(&lam, &zh)| {
+                if zh < -30.0 {
+                    1.0 + 1.0 / (zh * zh)
+                } else {
+                    lam * (lam + zh)
+                }
+            })
             .collect();
 
         // ── Passo 2: OLS de y em [X, λ] (obs selecionadas) ───────────────────

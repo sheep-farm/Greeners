@@ -18,6 +18,7 @@ pub struct BinaryModelResult {
     pub pseudo_r2: f64, // McFadden's R2
     // Store X for marginal effects calculations
     pub(crate) _x_data: Option<Array2<f64>>,
+    pub cov_matrix: Option<Array2<f64>>,
     pub inference_type: InferenceType, // Always Normal for MLE
     pub variable_names: Option<Vec<String>>,
     pub omitted_vars: Vec<(usize, String)>,
@@ -227,6 +228,7 @@ impl Logit {
             log_likelihood,
             pseudo_r2,
             _x_data: Some(x.to_owned()),
+            cov_matrix: Some(cov_matrix),
             inference_type: InferenceType::Normal, // MLE always uses Normal
             variable_names,
             omitted_vars: omitted_positioned,
@@ -362,44 +364,112 @@ impl BinaryModelResult {
     /// # Note
     /// Uses conservative numerical approximation of standard errors
     /// For publication-quality inference, consider bootstrap methods
-    pub fn ame_confidence_intervals(
-        &self,
-        x: &Array2<f64>,
-        _alpha: f64,
-    ) -> Result<(Array1<f64>, Array1<f64>), GreenersError> {
-        let ame = self.average_marginal_effects(x)?;
-        let k = ame.len();
-
-        // Critical value for normal distribution
-        let z_crit = 1.96; // 95% CI (alpha=0.05)
-
-        // Conservative SE approximation: use coefficient SE scaled by average density
+    /// Calculate standard errors for Average Marginal Effects (AME) using the exact Delta Method.
+    ///
+    /// # Arguments
+    /// * `x` - Design matrix (same as used in estimation)
+    ///
+    /// # Returns
+    /// Array of AME standard errors (one per coefficient)
+    pub fn average_marginal_effects_se(&self, x: &Array2<f64>) -> Result<Array1<f64>, GreenersError> {
         let n = x.nrows();
-        let mut avg_density = 0.0;
+        let k = x.ncols();
+
+        // 1. Reconstruct cov_matrix if not present (fallback)
+        let cov_matrix = match &self.cov_matrix {
+            Some(cov) => cov.clone(),
+            None => {
+                let xb = x.dot(&self.params);
+                let w_diag = if self.model_name == "Logit" {
+                    let p = xb.mapv(|val| 1.0 / (1.0 + (-val).exp()));
+                    &p * &(1.0 - &p)
+                } else {
+                    let normal_dist = Normal::new(0.0, 1.0).unwrap();
+                    let mut w = Array1::<f64>::zeros(n);
+                    for i in 0..n {
+                        let val = xb[i];
+                        let p_val = normal_dist.cdf(val).clamp(1e-10, 1.0 - 1e-10);
+                        let f_val = normal_dist.pdf(val);
+                        w[i] = (f_val * f_val) / (p_val * (1.0 - p_val));
+                    }
+                    w
+                };
+                let mut x_weighted = x.to_owned();
+                for (i, mut row) in x_weighted.axis_iter_mut(Axis(0)).enumerate() {
+                    row *= w_diag[i];
+                }
+                let neg_hessian = x.t().dot(&x_weighted);
+                neg_hessian.inv()?
+            }
+        };
+
+        // 2. Compute Jacobian: J_jm = (1/n) Σ_i [ 1_{j=m} d(x_i'β) + β_j d'(x_i'β) x_im ]
+        let xb = x.dot(&self.params);
+        let mut jacobian = Array2::<f64>::zeros((k, k));
+        let normal_dist = Normal::new(0.0, 1.0).unwrap();
 
         for i in 0..n {
             let x_i = x.row(i);
-            let xb = x_i.dot(&self.params);
+            let val = xb[i];
 
-            let density = if self.model_name == "Logit" {
-                let exp_xb = xb.exp();
-                exp_xb / (1.0 + exp_xb).powi(2)
+            let (d_val, d_prime_val) = if self.model_name == "Logit" {
+                let p = 1.0 / (1.0 + (-val).exp());
+                let d = p * (1.0 - p);
+                let d_prime = d * (1.0 - 2.0 * p);
+                (d, d_prime)
             } else {
-                let normal = Normal::new(0.0, 1.0).unwrap();
-                normal.pdf(xb)
+                let d = normal_dist.pdf(val);
+                let d_prime = -val * d;
+                (d, d_prime)
             };
-            avg_density += density;
-        }
-        avg_density /= n as f64;
 
-        // Approximate SE for marginal effects
+            for j in 0..k {
+                for m in 0..k {
+                    let mut term = 0.0;
+                    if j == m {
+                        term += d_val;
+                    }
+                    term += self.params[j] * d_prime_val * x_i[m];
+                    jacobian[[j, m]] += term;
+                }
+            }
+        }
+
+        jacobian /= n as f64;
+
+        // V_AME = J * V_beta * J'
+        let cov_ame = jacobian.dot(&cov_matrix).dot(&jacobian.t());
+        let se = cov_ame.diag().mapv(|v| v.max(0.0).sqrt());
+        Ok(se)
+    }
+
+    /// Calculate confidence intervals for Average Marginal Effects (AME)
+    /// using the exact Delta Method.
+    ///
+    /// # Arguments
+    /// * `x` - Design matrix
+    /// * `alpha` - Significance level (e.g. 0.05 for 95% CI)
+    ///
+    /// # Returns
+    /// Tuple of (lower_bounds, upper_bounds) for each marginal effect
+    pub fn ame_confidence_intervals(
+        &self,
+        x: &Array2<f64>,
+        alpha: f64,
+    ) -> Result<(Array1<f64>, Array1<f64>), GreenersError> {
+        let ame = self.average_marginal_effects(x)?;
+        let me_se = self.average_marginal_effects_se(x)?;
+        let k = ame.len();
+
+        let normal_dist = Normal::new(0.0, 1.0).unwrap();
+        let z_crit = normal_dist.inverse_cdf(1.0 - alpha / 2.0);
+
         let mut lower = Array1::<f64>::zeros(k);
         let mut upper = Array1::<f64>::zeros(k);
 
         for j in 0..k {
-            let me_se = self.std_errors[j] * avg_density;
-            lower[j] = ame[j] - z_crit * me_se;
-            upper[j] = ame[j] + z_crit * me_se;
+            lower[j] = ame[j] - z_crit * me_se[j];
+            upper[j] = ame[j] + z_crit * me_se[j];
         }
 
         Ok((lower, upper))
@@ -574,6 +644,7 @@ impl Probit {
             log_likelihood,
             pseudo_r2,
             _x_data: Some(x.to_owned()),
+            cov_matrix: Some(cov_matrix),
             inference_type: InferenceType::Normal, // MLE always uses Normal
             variable_names,
             omitted_vars: omitted_positioned,

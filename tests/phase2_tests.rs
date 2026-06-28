@@ -509,6 +509,43 @@ fn test_conditional_poisson_basic() {
 // ====================== Display tests ======================
 
 #[test]
+fn test_poisson_robust_se() {
+    let y = Array1::from(vec![1.0, 3.0, 2.0, 5.0, 0.0, 4.0, 1.0, 2.0, 3.0, 6.0]);
+    let x_raw = Array2::from_shape_vec(
+        (10, 1),
+        vec![0.1, 0.3, 0.2, 0.5, 0.0, 0.4, 0.1, 0.2, 0.3, 0.6],
+    )
+    .unwrap();
+    let x = with_intercept(&x_raw);
+
+    // Non-robust
+    let res_nr = Poisson::fit(&y, &x, CovarianceType::NonRobust).unwrap();
+    assert!((res_nr.params[0] - (-0.18250516)).abs() < 1e-6);
+    assert!((res_nr.params[1] - 3.56846228).abs() < 1e-6);
+    assert!((res_nr.std_errors[0] - 0.46093129).abs() < 1e-6);
+    assert!((res_nr.std_errors[1] - 1.07699772).abs() < 1e-6);
+
+    // Robust HC1
+    let res_hc1 = Poisson::fit(&y, &x, CovarianceType::HC1).unwrap();
+    assert!((res_hc1.std_errors[0] - 0.23506185).abs() < 1e-6);
+    assert!((res_hc1.std_errors[1] - 0.54324168).abs() < 1e-6);
+}
+
+#[test]
+fn test_poisson_exposure() {
+    let y = Array1::from(vec![2.0, 3.0, 5.0, 8.0, 1.0]);
+    let x_raw = Array2::from_shape_vec((5, 1), vec![0.1, 0.4, 0.3, 0.8, 0.2]).unwrap();
+    let x = with_intercept(&x_raw);
+    let exposure = Array1::from(vec![2.0, 1.5, 3.0, 1.0, 2.5]);
+
+    // Fit with exposure
+    let res = Poisson::fit_with_exposure(&y, &x, &exposure, CovarianceType::NonRobust).unwrap();
+    assert!(res.converged);
+    assert_eq!(res.params.len(), 2); // only intercept + slope, exposure is constrained to 1.0 (not estimated!)
+    assert!(res.log_likelihood.is_finite());
+}
+
+#[test]
 fn test_poisson_display() {
     let y = Array1::from(vec![1.0, 3.0, 2.0, 5.0, 0.0, 4.0, 1.0, 2.0, 3.0, 6.0]);
     let x_raw = Array2::from_shape_vec(

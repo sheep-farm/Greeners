@@ -309,7 +309,15 @@ fn test_arellano_bond_basic() {
     }
     let y = Array1::from(y_vals);
 
-    let result = ArellanoBond::fit(&y, &x, &entity_ids, &time_ids).unwrap();
+    let result = ArellanoBond::fit(
+        &y,
+        &x,
+        entity_ids.as_slice().unwrap(),
+        time_ids.as_slice().unwrap(),
+        2,
+        false,
+        None,
+    ).unwrap();
 
     // First param is the lagged dependent variable coefficient
     assert!(
@@ -330,7 +338,15 @@ fn test_arellano_bond_too_few_periods() {
     let entity_ids = Array1::from(vec![0i64, 0, 1, 1, 2, 2]);
     let time_ids = Array1::from(vec![0i64, 1, 0, 1, 0, 1]);
 
-    let result = ArellanoBond::fit(&y, &x, &entity_ids, &time_ids);
+    let result = ArellanoBond::fit(
+        &y,
+        &x,
+        entity_ids.as_slice().unwrap(),
+        time_ids.as_slice().unwrap(),
+        2,
+        false,
+        None,
+    );
     assert!(result.is_err(), "Should fail with T=2 (need T>=3)");
 }
 
@@ -341,7 +357,15 @@ fn test_arellano_bond_ids_mismatch() {
     let entity_ids = Array1::from(vec![0i64, 1]); // wrong length
     let time_ids = Array1::from(vec![0i64, 1, 2]);
 
-    let result = ArellanoBond::fit(&y, &x, &entity_ids, &time_ids);
+    let result = ArellanoBond::fit(
+        &y,
+        &x,
+        entity_ids.as_slice().unwrap(),
+        time_ids.as_slice().unwrap(),
+        2,
+        false,
+        None,
+    );
     assert!(result.is_err());
 }
 
@@ -1028,7 +1052,15 @@ fn test_arellano_bond_larger_panel() {
     }
     let y = Array1::from(y_vals);
 
-    let result = ArellanoBond::fit(&y, &x, &entity_ids, &time_ids).unwrap();
+    let result = ArellanoBond::fit(
+        &y,
+        &x,
+        entity_ids.as_slice().unwrap(),
+        time_ids.as_slice().unwrap(),
+        2,
+        false,
+        None,
+    ).unwrap();
 
     assert!(result.params.len() >= 2);
     assert!(result.n_obs > 0);
@@ -1079,7 +1111,15 @@ fn test_arellano_bond_with_exogenous() {
     }
     let y = Array1::from(y_vals);
 
-    let result = ArellanoBond::fit(&y, &x, &entity_ids, &time_ids).unwrap();
+    let result = ArellanoBond::fit(
+        &y,
+        &x,
+        entity_ids.as_slice().unwrap(),
+        time_ids.as_slice().unwrap(),
+        2,
+        false,
+        None,
+    ).unwrap();
 
     // Should have lag + 2 exogenous = 3 params
     assert!(
