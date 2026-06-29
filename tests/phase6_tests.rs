@@ -409,7 +409,7 @@ fn test_compare_means() {
     let data1 = Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
     let data2 = Array1::from(vec![2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0]);
 
-    let result = Stats::compare_means(&data1, &data2).unwrap();
+    let result = Stats::compare_means(&data1, &data2, false).unwrap();
     assert!((result.diff - (-1.0)).abs() < 1e-10);
     assert!(result.t_statistic < 0.0);
     assert!(result.p_value >= 0.0 && result.p_value <= 1.0);
@@ -424,7 +424,7 @@ fn test_compare_means_equal() {
     let data1 = Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
     let data2 = Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
 
-    let result = Stats::compare_means(&data1, &data2).unwrap();
+    let result = Stats::compare_means(&data1, &data2, false).unwrap();
     assert!((result.diff).abs() < 1e-10);
     assert!(result.p_value > 0.99);
     assert!((result.cohens_d).abs() < 1e-10);

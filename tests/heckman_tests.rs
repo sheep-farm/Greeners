@@ -1,4 +1,4 @@
-use greeners::{Heckman, OLS};
+use greeners::Heckman;
 use ndarray::{Array1, Array2};
 use std::f64::consts::PI;
 
