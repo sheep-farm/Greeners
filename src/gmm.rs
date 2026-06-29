@@ -1,6 +1,5 @@
 use crate::error::GreenersError;
 use crate::linalg::LinalgInverse as _;
-use crate::OLS;
 use ndarray as nd;
 use ndarray::{Array1, Array2};
 use statrs::distribution::{ChiSquared, ContinuousCDF};
