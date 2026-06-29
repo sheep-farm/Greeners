@@ -155,7 +155,7 @@ pub use statespace::{
     state_space_estimate, KalmanFilter, KalmanResult, KalmanSmoother, SmoothedResult,
     StateSpaceModel, StateSpaceResult,
 };
-pub use stats::{AnovaRegressionResult, AnovaResult, CompareMeansResult, Stats};
+pub use stats::{AnovaRegressionResult, AnovaResult, CompareMeansResult, TTestResult, Stats};
 pub use summary_col::{ModelSummary, SummaryCol, SummaryColResult};
 pub use sur::{SurEquation, SUR};
 pub use survival::{CoxPH, CoxResult, KMResult, KaplanMeier};
