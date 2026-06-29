@@ -1,6 +1,6 @@
 use crate::error::GreenersError;
 use crate::linalg::LinalgInverse as _;
-use crate::{DataFrame, Formula, InferenceType, OLS};
+use crate::{DataFrame, Formula, InferenceType};
 use ndarray::{Array1, Array2};
 use statrs::distribution::{ContinuousCDF, Normal};
 use std::fmt;
