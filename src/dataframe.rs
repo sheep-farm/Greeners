@@ -2698,7 +2698,9 @@ impl DataFrame {
             // Only fill NaN in Float columns (Categorical, Bool, Int, and DateTime have no NaN concept)
             let filled = match col_data.as_ref() {
                 Column::Float(arr) => {
-                    Arc::new(Column::Float(arr.mapv(|v| if v.is_nan() { value } else { v })))
+                    Arc::new(Column::Float(
+                        arr.mapv(|v| if v.is_nan() { value } else { v }),
+                    ))
                 }
                 _ => col_data.clone(),
             };
@@ -2735,7 +2737,11 @@ impl DataFrame {
         let mut new_columns = self.columns.clone();
         let col_data = &self.columns[column];
         let filled = match col_data.as_ref() {
-            Column::Float(arr) => Arc::new(Column::Float(arr.mapv(|v| if v.is_nan() { value } else { v }))),
+            Column::Float(arr) => {
+                Arc::new(Column::Float(
+                    arr.mapv(|v| if v.is_nan() { value } else { v }),
+                ))
+            }
             _ => col_data.clone(),
         };
         new_columns.insert(column.to_string(), filled);
@@ -2774,7 +2780,9 @@ impl DataFrame {
                     } else {
                         let mean: f64 =
                             valid_values.iter().sum::<f64>() / valid_values.len() as f64;
-                        Arc::new(Column::Float(arr.mapv(|v| if v.is_nan() { mean } else { v })))
+                        Arc::new(Column::Float(
+                            arr.mapv(|v| if v.is_nan() { mean } else { v }),
+                        ))
                     }
                 }
                 _ => col_data.clone(),
@@ -2823,7 +2831,9 @@ impl DataFrame {
                         } else {
                             valid_values[mid]
                         };
-                        Arc::new(Column::Float(arr.mapv(|v| if v.is_nan() { median } else { v })))
+                        Arc::new(Column::Float(
+                            arr.mapv(|v| if v.is_nan() { median } else { v }),
+                        ))
                     }
                 }
                 _ => col_data.clone(),
@@ -3155,7 +3165,10 @@ impl DataFrame {
             // Convert to float, append, wrap back in Column::Float
             let mut new_col = col_data.to_float().to_vec();
             new_col.push(row[col_name]);
-            new_columns.insert(col_name.clone(), Arc::new(Column::Float(Array1::from(new_col))));
+            new_columns.insert(
+                col_name.clone(),
+                Arc::new(Column::Float(Array1::from(new_col))),
+            );
         }
 
         DataFrame::from_arc_columns(new_columns)
@@ -4278,9 +4291,10 @@ impl DataFrame {
         }
 
         let mut new_df = self.clone();
-        new_df
-            .columns
-            .insert(column.to_string(), Arc::new(Column::Float(Array1::from(result))));
+        new_df.columns.insert(
+            column.to_string(),
+            Arc::new(Column::Float(Array1::from(result))),
+        );
         Ok(new_df)
     }
 
@@ -4399,13 +4413,23 @@ impl DataFrame {
         let mut sorted: Vec<f64> = col.iter().filter(|v| v.is_finite()).copied().collect();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let n = sorted.len();
-        if n == 0 { return Ok(col.clone()); }
+        if n == 0 {
+            return Ok(col.clone());
+        }
         let lo_idx = (p * n as f64).floor() as usize;
         let hi_idx = ((1.0 - p) * n as f64).ceil() as usize;
         let lo = sorted[lo_idx.min(n - 1)];
         let hi = sorted[hi_idx.min(n - 1).max(lo_idx)];
         Ok(col.mapv(|v| {
-            if !v.is_finite() { v } else if v < lo { lo } else if v > hi { hi } else { v }
+            if !v.is_finite() {
+                v
+            } else if v < lo {
+                lo
+            } else if v > hi {
+                hi
+            } else {
+                v
+            }
         }))
     }
 
@@ -4413,32 +4437,66 @@ impl DataFrame {
     pub fn encode(&self, column: &str) -> Result<(Array1<f64>, Vec<String>), GreenersError> {
         let str_vals = self.get_string(column)?;
         let mut label_map: Vec<String> = Vec::new();
-        let mut val_to_idx: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-        let numeric: Vec<f64> = str_vals.iter().map(|s| {
-            if let Some(&idx) = val_to_idx.get(s.as_str()) { idx as f64 }
-            else { let idx = label_map.len(); label_map.push(s.clone()); val_to_idx.insert(s.clone(), idx); idx as f64 }
-        }).collect();
+        let mut val_to_idx: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
+        let numeric: Vec<f64> = str_vals
+            .iter()
+            .map(|s| {
+                if let Some(&idx) = val_to_idx.get(s.as_str()) {
+                    idx as f64
+                } else {
+                    let idx = label_map.len();
+                    label_map.push(s.clone());
+                    val_to_idx.insert(s.clone(), idx);
+                    idx as f64
+                }
+            })
+            .collect();
         Ok((Array1::from(numeric), label_map))
     }
 
     /// Generate dummy variables from a column (numeric or string).
-    pub fn generate_dummies(&self, column: &str, prefix: &str) -> Result<Vec<(String, Array1<f64>)>, GreenersError> {
+    pub fn generate_dummies(
+        &self,
+        column: &str,
+        prefix: &str,
+    ) -> Result<Vec<(String, Array1<f64>)>, GreenersError> {
         let n = self.n_rows;
         let categories: Vec<String> = if let Ok(arr) = self.get(column) {
-            let mut unique: Vec<i64> = arr.iter().map(|&v| v as i64).collect::<std::collections::HashSet<_>>().into_iter().collect();
-            unique.sort(); unique.iter().map(|v| v.to_string()).collect()
+            let mut unique: Vec<i64> = arr
+                .iter()
+                .map(|&v| v as i64)
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .collect();
+            unique.sort();
+            unique.iter().map(|v| v.to_string()).collect()
         } else if let Ok(arr) = self.get_string(column) {
-            let mut unique: Vec<String> = arr.iter().cloned().collect::<std::collections::HashSet<_>>().into_iter().collect();
-            unique.sort(); unique
-        } else { return Err(GreenersError::VariableNotFound(column.to_string())); };
+            let mut unique: Vec<String> = arr
+                .iter()
+                .cloned()
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .collect();
+            unique.sort();
+            unique
+        } else {
+            return Err(GreenersError::VariableNotFound(column.to_string()));
+        };
         let mut result = Vec::new();
         for cat in &categories {
             let dummy: Vec<f64> = if let Ok(arr) = self.get(column) {
                 let cv: f64 = cat.parse().unwrap_or(f64::NAN);
-                arr.iter().map(|&v| if (v - cv).abs() < 0.5 { 1.0 } else { 0.0 }).collect()
+                arr.iter()
+                    .map(|&v| if (v - cv).abs() < 0.5 { 1.0 } else { 0.0 })
+                    .collect()
             } else if let Ok(arr) = self.get_string(column) {
-                arr.iter().map(|s| if s == cat { 1.0 } else { 0.0 }).collect()
-            } else { vec![0.0; n] };
+                arr.iter()
+                    .map(|s| if s == cat { 1.0 } else { 0.0 })
+                    .collect()
+            } else {
+                vec![0.0; n]
+            };
             result.push((format!("{prefix}_{cat}"), Array1::from(dummy)));
         }
         Ok(result)
@@ -4565,14 +4623,17 @@ impl DataFrameBuilder {
     ///     .unwrap();
     /// ```
     pub fn add_column(mut self, name: &str, data: Vec<f64>) -> Self {
-        self.columns
-            .insert(name.to_string(), Arc::new(Column::Float(Array1::from(data))));
+        self.columns.insert(
+            name.to_string(),
+            Arc::new(Column::Float(Array1::from(data))),
+        );
         self
     }
 
     /// Add a Float column from an Array1<f64>
     pub fn add_column_array(mut self, name: &str, data: Array1<f64>) -> Self {
-        self.columns.insert(name.to_string(), Arc::new(Column::Float(data)));
+        self.columns
+            .insert(name.to_string(), Arc::new(Column::Float(data)));
         self
     }
 
@@ -4605,8 +4666,10 @@ impl DataFrameBuilder {
     ///     .unwrap();
     /// ```
     pub fn add_bool(mut self, name: &str, values: Vec<bool>) -> Self {
-        self.columns
-            .insert(name.to_string(), Arc::new(Column::from_bool(Array1::from(values))));
+        self.columns.insert(
+            name.to_string(),
+            Arc::new(Column::from_bool(Array1::from(values))),
+        );
         self
     }
 
@@ -4622,8 +4685,10 @@ impl DataFrameBuilder {
     ///     .unwrap();
     /// ```
     pub fn add_int(mut self, name: &str, values: Vec<i64>) -> Self {
-        self.columns
-            .insert(name.to_string(), Arc::new(Column::from_int(Array1::from(values))));
+        self.columns.insert(
+            name.to_string(),
+            Arc::new(Column::from_int(Array1::from(values))),
+        );
         self
     }
 

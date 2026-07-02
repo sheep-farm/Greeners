@@ -107,7 +107,11 @@ impl fmt::Display for IvResult {
                 writeln!(
                     f,
                     "{:<10} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
-                    var_name, self.params[fit_idx], self.std_errors[fit_idx], self.t_values[fit_idx], self.p_values[fit_idx]
+                    var_name,
+                    self.params[fit_idx],
+                    self.std_errors[fit_idx],
+                    self.t_values[fit_idx],
+                    self.p_values[fit_idx]
                 )?;
                 fit_idx += 1;
             }
@@ -336,7 +340,8 @@ impl IV {
         }
 
         // Detect collinearity in X (regressors only, not instruments Z)
-        let (x_clean, variable_names, omitted_positioned) = if let Some(ref names) = variable_names {
+        let (x_clean, variable_names, omitted_positioned) = if let Some(ref names) = variable_names
+        {
             let cr = crate::linalg::drop_collinear(x, names, 1e-10);
             if cr.omitted.is_empty() {
                 (x.clone(), variable_names, vec![])

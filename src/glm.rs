@@ -704,17 +704,17 @@ impl GLM {
         }
 
         // Detect collinearity
-        let (x_clean, variable_names, omitted_positioned) =
-            if let Some(ref names) = variable_names {
-                let cr = crate::linalg::drop_collinear(x, names, 1e-10);
-                if cr.omitted.is_empty() {
-                    (x.clone(), variable_names, vec![])
-                } else {
-                    (cr.x_clean, Some(cr.clean_names), cr.omitted)
-                }
-            } else {
+        let (x_clean, variable_names, omitted_positioned) = if let Some(ref names) = variable_names
+        {
+            let cr = crate::linalg::drop_collinear(x, names, 1e-10);
+            if cr.omitted.is_empty() {
                 (x.clone(), variable_names, vec![])
-            };
+            } else {
+                (cr.x_clean, Some(cr.clean_names), cr.omitted)
+            }
+        } else {
+            (x.clone(), variable_names, vec![])
+        };
 
         let x_use = &x_clean;
         let k = x_use.ncols();

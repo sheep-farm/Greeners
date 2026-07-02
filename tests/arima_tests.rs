@@ -409,5 +409,3 @@ fn test_mle_arima111_display() {
     assert!(display.contains("via MLE"));
     assert!(display.contains("Log-Likelihood"));
 }
-
-

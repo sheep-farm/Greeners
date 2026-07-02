@@ -411,7 +411,8 @@ impl Stats {
             let se = (v1 / n1 as f64 + v2 / n2 as f64).sqrt();
             let t = if se > 1e-15 { diff / se } else { 0.0 };
             let num = (v1 / n1 as f64 + v2 / n2 as f64).powi(2);
-            let den = (v1 / n1 as f64).powi(2) / (n1 - 1) as f64 + (v2 / n2 as f64).powi(2) / (n2 - 1) as f64;
+            let den = (v1 / n1 as f64).powi(2) / (n1 - 1) as f64
+                + (v2 / n2 as f64).powi(2) / (n2 - 1) as f64;
             let df = num / den.max(1e-15);
             (t, df)
         };
@@ -450,26 +451,37 @@ impl Stats {
             let se = (pooled_var * (1.0 / n1 as f64 + 1.0 / n2 as f64)).sqrt();
             let t_stat = if se > 1e-15 { diff / se } else { 0.0 };
             let df = (n1 + n2 - 2) as f64;
-            let dist = StudentsT::new(0.0, 1.0, df).map_err(|_| GreenersError::OptimizationFailed)?;
+            let dist =
+                StudentsT::new(0.0, 1.0, df).map_err(|_| GreenersError::OptimizationFailed)?;
             let p_value = 2.0 * (1.0 - dist.cdf(t_stat.abs()));
             let t_crit = dist.inverse_cdf(0.975);
             let ci_lower = diff - t_crit * se;
             let ci_upper = diff + t_crit * se;
-            let cohens_d = if pooled_var > 1e-15 { diff / pooled_var.sqrt() } else { 0.0 };
+            let cohens_d = if pooled_var > 1e-15 {
+                diff / pooled_var.sqrt()
+            } else {
+                0.0
+            };
             (t_stat, df, se, ci_lower, ci_upper, cohens_d, p_value)
         } else {
             let se = (v1 / n1 as f64 + v2 / n2 as f64).sqrt();
             let t_stat = if se > 1e-15 { diff / se } else { 0.0 };
             let num = (v1 / n1 as f64 + v2 / n2 as f64).powi(2);
-            let den = (v1 / n1 as f64).powi(2) / (n1 - 1) as f64 + (v2 / n2 as f64).powi(2) / (n2 - 1) as f64;
+            let den = (v1 / n1 as f64).powi(2) / (n1 - 1) as f64
+                + (v2 / n2 as f64).powi(2) / (n2 - 1) as f64;
             let df = num / den.max(1e-15);
-            let dist = StudentsT::new(0.0, 1.0, df).map_err(|_| GreenersError::OptimizationFailed)?;
+            let dist =
+                StudentsT::new(0.0, 1.0, df).map_err(|_| GreenersError::OptimizationFailed)?;
             let p_value = 2.0 * (1.0 - dist.cdf(t_stat.abs()));
             let t_crit = dist.inverse_cdf(0.975);
             let ci_lower = diff - t_crit * se;
             let ci_upper = diff + t_crit * se;
             let pooled_var = ((n1 - 1) as f64 * v1 + (n2 - 1) as f64 * v2) / (n1 + n2 - 2) as f64;
-            let cohens_d = if pooled_var > 1e-15 { diff / pooled_var.sqrt() } else { 0.0 };
+            let cohens_d = if pooled_var > 1e-15 {
+                diff / pooled_var.sqrt()
+            } else {
+                0.0
+            };
             (t_stat, df, se, ci_lower, ci_upper, cohens_d, p_value)
         };
 
@@ -514,10 +526,7 @@ impl Stats {
     }
 
     /// One-sample t-test (full details).
-    pub fn ttest_1samp_full(
-        data: &Array1<f64>,
-        mu0: f64,
-    ) -> Result<TTestResult, GreenersError> {
+    pub fn ttest_1samp_full(data: &Array1<f64>, mu0: f64) -> Result<TTestResult, GreenersError> {
         let n = data.len();
         if n < 2 {
             return Err(GreenersError::InvalidOperation(
@@ -528,7 +537,11 @@ impl Stats {
         let var = data.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / (n - 1) as f64;
         let std_dev = var.sqrt();
         let std_err = std_dev / (n as f64).sqrt();
-        let t_statistic = if std_err > 1e-15 { (mean - mu0) / std_err } else { 0.0 };
+        let t_statistic = if std_err > 1e-15 {
+            (mean - mu0) / std_err
+        } else {
+            0.0
+        };
         let df = (n - 1) as f64;
         let dist = StudentsT::new(0.0, 1.0, df).map_err(|_| GreenersError::OptimizationFailed)?;
         let p_value = 2.0 * (1.0 - dist.cdf(t_statistic.abs()));

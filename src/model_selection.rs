@@ -332,9 +332,7 @@ impl PanelDiagnostics {
                 continue;
             }
             let fd_count = t - 1;
-            let resids: Vec<f64> = (row_ptr..row_ptr + fd_count)
-                .map(|i| fd_resid[i])
-                .collect();
+            let resids: Vec<f64> = (row_ptr..row_ptr + fd_count).map(|i| fd_resid[i]).collect();
             entity_fd_resid.insert(*eid, resids);
             row_ptr += fd_count;
         }
@@ -365,12 +363,10 @@ impl PanelDiagnostics {
             Some((stat, pval))
         };
 
-        let (m1, p1) = m_stat(1).ok_or(
-            "Dados insuficientes para m1 (precisa T ≥ 3 por entidade)".to_string(),
-        )?;
-        let (m2, p2) = m_stat(2).ok_or(
-            "Dados insuficientes para m2 (precisa T ≥ 4 por entidade)".to_string(),
-        )?;
+        let (m1, p1) = m_stat(1)
+            .ok_or("Dados insuficientes para m1 (precisa T ≥ 3 por entidade)".to_string())?;
+        let (m2, p2) = m_stat(2)
+            .ok_or("Dados insuficientes para m2 (precisa T ≥ 4 por entidade)".to_string())?;
 
         Ok((m1, p1, m2, p2))
     }
@@ -451,10 +447,7 @@ impl PanelDiagnostics {
                 .get(&time_vals[obs].to_bits())
                 .ok_or("Período não encontrado no índice")?;
             let vals: Vec<f64> = non_const_cols.iter().map(|&c| x[[obs, c]]).collect();
-            entity_period
-                .entry(eid)
-                .or_default()
-                .insert(t_idx, vals);
+            entity_period.entry(eid).or_default().insert(t_idx, vals);
         }
 
         let n_entities = entity_period.len();
@@ -507,7 +500,9 @@ impl PanelDiagnostics {
 
         let k_active = active_aug.len();
         if k_active == 0 {
-            return Err("Nenhuma coluna de augmentação com variância — regressores constantes?".to_string());
+            return Err(
+                "Nenhuma coluna de augmentação com variância — regressores constantes?".to_string(),
+            );
         }
 
         // Build final augmented matrix: [original X | active Chamberlain cols]
@@ -531,8 +526,8 @@ impl PanelDiagnostics {
         }
 
         // Restricted OLS: y ~ X
-        let ols_r = OLS::fit(y, x, CovarianceType::NonRobust)
-            .map_err(|e| format!("OLS restrito: {e}"))?;
+        let ols_r =
+            OLS::fit(y, x, CovarianceType::NonRobust).map_err(|e| format!("OLS restrito: {e}"))?;
 
         // Unrestricted OLS: y ~ X + Chamberlain cols
         let ols_u = OLS::fit(y, &x_final, CovarianceType::NonRobust)
@@ -600,9 +595,7 @@ impl PanelDiagnostics {
         // Compute entity means for non-constant columns
         let mut entity_sums: HashMap<i64, (Vec<f64>, usize)> = HashMap::new();
         for (i, &eid) in entity_ids.iter().enumerate() {
-            let entry = entity_sums
-                .entry(eid)
-                .or_insert_with(|| (vec![0.0; k], 0));
+            let entry = entity_sums.entry(eid).or_insert_with(|| (vec![0.0; k], 0));
             for (j, &c) in non_const_cols.iter().enumerate() {
                 entry.0[j] += x[[i, c]];
             }
@@ -610,9 +603,7 @@ impl PanelDiagnostics {
         }
         let entity_means: HashMap<i64, Vec<f64>> = entity_sums
             .into_iter()
-            .map(|(eid, (sums, cnt))| {
-                (eid, sums.into_iter().map(|s| s / cnt as f64).collect())
-            })
+            .map(|(eid, (sums, cnt))| (eid, sums.into_iter().map(|s| s / cnt as f64).collect()))
             .collect();
 
         // Build augmented design matrix [X | X̄]
@@ -651,9 +642,7 @@ impl PanelDiagnostics {
 
         // Extract γ̂ and SE from the unrestricted model (last k parameters)
         let n_params = ols_u.params.len();
-        let gamma_hat: Vec<f64> = (n_params - k..n_params)
-            .map(|i| ols_u.params[i])
-            .collect();
+        let gamma_hat: Vec<f64> = (n_params - k..n_params).map(|i| ols_u.params[i]).collect();
         let gamma_se: Vec<f64> = (n_params - k..n_params)
             .map(|i| ols_u.std_errors[i])
             .collect();
@@ -826,8 +815,7 @@ impl PanelDiagnostics {
         let t_stat = (rho_hat - (-0.5)) / se_rho;
         let df_t = (n_entities - 1) as f64;
 
-        let t_dist =
-            StudentsT::new(0.0, 1.0, df_t).map_err(|e| format!("t-distribuição: {e}"))?;
+        let t_dist = StudentsT::new(0.0, 1.0, df_t).map_err(|e| format!("t-distribuição: {e}"))?;
         let p_value = 2.0 * (1.0 - t_dist.cdf(t_stat.abs()));
 
         Ok((rho_hat, t_stat, p_value, n_pairs))
@@ -842,12 +830,9 @@ impl PanelDiagnostics {
     ///
     /// Arguments: residuals from a panel model (pooled OLS or FE) and entity IDs
     /// in the same order as the observations.
-    pub fn pesaran_cd(
-        residuals: &Array1<f64>,
-        entity_ids: &[usize],
-    ) -> Result<(f64, f64), String> {
-        use std::collections::HashMap;
+    pub fn pesaran_cd(residuals: &Array1<f64>, entity_ids: &[usize]) -> Result<(f64, f64), String> {
         use statrs::distribution::{ContinuousCDF, Normal};
+        use std::collections::HashMap;
 
         let n_obs = residuals.len();
         if entity_ids.len() != n_obs {

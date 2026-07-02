@@ -533,8 +533,8 @@ impl ARIMA {
         if sigma2 <= 0.0 || !sigma2.is_finite() {
             return (f64::NEG_INFINITY, f64::NAN);
         }
-        let log_lik = -0.5 * nf * (1.0 + (2.0 * std::f64::consts::PI * sigma2).ln())
-            - 0.5 * sum_log_v;
+        let log_lik =
+            -0.5 * nf * (1.0 + (2.0 * std::f64::consts::PI * sigma2).ln()) - 0.5 * sum_log_v;
         (log_lik, sigma2)
     }
 
@@ -593,25 +593,26 @@ impl ARIMA {
         let initial: Vec<f64> = {
             let mut v = Vec::with_capacity(n_params);
             for i in 0..p {
-                v.push(clamp_stationarity(hr.ar_params.get(i).copied().unwrap_or(0.0)));
+                v.push(clamp_stationarity(
+                    hr.ar_params.get(i).copied().unwrap_or(0.0),
+                ));
             }
             for i in 0..q {
-                v.push(clamp_invertibility(hr.ma_params.get(i).copied().unwrap_or(0.0)));
+                v.push(clamp_invertibility(
+                    hr.ma_params.get(i).copied().unwrap_or(0.0),
+                ));
             }
             v
         };
 
-        let problem = ArimaProblem {
-            z: z.clone(),
-            p,
-            q,
-        };
+        let problem = ArimaProblem { z: z.clone(), p, q };
 
         // Nelder-Mead simplex. n+1 vertices built from the HR initial point.
         let vertices = build_simplex(&initial, 0.25);
-        let solver: NelderMead<Vec<f64>, f64> = NelderMead::new(vertices)
-            .with_sd_tolerance(1e-7)
-            .map_err(|e| GreenersError::InvalidOperation(format!("Nelder-Mead config: {e}")))?;
+        let solver: NelderMead<Vec<f64>, f64> =
+            NelderMead::new(vertices)
+                .with_sd_tolerance(1e-7)
+                .map_err(|e| GreenersError::InvalidOperation(format!("Nelder-Mead config: {e}")))?;
 
         let result = Executor::new(problem, solver)
             .configure(|state: IterState<Vec<f64>, (), (), (), (), f64>| state.max_iters(2000))
@@ -696,7 +697,11 @@ impl ARIMA {
         let n_final = t;
         let n_cols = 1 + p + q;
         let df_model = n_cols;
-        let df_resid = if n_final > n_cols { n_final - n_cols } else { 1 };
+        let df_resid = if n_final > n_cols {
+            n_final - n_cols
+        } else {
+            1
+        };
         let nf = n_final as f64;
         let aic = -2.0 * log_lik + 2.0 * n_cols as f64;
         let bic = -2.0 * log_lik + n_cols as f64 * nf.ln();
@@ -735,11 +740,8 @@ impl ARIMA {
         let std_errors = Array1::<f64>::zeros(n_se);
         let t_values = Array1::<f64>::zeros(n_se);
         let p_values = Array1::<f64>::ones(n_se);
-        let conf_lower = Array1::from_vec(
-            std::iter::repeat(f64::NAN)
-                .take(n_se)
-                .collect::<Vec<_>>(),
-        );
+        let conf_lower =
+            Array1::from_vec(std::iter::repeat(f64::NAN).take(n_se).collect::<Vec<_>>());
         let conf_upper = conf_lower.clone();
 
         Ok(ArimaResult {
@@ -806,8 +808,9 @@ impl ARIMA {
         let cov = if cov.diag().iter().all(|&v| v > 0.0 && v.is_finite()) {
             cov
         } else {
-            pseudo_inverse(&hessian)
-                .map_err(|_| GreenersError::InvalidOperation("Hessian pseudo-inverse failed".into()))?
+            pseudo_inverse(&hessian).map_err(|_| {
+                GreenersError::InvalidOperation("Hessian pseudo-inverse failed".into())
+            })?
         };
         let n_total = n + 1;
         let mut se = Array1::<f64>::zeros(n_total);
@@ -1409,11 +1412,7 @@ impl fmt::Display for ArimaResult {
             "mle" => " via MLE ",
             _ => " via Hannan-Rissanen ",
         };
-        writeln!(
-            f,
-            "\n{:=^70}",
-            format!("{}{}", model_name, method_label)
-        )?;
+        writeln!(f, "\n{:=^70}", format!("{}{}", model_name, method_label))?;
         writeln!(f, "{:<20} {:>10}", "Observations:", self.n_obs)?;
         writeln!(f, "{:<20} {:>10.6}", "Log-Likelihood:", self.log_likelihood)?;
         writeln!(f, "{:<20} {:>10.6}", "Sigma²:", self.sigma2)?;

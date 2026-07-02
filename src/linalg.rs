@@ -4,7 +4,9 @@
 /// `.cholesky()`, `.det()`) that the old `ndarray_linalg` traits provided, so the
 /// only change needed in each caller is to swap the `use` line.
 use crate::error::GreenersError;
-use faer::linalg::solvers::{DenseSolveCore, Llt, PartialPivLu, Qr, SelfAdjointEigen, Svd, ColPivQr};
+use faer::linalg::solvers::{
+    ColPivQr, DenseSolveCore, Llt, PartialPivLu, Qr, SelfAdjointEigen, Svd,
+};
 use faer::prelude::*;
 use faer::Side;
 use ndarray::{Array1, Array2};
@@ -222,11 +224,7 @@ pub struct CollinearityResult {
     pub clean_names: Vec<String>,
 }
 
-pub fn drop_collinear(
-    x: &Array2<f64>,
-    var_names: &[String],
-    tolerance: f64,
-) -> CollinearityResult {
+pub fn drop_collinear(x: &Array2<f64>, var_names: &[String], tolerance: f64) -> CollinearityResult {
     let n = x.nrows();
     let k = x.ncols();
     let mat = to_faer(x);

@@ -92,21 +92,25 @@ impl Margins {
 
         let compute_effects = |beta: &[f64]| -> Vec<f64> {
             let beta_arr = Array1::from(beta.to_vec());
-            (0..k).map(|j| {
-                let sum: f64 = (0..n).map(|i| {
-                    let eta = x.row(i).dot(&beta_arr);
-                    let deriv = match link {
-                        LinkFn::Logit => {
-                            let p = crate::logistic(eta);
-                            p * (1.0 - p)
-                        }
-                        LinkFn::Probit => crate::norm_pdf(eta),
-                        LinkFn::Exponential => eta.exp(),
-                    };
-                    deriv * beta_arr[j]
-                }).sum();
-                sum / n as f64
-            }).collect()
+            (0..k)
+                .map(|j| {
+                    let sum: f64 = (0..n)
+                        .map(|i| {
+                            let eta = x.row(i).dot(&beta_arr);
+                            let deriv = match link {
+                                LinkFn::Logit => {
+                                    let p = crate::logistic(eta);
+                                    p * (1.0 - p)
+                                }
+                                LinkFn::Probit => crate::norm_pdf(eta),
+                                LinkFn::Exponential => eta.exp(),
+                            };
+                            deriv * beta_arr[j]
+                        })
+                        .sum();
+                    sum / n as f64
+                })
+                .collect()
         };
 
         let effects = compute_effects(params.as_slice().unwrap());
@@ -134,12 +138,21 @@ impl Margins {
             vec![f64::NAN; k]
         };
 
-        let z_values: Vec<f64> = effects.iter().zip(&std_errors)
+        let z_values: Vec<f64> = effects
+            .iter()
+            .zip(&std_errors)
             .map(|(&e, &s)| if s > 1e-15 { e / s } else { f64::NAN })
             .collect();
 
-        let p_values: Vec<f64> = z_values.iter()
-            .map(|&z| if z.is_finite() { crate::t_pvalue_two(z, 1e12) } else { f64::NAN })
+        let p_values: Vec<f64> = z_values
+            .iter()
+            .map(|&z| {
+                if z.is_finite() {
+                    crate::t_pvalue_two(z, 1e12)
+                } else {
+                    f64::NAN
+                }
+            })
             .collect();
 
         MarginalEffectsResult {
@@ -153,4 +166,8 @@ impl Margins {
     }
 }
 
-enum LinkFn { Logit, Probit, Exponential }
+enum LinkFn {
+    Logit,
+    Probit,
+    Exponential,
+}

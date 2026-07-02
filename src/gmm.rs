@@ -76,8 +76,6 @@ impl GMM {
         let _k = x.ncols(); // Regressors
         let l = z.ncols(); // Instruments (Moments)
 
-
-
         let fallback_names: Vec<String> = (0..x.ncols()).map(|i| format!("x{}", i)).collect();
         let cr = crate::linalg::drop_collinear(x, &fallback_names, 1e-10);
         let omitted_var_names = cr.omitted;
