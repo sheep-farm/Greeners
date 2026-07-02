@@ -5,7 +5,8 @@ use std::fmt;
 
 #[derive(Debug)]
 pub struct VarResult {
-    pub params: Array2<f64>,  // Matriz (1 + k*p) x k
+    pub params: Array2<f64>,   // Matriz (1 + k*p) x k
+    pub std_errors: Array2<f64>, // Matriz (1 + k*p) x k
     pub sigma_u: Array2<f64>, // Covariância dos resíduos (k x k)
     pub aic: f64,
     pub bic: f64,
@@ -132,6 +133,47 @@ impl fmt::Display for VarResult {
         writeln!(f, "{:<15} {:>10.4}", "BIC:", self.bic)?;
         writeln!(f, "{:=^78}", "")?;
 
+        writeln!(f, "\n{:-^78}", " Coefficients ")?;
+        writeln!(
+            f,
+            "{:<15} {:>12} {:>12} {:>12} {:>12}",
+            "Variable", "coef", "std err", "t", "P>|t|"
+        )?;
+        writeln!(f, "{}", "-".repeat(70))?;
+        let k = self.n_vars;
+        let p = self.lags;
+        for j in 0..k {
+            let dep = &self.var_names[j];
+            let key_const = format!("{}_const", dep);
+            writeln!(
+                f,
+                "{:<15} {:>12.4} {:>12.4} {:>12.4} {:>12.4}",
+                key_const,
+                self.params[[0, j]],
+                self.std_errors[[0, j]],
+                self.params[[0, j]] / self.std_errors[[0, j]].max(1e-15),
+                0.0
+            )?;
+            for l in 1..=p {
+                for i in 0..k {
+                    let row = 1 + (l - 1) * k + i;
+                    let lag_name = format!("{}_{}.L{}", dep, self.var_names[i], l);
+                    let t_val =
+                        self.params[[row, j]] / self.std_errors[[row, j]].max(1e-15);
+                    writeln!(
+                        f,
+                        "{:<15} {:>12.4} {:>12.4} {:>12.4} {:>12.4}",
+                        lag_name,
+                        self.params[[row, j]],
+                        self.std_errors[[row, j]],
+                        t_val,
+                        0.0
+                    )?;
+                }
+            }
+        }
+        writeln!(f, "{:=^78}", "")?;
+
         writeln!(f, "\n{:-^78}", " Residual Covariance (Sigma_u) ")?;
         for row in self.sigma_u.rows() {
             write!(f, "[ ")?;
@@ -204,6 +246,16 @@ impl VAR {
 
         let sigma_u = residuals.t().dot(&residuals) / ((n_obs - n_cols_x) as f64);
 
+        // 3.5 Standard errors per equation: SE = sqrt(sigma_u[j,j] * diag((X'X)^-1))
+        let mut std_errors = Array2::<f64>::zeros(params.raw_dim());
+        let diag_xx_inv = xt_x_inv.diag();
+        for j in 0..k {
+            let sigma_j = sigma_u[[j, j]].max(1e-15);
+            for i in 0..n_cols_x {
+                std_errors[[i, j]] = (sigma_j * diag_xx_inv[i]).sqrt();
+            }
+        }
+
         // 4. Critérios de Informação
         // Para usar .det(), importamos a trait Determinant
         let det_sigma = sigma_u.det().unwrap_or(1.0).max(1e-10);
@@ -219,6 +271,7 @@ impl VAR {
 
         Ok(VarResult {
             params,
+            std_errors,
             sigma_u,
             aic,
             bic,
