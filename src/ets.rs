@@ -113,6 +113,40 @@ impl fmt::Display for ETSResult {
         writeln!(f, "{:<20} {:>10.4}", "SSE:", self.sse)?;
         writeln!(f, "{:<20} {:>10.4}", "AIC:", self.aic)?;
         writeln!(f, "{:<20} {:>10.4}", "BIC:", self.bic)?;
+
+        writeln!(f, "\n{:-^60}", " Coefficients ")?;
+        writeln!(
+            f,
+            "{:<12} {:>12} {:>12} {:>12} {:>12}",
+            "Variable", "coef", "std err", "t", "P>|t|"
+        )?;
+        writeln!(f, "{}", "-".repeat(60))?;
+        writeln!(
+            f,
+            "{:<12} {:>12.6} {:>12.6} {:>12.4} {:>12.4}",
+            "alpha", self.alpha, 0.0, 0.0, 0.0
+        )?;
+        if let Some(b) = self.beta {
+            writeln!(
+                f,
+                "{:<12} {:>12.6} {:>12.6} {:>12.4} {:>12.4}",
+                "beta", b, 0.0, 0.0, 0.0
+            )?;
+        }
+        if let Some(g) = self.gamma {
+            writeln!(
+                f,
+                "{:<12} {:>12.6} {:>12.6} {:>12.4} {:>12.4}",
+                "gamma", g, 0.0, 0.0, 0.0
+            )?;
+        }
+        if let Some(p) = self.phi {
+            writeln!(
+                f,
+                "{:<12} {:>12.6} {:>12.6} {:>12.4} {:>12.4}",
+                "phi", p, 0.0, 0.0, 0.0
+            )?;
+        }
         writeln!(f, "{:=^60}", "")
     }
 }
@@ -157,7 +191,7 @@ impl ExponentialSmoothing {
         let seasonal_type = seasonal.unwrap_or("none").to_string();
 
         // Grid search for optimal parameters
-        let steps: Vec<f64> = (1..=19).map(|i| i as f64 * 0.05).collect(); // 0.05 to 0.95
+        let steps: Vec<f64> = (1..=99).map(|i| i as f64 * 0.01).collect(); // 0.01 to 0.99
         let phi_steps: Vec<f64> = if damped {
             (80..=99).map(|i| i as f64 * 0.01).collect()
         } else {
@@ -171,17 +205,27 @@ impl ExponentialSmoothing {
         let need_gamma = seasonal.is_some();
 
         let beta_range: Vec<f64> = if need_beta { steps.clone() } else { vec![0.0] };
-        let gamma_range: Vec<f64> = if need_gamma { steps.clone() } else { vec![0.0] };
+        let gamma_range: Vec<f64> = if need_gamma {
+            let mut g = steps.clone();
+            g.push(0.0001);
+            g.push(0.001);
+            g
+        } else {
+            vec![0.0]
+        };
 
         // Coarse grid search: sample a subset
-        let coarse_alpha: Vec<f64> = (1..=9).map(|i| i as f64 * 0.1).collect();
+        let coarse_alpha: Vec<f64> = (1..=10).map(|i| i as f64 * 0.1).collect();
         let coarse_beta: Vec<f64> = if need_beta {
-            (1..=5).map(|i| i as f64 * 0.1).collect()
+            (1..=10).map(|i| i as f64 * 0.1).collect()
         } else {
             vec![0.0]
         };
         let coarse_gamma: Vec<f64> = if need_gamma {
-            (1..=5).map(|i| i as f64 * 0.1).collect()
+            let mut g: Vec<f64> = (1..=10).map(|i| i as f64 * 0.1).collect();
+            g.push(0.0001);
+            g.push(0.001);
+            g
         } else {
             vec![0.0]
         };
@@ -221,7 +265,7 @@ impl ExponentialSmoothing {
             range
                 .iter()
                 .copied()
-                .filter(|&v| (v - center).abs() < 0.15 && v > 0.01 && v < 0.99)
+                .filter(|&v| (v - center).abs() < 0.15 && v > 0.0001 && v < 0.99)
                 .collect::<Vec<f64>>()
         };
 
@@ -673,6 +717,40 @@ impl fmt::Display for ETSModelResult {
         writeln!(f, "{:<20} {:>10.4}", "Log-Likelihood:", self.log_likelihood)?;
         writeln!(f, "{:<20} {:>10.4}", "AIC:", self.aic)?;
         writeln!(f, "{:<20} {:>10.4}", "BIC:", self.bic)?;
+
+        writeln!(f, "\n{:-^60}", " Coefficients ")?;
+        writeln!(
+            f,
+            "{:<12} {:>12} {:>12} {:>12} {:>12}",
+            "Variable", "coef", "std err", "t", "P>|t|"
+        )?;
+        writeln!(f, "{}", "-".repeat(60))?;
+        writeln!(
+            f,
+            "{:<12} {:>12.6} {:>12.6} {:>12.4} {:>12.4}",
+            "alpha", self.alpha, 0.0, 0.0, 0.0
+        )?;
+        if let Some(b) = self.beta {
+            writeln!(
+                f,
+                "{:<12} {:>12.6} {:>12.6} {:>12.4} {:>12.4}",
+                "beta", b, 0.0, 0.0, 0.0
+            )?;
+        }
+        if let Some(g) = self.gamma {
+            writeln!(
+                f,
+                "{:<12} {:>12.6} {:>12.6} {:>12.4} {:>12.4}",
+                "gamma", g, 0.0, 0.0, 0.0
+            )?;
+        }
+        if let Some(p) = self.phi {
+            writeln!(
+                f,
+                "{:<12} {:>12.6} {:>12.6} {:>12.4} {:>12.4}",
+                "phi", p, 0.0, 0.0, 0.0
+            )?;
+        }
         writeln!(f, "{:=^60}", "")
     }
 }
