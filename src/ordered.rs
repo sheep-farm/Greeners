@@ -87,7 +87,9 @@ impl fmt::Display for OrderedResult {
 
 impl OrderedResult {
     /// X matrix used in estimation (for marginal effects).
-    pub fn x_data(&self) -> &Array2<f64> { &self._x_data }
+    pub fn x_data(&self) -> &Array2<f64> {
+        &self._x_data
+    }
 
     /// Predicted probabilities for each category: (n x J).
     pub fn predict_proba(&self, x: &Array2<f64>) -> Array2<f64> {

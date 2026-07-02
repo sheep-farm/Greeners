@@ -5,9 +5,9 @@ use std::fmt;
 
 #[derive(Debug)]
 pub struct VarResult {
-    pub params: Array2<f64>,   // Matriz (1 + k*p) x k
+    pub params: Array2<f64>,     // Matriz (1 + k*p) x k
     pub std_errors: Array2<f64>, // Matriz (1 + k*p) x k
-    pub sigma_u: Array2<f64>, // Covariância dos resíduos (k x k)
+    pub sigma_u: Array2<f64>,    // Covariância dos resíduos (k x k)
     pub aic: f64,
     pub bic: f64,
     pub lags: usize,
@@ -158,8 +158,7 @@ impl fmt::Display for VarResult {
                 for i in 0..k {
                     let row = 1 + (l - 1) * k + i;
                     let lag_name = format!("{}_{}.L{}", dep, self.var_names[i], l);
-                    let t_val =
-                        self.params[[row, j]] / self.std_errors[[row, j]].max(1e-15);
+                    let t_val = self.params[[row, j]] / self.std_errors[[row, j]].max(1e-15);
                     writeln!(
                         f,
                         "{:<15} {:>12.4} {:>12.4} {:>12.4} {:>12.4}",

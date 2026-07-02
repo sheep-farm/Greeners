@@ -6,7 +6,6 @@
 ///
 /// Referência: Heckman (1979) "Sample Selection Bias as a Specification Error".
 ///             Greene (2012) Econometric Analysis, 7th ed., Cap. 19.
-
 use crate::error::GreenersError;
 use crate::linalg::LinalgInverse as _;
 use crate::OLS;
@@ -55,38 +54,76 @@ pub struct HeckmanResult {
 impl fmt::Display for HeckmanResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let thick = "═".repeat(70);
-        let thin  = "─".repeat(70);
+        let thin = "─".repeat(70);
         let sig = |p: f64| {
-            if p < 0.01 { "***" } else if p < 0.05 { "**" } else if p < 0.10 { "*" } else { "" }
+            if p < 0.01 {
+                "***"
+            } else if p < 0.05 {
+                "**"
+            } else if p < 0.10 {
+                "*"
+            } else {
+                ""
+            }
         };
 
         writeln!(f, "\n{thick}")?;
         writeln!(f, " Heckman Two-Step (Heckit)  —  Heckman (1979)")?;
         writeln!(f, "{thick}")?;
-        writeln!(f, " Obs (total): {:<8}  Selecionadas: {}",
-            self.n_obs, self.n_selected)?;
-        writeln!(f, " ρ̂: {:.4}   σ̂_ε: {:.4}   δ̂ = ρ̂σ̂_ε: {:.4}",
-            self.rho, self.sigma, self.delta)?;
+        writeln!(
+            f,
+            " Obs (total): {:<8}  Selecionadas: {}",
+            self.n_obs, self.n_selected
+        )?;
+        writeln!(
+            f,
+            " ρ̂: {:.4}   σ̂_ε: {:.4}   δ̂ = ρ̂σ̂_ε: {:.4}",
+            self.rho, self.sigma, self.delta
+        )?;
         writeln!(f, "{thin}")?;
 
         // ── Equação de resultado ──
         writeln!(f, " Equação de resultado  (y | z=1)")?;
-        writeln!(f, " {:<18} {:>12}  {:>12}  {:>8}  {:>8}",
-            "Variável", "coef", "SE", "z", "P>|z|")?;
+        writeln!(
+            f,
+            " {:<18} {:>12}  {:>12}  {:>8}  {:>8}",
+            "Variável", "coef", "SE", "z", "P>|z|"
+        )?;
         writeln!(f, " {}", "─".repeat(64))?;
         for i in 0..self.params.len() {
-            let name = self.variable_names.as_ref()
+            let name = self
+                .variable_names
+                .as_ref()
                 .and_then(|v| v.get(i).cloned())
                 .unwrap_or_else(|| format!("x{}", i + 1));
-            writeln!(f, " {:<18} {:>12.4}  {:>12.4}  {:>8.3}  {:>8.4}  {}",
-                name, self.params[i], self.std_errors[i],
-                self.t_values[i], self.p_values[i], sig(self.p_values[i]))?;
+            writeln!(
+                f,
+                " {:<18} {:>12.4}  {:>12.4}  {:>8.3}  {:>8.4}  {}",
+                name,
+                self.params[i],
+                self.std_errors[i],
+                self.t_values[i],
+                self.p_values[i],
+                sig(self.p_values[i])
+            )?;
         }
-        writeln!(f, " {:<18} {:>12.4}  {:>12.4}  {:>8.3}  {:>8.4}",
-            "lambda (IMR)", self.delta, self.delta_se,
-            if self.delta_se > 0.0 { self.delta / self.delta_se } else { f64::NAN },
+        writeln!(
+            f,
+            " {:<18} {:>12.4}  {:>12.4}  {:>8.3}  {:>8.4}",
+            "lambda (IMR)",
+            self.delta,
+            self.delta_se,
+            if self.delta_se > 0.0 {
+                self.delta / self.delta_se
+            } else {
+                f64::NAN
+            },
             {
-                let z = if self.delta_se > 0.0 { self.delta / self.delta_se } else { 0.0 };
+                let z = if self.delta_se > 0.0 {
+                    self.delta / self.delta_se
+                } else {
+                    0.0
+                };
                 2.0 * (1.0 - norm_cdf(z.abs()))
             }
         )?;
@@ -96,10 +133,16 @@ impl fmt::Display for HeckmanResult {
         writeln!(f, " {:<18} {:>12}  {:>12}", "Variável", "γ̂", "SE")?;
         writeln!(f, " {}", "─".repeat(44))?;
         for i in 0..self.select_params.len() {
-            let name = self.select_names.as_ref()
+            let name = self
+                .select_names
+                .as_ref()
                 .and_then(|v| v.get(i).cloned())
                 .unwrap_or_else(|| format!("w{}", i + 1));
-            writeln!(f, " {:<18} {:>12.4}  {:>12.4}", name, self.select_params[i], self.select_se[i])?;
+            writeln!(
+                f,
+                " {:<18} {:>12.4}  {:>12.4}",
+                name, self.select_params[i], self.select_se[i]
+            )?;
         }
         writeln!(f, "{thick}")?;
         writeln!(f, " *** p<0.01  ** p<0.05  * p<0.10")
@@ -130,12 +173,12 @@ impl Heckman {
         select_names: Option<Vec<String>>,
     ) -> Result<HeckmanResult, GreenersError> {
         let n = y.len();
-        let k1 = x_out.ncols();   // outcome regressors (incl. intercept)
-        let kw = x_sel.ncols();   // selection regressors (incl. intercept)
+        let k1 = x_out.ncols(); // outcome regressors (incl. intercept)
+        let kw = x_sel.ncols(); // selection regressors (incl. intercept)
 
         if x_out.nrows() != n || z.len() != n || x_sel.nrows() != n {
             return Err(GreenersError::ShapeMismatch(
-                "Heckman: dimensões de y, x_out, z e x_sel divergem".into()
+                "Heckman: dimensões de y, x_out, z e x_sel divergem".into(),
             ));
         }
         if y.iter().any(|v| !v.is_finite())
@@ -143,19 +186,19 @@ impl Heckman {
             || x_sel.iter().any(|v| !v.is_finite())
         {
             return Err(GreenersError::InvalidOperation(
-                "Heckman: dados contêm NaN ou Inf".into()
+                "Heckman: dados contêm NaN ou Inf".into(),
             ));
         }
         if !z.iter().all(|&v| v == 0.0 || v == 1.0) {
             return Err(GreenersError::InvalidOperation(
-                "Heckman: z deve ser binário (0/1)".into()
+                "Heckman: z deve ser binário (0/1)".into(),
             ));
         }
 
         let n_selected: usize = z.iter().filter(|&&v| v == 1.0).count();
         if n_selected < k1 + 1 {
             return Err(GreenersError::ShapeMismatch(
-                "Heckman: obs selecionadas insuficientes para a equação de resultado".into()
+                "Heckman: obs selecionadas insuficientes para a equação de resultado".into(),
             ));
         }
 
@@ -165,22 +208,25 @@ impl Heckman {
         // ── λ_i e δ_i para obs selecionadas ──────────────────────────────────
         let sel_idx: Vec<usize> = (0..n).filter(|&i| z[i] == 1.0).collect();
 
-        let zhat_sel: Vec<f64> = sel_idx.iter()
-            .map(|&i| x_sel.row(i).dot(&gamma))
+        let zhat_sel: Vec<f64> = sel_idx.iter().map(|&i| x_sel.row(i).dot(&gamma)).collect();
+
+        let lambda_sel: Vec<f64> = zhat_sel
+            .iter()
+            .map(|&zh| {
+                if zh < -30.0 {
+                    -zh - 1.0 / zh
+                } else {
+                    let phi_val = phi(zh);
+                    let cdf_val = norm_cdf(zh).max(1e-300);
+                    phi_val / cdf_val
+                }
+            })
             .collect();
 
-        let lambda_sel: Vec<f64> = zhat_sel.iter().map(|&zh| {
-            if zh < -30.0 {
-                -zh - 1.0 / zh
-            } else {
-                let phi_val = phi(zh);
-                let cdf_val = norm_cdf(zh).max(1e-300);
-                phi_val / cdf_val
-            }
-        }).collect();
-
         // δ_i = λ_i(λ_i + ẑ_i)  > 0
-        let delta_i: Vec<f64> = lambda_sel.iter().zip(zhat_sel.iter())
+        let delta_i: Vec<f64> = lambda_sel
+            .iter()
+            .zip(zhat_sel.iter())
             .map(|(&lam, &zh)| {
                 if zh < -30.0 {
                     1.0 + 1.0 / (zh * zh)
@@ -195,7 +241,10 @@ impl Heckman {
         let mut w_aug = Array2::<f64>::zeros((n1, k1 + 1)); // [X₁, λ]
         let mut y1 = Array1::<f64>::zeros(n1);
         for (r, &i) in sel_idx.iter().enumerate() {
-            w_aug.row_mut(r).slice_mut(ndarray::s![..k1]).assign(&x_out.row(i));
+            w_aug
+                .row_mut(r)
+                .slice_mut(ndarray::s![..k1])
+                .assign(&x_out.row(i));
             w_aug[[r, k1]] = lambda_sel[r];
             y1[r] = y[i];
         }
@@ -243,7 +292,7 @@ impl Heckman {
 
         // (X_out' D X_sel) é (k1+1 × k_w)
         let xtd_xs = d_x_out.t().dot(&x_sel_1); // = X_out' D X_sel
-        // Correction meat: (k1+1 × k1+1)
+                                                // Correction meat: (k1+1 × k1+1)
         let correction_meat = xtd_xs.dot(&v_gamma).dot(&xtd_xs.t());
         let correction = &wtw_inv.dot(&correction_meat).dot(&wtw_inv) * (delta_hat * delta_hat);
 
@@ -251,11 +300,12 @@ impl Heckman {
 
         let std_errors: Array1<f64> = (0..k1)
             .map(|i| vcov[[i, i]].max(0.0).sqrt())
-            .collect::<Vec<_>>().into();
+            .collect::<Vec<_>>()
+            .into();
         let delta_se = vcov[[k1, k1]].max(0.0).sqrt();
 
-        let norm = Normal::new(0.0, 1.0)
-            .map_err(|e| GreenersError::InvalidOperation(e.to_string()))?;
+        let norm =
+            Normal::new(0.0, 1.0).map_err(|e| GreenersError::InvalidOperation(e.to_string()))?;
         let t_values = &beta / &std_errors;
         let p_values: Array1<f64> = t_values.mapv(|z| 2.0 * (1.0 - norm.cdf(z.abs())));
 
@@ -264,7 +314,8 @@ impl Heckman {
         // SE do probit (diagonal de V_γ)
         let select_se: Array1<f64> = (0..kw)
             .map(|i| v_gamma[[i, i]].max(0.0).sqrt())
-            .collect::<Vec<_>>().into();
+            .collect::<Vec<_>>()
+            .into();
 
         Ok(HeckmanResult {
             params: beta,
@@ -331,7 +382,9 @@ impl Heckman {
             beta = &beta + &step;
             iter += 1;
 
-            if diff < tol || iter >= max_iter { break; }
+            if diff < tol || iter >= max_iter {
+                break;
+            }
         }
 
         if iter >= max_iter {

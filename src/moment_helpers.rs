@@ -78,12 +78,12 @@ impl MomentHelpers {
         let m4: f64 = data.iter().map(|x| (x - mean).powi(4)).sum::<f64>() / n;
         let b2 = m4 / (m2 * m2);
         let e_b2 = 3.0 * (n - 1.0) / (n + 1.0);
-        let var_b2 =
-            24.0 * n * (n - 2.0) * (n - 3.0) / ((n + 1.0).powi(2) * (n + 3.0) * (n + 5.0));
+        let var_b2 = 24.0 * n * (n - 2.0) * (n - 3.0) / ((n + 1.0).powi(2) * (n + 3.0) * (n + 5.0));
         let x = (b2 - e_b2) / var_b2.sqrt();
         let sqrt_beta1 = 6.0 * (n * n - 5.0 * n + 2.0) / ((n + 7.0) * (n + 9.0))
             * (6.0 * (n + 3.0) * (n + 5.0) / (n * (n - 2.0) * (n - 3.0))).sqrt();
-        let a = 6.0 + 8.0 / sqrt_beta1 * (2.0 / sqrt_beta1 + (1.0 + 4.0 / (sqrt_beta1.powi(2))).sqrt());
+        let a =
+            6.0 + 8.0 / sqrt_beta1 * (2.0 / sqrt_beta1 + (1.0 + 4.0 / (sqrt_beta1.powi(2))).sqrt());
         let z2 = ((1.0 - 2.0 / (9.0 * a))
             - ((1.0 - 2.0 / a) / (1.0 + x * (2.0 / (a - 4.0)).sqrt())).cbrt())
             / (2.0 / (9.0 * a)).sqrt();
@@ -135,12 +135,7 @@ impl MomentHelpers {
         }
         let mean = data.iter().sum::<f64>() / len;
         (1..=n)
-            .map(|k| {
-                data.iter()
-                    .map(|x| (x - mean).powi(k as i32))
-                    .sum::<f64>()
-                    / len
-            })
+            .map(|k| data.iter().map(|x| (x - mean).powi(k as i32)).sum::<f64>() / len)
             .collect()
     }
 }
