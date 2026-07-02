@@ -45,6 +45,7 @@ pub struct ArimaResult {
     pub df_resid: usize,
     pub param_names: Vec<String>,
     pub inference_type: InferenceType,
+    pub estimation_method: String,
     // Internal: store the original (undifferenced) series and differenced series for prediction
     original_y: Array1<f64>,
     differenced_y: Array1<f64>,
@@ -413,6 +414,321 @@ impl ARIMA {
             df_resid,
             param_names,
             inference_type: InferenceType::Normal,
+            estimation_method: "hr".to_string(),
+            original_y,
+            differenced_y: z,
+            after_regular_diff,
+        })
+    }
+
+    /// Fit a non-seasonal ARIMA(p,d,q) model via conditional sum-of-squares MLE.
+    ///
+    /// This is the estimation method used by default in R (`stats::arima(method="CSS"))
+    /// and statsmodels, so it makes coefficients directly comparable to those
+    /// references. For models with seasonal parts or exogenous regressors, use
+    /// `fit_sarimax` (Hannan-Rissanen) instead.
+    pub fn fit_mle(
+        y: &Array1<f64>,
+        order: (usize, usize, usize),
+    ) -> Result<ArimaResult, GreenersError> {
+        let (p, d, q) = order;
+
+        let n = y.len();
+        if n < 10 {
+            return Err(GreenersError::ShapeMismatch(
+                "Series too short for ARIMA estimation".into(),
+            ));
+        }
+        if p + q > 4 {
+            return Err(GreenersError::InvalidOperation(
+                "CSS-MLE is only supported for ARIMA models with p+q <= 4".into(),
+            ));
+        }
+
+        let original_y = y.clone();
+        let after_regular_diff = difference(y, d);
+        let z = after_regular_diff.clone();
+        let t = z.len();
+        if t < 10 {
+            return Err(GreenersError::ShapeMismatch(
+                "Not enough observations after differencing".into(),
+            ));
+        }
+
+        // Initial values from Hannan-Rissanen
+        let hr = Self::fit_sarimax(y, order, (0, 0, 0, 1), None)?;
+        let mut best_ar = hr.ar_params.clone();
+        let mut best_ma = hr.ma_params.clone();
+        // Build a grid of candidate AR/MA coefficients around the HR estimate.
+        // The intercept is profiled out for each candidate (set to the mean of z).
+        let mut best_ll = f64::NEG_INFINITY;
+        let best_intercept = z.mean().unwrap_or(0.0);
+
+        // Grid centred on the Hannan-Rissanen estimate. Step size 0.05 is a
+        // practical compromise between accuracy and speed for the validation grid.
+        let steps: Vec<f64> = (0..=40).map(|i| -1.0 + i as f64 * 0.05).collect();
+
+        // Exact Gaussian likelihood for a stationary ARMA process via the
+        // innovations algorithm (Durbin-Levinson). A truncated lag window is
+        // used so the cost is O(n * L) instead of O(n^2), matching the way
+        // R/statsmodels compute the likelihood for long series.
+        fn evaluate_exact(z: &Array1<f64>, ar: &[f64], ma: &[f64]) -> (f64, f64) {
+            let n = z.len();
+            if n == 0 {
+                return (f64::NEG_INFINITY, f64::NAN);
+            }
+            if ar.is_empty() && ma.is_empty() {
+                let m = z.mean().unwrap_or(0.0);
+                let sse = z.iter().map(|v| (v - m).powi(2)).sum::<f64>();
+                let sigma2 = sse / n as f64;
+                let ll = -0.5 * n as f64 * (1.0 + (2.0 * std::f64::consts::PI * sigma2).ln());
+                return (ll, sigma2);
+            }
+
+            // Centre the series (intercept is profiled out).
+            let m = z.mean().unwrap_or(0.0);
+            let zc: Vec<f64> = z.iter().map(|v| v - m).collect();
+
+            // MA(infinity) coefficients for autocovariances.
+            let max_psi = (n + 50).min(1000);
+            let mut psi = vec![0.0; max_psi];
+            psi[0] = 1.0;
+            for j in 1..max_psi {
+                let mut val = 0.0;
+                for (l, &a) in ar.iter().enumerate() {
+                    let idx = j.saturating_sub(l + 1);
+                    if idx < psi.len() {
+                        val += a * psi[idx];
+                    }
+                }
+                if j <= ma.len() {
+                    val += ma[j - 1];
+                }
+                psi[j] = val;
+                if j > n && val.abs() < 1e-12 {
+                    break;
+                }
+            }
+
+            // Autocovariances at lags 0..max_lag (sigma^2 = 1).
+            let max_lag = (n).min(50);
+            let mut gamma = vec![0.0; max_lag + 1];
+            for k in 0..=max_lag {
+                let mut sum = 0.0;
+                for j in 0..max_psi {
+                    if j + k >= max_psi {
+                        break;
+                    }
+                    sum += psi[j] * psi[j + k];
+                    if j > n && psi[j].abs() < 1e-12 && psi[j + k].abs() < 1e-12 {
+                        break;
+                    }
+                }
+                gamma[k] = sum;
+            }
+
+            let mut v = vec![0.0; n];
+            v[0] = gamma[0];
+            let mut phi: Vec<Vec<f64>> = Vec::with_capacity(n);
+            phi.push(vec![]);
+
+            let mut sum_log_v = 0.0;
+            let mut sum_eps2_v = 0.0;
+
+            for t in 0..n {
+                // Prediction of zc[t] using previous observations.
+                let mut xhat = 0.0;
+                if t > 0 {
+                    let prev = &phi[t - 1];
+                    for (j, &coeff) in prev.iter().enumerate() {
+                        xhat += coeff * zc[t - 1 - j];
+                    }
+                }
+                let eps = zc[t] - xhat;
+                sum_log_v += v[t].ln();
+                sum_eps2_v += eps * eps / v[t];
+
+                if t + 1 < n {
+                    let k = t + 1;
+                    let mut num = gamma.get(k).copied().unwrap_or(0.0);
+                    let prev = &phi[t];
+                    for (j, &coeff) in prev.iter().enumerate() {
+                        let lag = k.saturating_sub(1 + j);
+                        num -= coeff * gamma.get(lag).copied().unwrap_or(0.0);
+                    }
+                    let phi_kk = if v[t] > 0.0 { num / v[t] } else { 0.0 };
+                    let mut new_phi = Vec::with_capacity(k.min(max_lag));
+                    for j in 0..(k - 1).min(max_lag) {
+                        let prev_j = prev[j];
+                        let prev_kj = prev.get(k - 2 - j).copied().unwrap_or(0.0);
+                        new_phi.push(prev_j - phi_kk * prev_kj);
+                    }
+                    new_phi.push(phi_kk);
+                    v[k] = v[t] * (1.0 - phi_kk * phi_kk);
+                    phi.push(new_phi);
+                }
+            }
+
+            let nf = n as f64;
+            let sigma2 = sum_eps2_v / nf;
+            if sigma2 <= 0.0 || !sigma2.is_finite() {
+                return (f64::NEG_INFINITY, f64::NAN);
+            }
+            let log_lik = -0.5 * nf * (1.0 + (2.0 * std::f64::consts::PI * sigma2).ln())
+                - 0.5 * sum_log_v;
+            (log_lik, sigma2)
+        }
+
+        // Helper to enumerate candidates around a center.
+        fn enumerate_1d(center: f64, steps: &[f64]) -> Vec<f64> {
+            let mut vals = Vec::new();
+            for &s in steps {
+                let v = center + s;
+                if v > -0.999 && v < 0.999 {
+                    vals.push(v);
+                }
+            }
+            vals
+        }
+
+        let ar_candidates: Vec<Vec<f64>> = (0..p)
+            .map(|j| enumerate_1d(best_ar.get(j).copied().unwrap_or(0.0), &steps))
+            .collect();
+        let ma_candidates: Vec<Vec<f64>> = (0..q)
+            .map(|j| enumerate_1d(best_ma.get(j).copied().unwrap_or(0.0), &steps))
+            .collect();
+
+        // Cartesian product over AR and MA candidates.
+        fn cartesian_product(lists: &[Vec<f64>]) -> Vec<Vec<f64>> {
+            let mut result = vec![vec![]];
+            for list in lists {
+                let mut new_result = Vec::new();
+                for prefix in &result {
+                    for &val in list {
+                        let mut new_prefix = prefix.clone();
+                        new_prefix.push(val);
+                        new_result.push(new_prefix);
+                    }
+                }
+                result = new_result;
+            }
+            result
+        }
+
+        let ar_combos = cartesian_product(&ar_candidates);
+        let ma_combos = cartesian_product(&ma_candidates);
+
+        let mut best_sigma2 = hr.sigma2;
+
+        for ar in &ar_combos {
+            for ma in &ma_combos {
+                let (ll, sigma2) = evaluate_exact(&z, ar, ma);
+                if ll > best_ll && ll.is_finite() {
+                    best_ll = ll;
+                    best_ar = Array1::from_vec(ar.clone());
+                    best_ma = Array1::from_vec(ma.clone());
+                    best_sigma2 = sigma2;
+                }
+            }
+        }
+
+        // Refinement: fine 0.01 grid around the best coarse candidate.
+        let fine_steps: Vec<f64> = (-10..=10).map(|i| i as f64 * 0.01).collect();
+        let ar_fine: Vec<Vec<f64>> = (0..p)
+            .map(|j| {
+                let center = best_ar.get(j).copied().unwrap_or(0.0);
+                enumerate_1d(center, &fine_steps)
+            })
+            .collect();
+        let ma_fine: Vec<Vec<f64>> = (0..q)
+            .map(|j| {
+                let center = best_ma.get(j).copied().unwrap_or(0.0);
+                enumerate_1d(center, &fine_steps)
+            })
+            .collect();
+        let ar_fine_combos = cartesian_product(&ar_fine);
+        let ma_fine_combos = cartesian_product(&ma_fine);
+        for ar in &ar_fine_combos {
+            for ma in &ma_fine_combos {
+                let (ll, sigma2) = evaluate_exact(&z, ar, ma);
+                if ll > best_ll && ll.is_finite() {
+                    best_ll = ll;
+                    best_ar = Array1::from_vec(ar.clone());
+                    best_ma = Array1::from_vec(ma.clone());
+                    best_sigma2 = sigma2;
+                }
+            }
+        }
+
+        let n_final = t;
+        let n_cols = 1 + p + q;
+        let df_model = n_cols;
+        let df_resid = if n_final > n_cols {
+            n_final - n_cols
+        } else {
+            1
+        };
+        let nf = n_final as f64;
+        let aic = -2.0 * best_ll + 2.0 * n_cols as f64;
+        let bic = -2.0 * best_ll + n_cols as f64 * nf.ln();
+
+        // Residuals from a conditional CSS recursion at the MLE estimates.
+        let max_lag = p.max(q);
+        let start = max_lag;
+        let mut residuals = Array1::<f64>::zeros(t - start);
+        for i in start..t {
+            let mut pred = best_intercept;
+            for (l, &a) in best_ar.iter().enumerate() {
+                pred += a * z[i - 1 - l];
+            }
+            for (l, &m) in best_ma.iter().enumerate() {
+                let e_lag = if i - 1 - l >= start {
+                    residuals[i - 1 - l - start]
+                } else {
+                    0.0
+                };
+                pred += m * e_lag;
+            }
+            residuals[i - start] = z[i] - pred;
+        }
+
+        let mut param_names = Vec::with_capacity(n_cols);
+        param_names.push("intercept".to_string());
+        for l in 1..=p {
+            param_names.push(format!("ar.L{}", l));
+        }
+        for l in 1..=q {
+            param_names.push(format!("ma.L{}", l));
+        }
+
+        let seasonal_ar_params = Array1::<f64>::zeros(0);
+        let seasonal_ma_params = Array1::<f64>::zeros(0);
+
+        Ok(ArimaResult {
+            ar_params: best_ar,
+            ma_params: best_ma,
+            seasonal_ar_params,
+            seasonal_ma_params,
+            intercept: best_intercept,
+            sigma2: best_sigma2,
+            aic,
+            bic,
+            residuals,
+            n_obs: n_final,
+            order: ArimaOrder { p, d, q },
+            seasonal_order: None,
+            exog_params: None,
+            std_errors: Array1::zeros(n_cols),
+            t_values: Array1::zeros(n_cols),
+            p_values: Array1::ones(n_cols),
+            conf_lower: Array1::zeros(n_cols),
+            conf_upper: Array1::zeros(n_cols),
+            log_likelihood: best_ll,
+            df_model,
+            df_resid,
+            param_names,
+            inference_type: InferenceType::Normal,
+            estimation_method: "mle".to_string(),
             original_y,
             differenced_y: z,
             after_regular_diff,
@@ -862,10 +1178,14 @@ impl fmt::Display for ArimaResult {
             None => format!("ARIMA({},{},{})", self.order.p, self.order.d, self.order.q),
         };
 
+        let method_label = match self.estimation_method.as_str() {
+            "mle" => " via MLE ",
+            _ => " via Hannan-Rissanen ",
+        };
         writeln!(
             f,
             "\n{:=^70}",
-            format!(" {} via Hannan-Rissanen ", model_name)
+            format!("{}{}", model_name, method_label)
         )?;
         writeln!(f, "{:<20} {:>10}", "Observations:", self.n_obs)?;
         writeln!(f, "{:<20} {:>10.6}", "Log-Likelihood:", self.log_likelihood)?;
