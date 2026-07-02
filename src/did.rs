@@ -16,6 +16,11 @@ pub struct DidResult {
     pub treated_pre_mean: f64,  // Treated Mean (Pre)
     pub treated_post_mean: f64, // Treated Mean (Post - Counterfactual vs Real)
     pub cov_type: CovarianceType,
+    pub params: Array1<f64>,
+    pub std_errors: Array1<f64>,
+    pub t_values: Array1<f64>,
+    pub p_values: Array1<f64>,
+    pub variable_names: Vec<String>,
 }
 
 impl fmt::Display for DidResult {
@@ -40,6 +45,26 @@ impl fmt::Display for DidResult {
             "{:<20} {:>15.4} || {:<20} {:>15}",
             "t-statistic:", self.t_stat, "Observations:", self.n_obs
         )?;
+
+        writeln!(f, "\n{:-^78}", " Coefficients ")?;
+        writeln!(
+            f,
+            "{:<15} {:>12} {:>12} {:>12} {:>12}",
+            "Variable", "coef", "std err", "t", "P>|t|"
+        )?;
+        writeln!(f, "{}", "-".repeat(70))?;
+        for i in 0..self.params.len() {
+            writeln!(
+                f,
+                "{:<15} {:>12.4} {:>12.4} {:>12.4} {:>12.4}",
+                self.variable_names[i],
+                self.params[i],
+                self.std_errors[i],
+                self.t_values[i],
+                self.p_values[i]
+            )?;
+        }
+        writeln!(f, "{:=^78}", "")?;
 
         writeln!(f, "\n{:-^78}", " Group Means ")?;
         writeln!(
@@ -178,6 +203,13 @@ impl DiffInDiff {
         let t_stat = ols.t_values[3];
         let p_value = ols.p_values[3];
 
+        let variable_names = vec![
+            "const".to_string(),
+            "treated".to_string(),
+            "post".to_string(),
+            "treated:post".to_string(),
+        ];
+
         Ok(DidResult {
             att,
             std_error,
@@ -206,6 +238,11 @@ impl DiffInDiff {
                 0.0
             },
             cov_type,
+            params: ols.params,
+            std_errors: ols.std_errors,
+            t_values: ols.t_values,
+            p_values: ols.p_values,
+            variable_names,
         })
     }
 }
