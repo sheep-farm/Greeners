@@ -125,7 +125,22 @@ impl fmt::Display for PsmResult {
             " (!) SMD > 0.10 após matching — covariável mal balanceada"
         )?;
         writeln!(f, "{thick}")?;
-        writeln!(f, " *** p<0.01  ** p<0.05  * p<0.10")
+        writeln!(f, " *** p<0.01  ** p<0.05  * p<0.10")?;
+
+        // Parsable coefficient table for validation tooling.
+        writeln!(f, "\n{:-^72}", " Parameters ")?;
+        writeln!(
+            f,
+            "{:<15} {:>10} {:>10} {:>8} {:>8} {:>10} {:>10}",
+            "", "coef", "std err", "z", "P>|z|", "[0.025", "0.975]"
+        )?;
+        writeln!(f, "{:-^72}", "")?;
+        writeln!(
+            f,
+            "{:<15} {:>10.4} {:>10.4} {:>8.3} {:>8.3} {:>10.4} {:>10.4}",
+            "ATT", self.att, self.se, self.z, self.p_value, self.ci_lower, self.ci_upper
+        )?;
+        writeln!(f, "{:=^72}", "")
     }
 }
 
