@@ -71,15 +71,12 @@ impl FamaMacBeth {
 
             let sub_df = df.iloc(Some(&mask), None)?;
 
-            match OLS::from_formula(formula, &sub_df, CovarianceType::NonRobust) {
-                Ok(result) => {
-                    if var_names.is_empty() {
-                        var_names = result.variable_names.clone().unwrap_or_default();
-                    }
-                    all_coefs.push(result.params.to_vec());
-                    n_obs_total += sub_df.n_rows();
+            if let Ok(result) = OLS::from_formula(formula, &sub_df, CovarianceType::NonRobust) {
+                if var_names.is_empty() {
+                    var_names = result.variable_names.clone().unwrap_or_default();
                 }
-                Err(_) => {}
+                all_coefs.push(result.params.to_vec());
+                n_obs_total += sub_df.n_rows();
             }
         }
 
@@ -98,8 +95,8 @@ impl FamaMacBeth {
                 mean_coef[j] += coefs[j];
             }
         }
-        for j in 0..k {
-            mean_coef[j] /= t_f;
+        for item in mean_coef.iter_mut().take(k) {
+            *item /= t_f;
         }
 
         // Fama-MacBeth variance (with optional Newey-West)

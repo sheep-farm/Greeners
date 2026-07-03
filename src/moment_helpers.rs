@@ -35,9 +35,8 @@ impl MomentHelpers {
             return f64::NAN;
         }
         let sum4: f64 = data.iter().map(|x| ((x - mean) / std).powi(4)).sum();
-        let g2 = (n * (n + 1.0)) / ((n - 1.0) * (n - 2.0) * (n - 3.0)) * sum4
-            - 3.0 * (n - 1.0).powi(2) / ((n - 2.0) * (n - 3.0));
-        g2
+        (n * (n + 1.0)) / ((n - 1.0) * (n - 2.0) * (n - 3.0)) * sum4
+            - 3.0 * (n - 1.0).powi(2) / ((n - 2.0) * (n - 3.0))
     }
 
     /// Jarque-Bera test statistic and p-value for normality.

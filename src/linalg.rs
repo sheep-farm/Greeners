@@ -245,9 +245,7 @@ pub fn drop_collinear(x: &Array2<f64>, var_names: &[String], tolerance: f64) -> 
         }
     }
 
-    for i in (k.min(n))..k {
-        omit_indices.push(fwd[i]);
-    }
+    omit_indices.extend(fwd.iter().take(k).skip(k.min(n)));
 
     keep_indices.sort_unstable();
 

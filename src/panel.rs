@@ -334,7 +334,7 @@ impl fmt::Display for RandomEffectsResult {
                 .variable_names
                 .as_ref()
                 .and_then(|v| v.get(i))
-                .map(|s| s.clone())
+                .cloned()
                 .unwrap_or_else(|| format!("x{}", i));
             writeln!(
                 f,
@@ -775,7 +775,7 @@ impl FE2SLS {
     /// * `y`      — variável dependente (n)
     /// * `x`      — regressores estruturais sem constante (n × k); coluna endógena incluída
     /// * `z`      — matriz de instrumentos completa sem constante (n × l), l ≥ k
-    ///               deve incluir os regressores exógenos + instrumentos excluídos
+    ///   deve incluir os regressores exógenos + instrumentos excluídos
     /// * `groups` — IDs de entidade para a transformação within
     pub fn fit<T>(
         y: &Array1<f64>,
@@ -905,6 +905,8 @@ impl FE2SLS {
 // Helpers compartilhados — extração de painel balanceado
 // ===========================================================================
 
+type BalancedPanelResult = (Vec<i64>, Vec<Array1<f64>>, Vec<Array2<f64>>, usize);
+
 /// Extrai submatrizes por entidade a partir de dados longos, ordenando por
 /// (entity_id, time_id). Exige painel balanceado (T igual para todas as entidades).
 /// Retorna (entidades_ordenadas, y_panels, x_panels, T).
@@ -913,7 +915,7 @@ fn extract_balanced_panels(
     x: &Array2<f64>,
     entity_ids: &[i64],
     time_ids: &[i64],
-) -> Result<(Vec<i64>, Vec<Array1<f64>>, Vec<Array2<f64>>, usize), GreenersError> {
+) -> Result<BalancedPanelResult, GreenersError> {
     let n = y.len();
     if x.nrows() != n || entity_ids.len() != n || time_ids.len() != n {
         return Err(GreenersError::ShapeMismatch(
