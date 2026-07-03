@@ -108,7 +108,9 @@ impl fmt::Display for NegBinResult {
 
 impl NegBinResult {
     /// X matrix used in estimation (for marginal effects).
-    pub fn x_data(&self) -> &Array2<f64> { &self._x_data }
+    pub fn x_data(&self) -> &Array2<f64> {
+        &self._x_data
+    }
 
     /// Predict expected counts.
     pub fn predict_count(&self, x_new: &Array2<f64>) -> Array1<f64> {

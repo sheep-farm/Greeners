@@ -107,7 +107,11 @@ impl fmt::Display for IvResult {
                 writeln!(
                     f,
                     "{:<10} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
-                    var_name, self.params[fit_idx], self.std_errors[fit_idx], self.t_values[fit_idx], self.p_values[fit_idx]
+                    var_name,
+                    self.params[fit_idx],
+                    self.std_errors[fit_idx],
+                    self.t_values[fit_idx],
+                    self.p_values[fit_idx]
                 )?;
                 fit_idx += 1;
             }
@@ -284,39 +288,12 @@ impl IV {
         let (y, x) = data.to_design_matrix(endog_formula)?;
 
         // Get Z from instrument formula (just the instruments, with intercept if specified)
-        let z = if instrument_formula.intercept {
-            let n_rows = data.n_rows();
-            let n_cols = instrument_formula.independents.len() + 1;
-            let mut z_mat = Array2::<f64>::zeros((n_rows, n_cols));
-
-            // Add intercept
-            for i in 0..n_rows {
-                z_mat[[i, 0]] = 1.0;
-            }
-
-            // Add instruments
-            for (j, var_name) in instrument_formula.independents.iter().enumerate() {
-                let col_data = data.get(var_name)?;
-                for i in 0..n_rows {
-                    z_mat[[i, j + 1]] = col_data[i];
-                }
-            }
-
-            z_mat
-        } else {
-            let n_rows = data.n_rows();
-            let n_cols = instrument_formula.independents.len();
-            let mut z_mat = Array2::<f64>::zeros((n_rows, n_cols));
-
-            for (j, var_name) in instrument_formula.independents.iter().enumerate() {
-                let col_data = data.get(var_name)?;
-                for i in 0..n_rows {
-                    z_mat[[i, j]] = col_data[i];
-                }
-            }
-
-            z_mat
+        let temp_formula = Formula {
+            dependent: endog_formula.dependent.clone(),
+            independents: instrument_formula.independents.clone(),
+            intercept: instrument_formula.intercept,
         };
+        let (_, z) = data.to_design_matrix(&temp_formula)?;
 
         let var_names = data.formula_var_names(endog_formula)?;
         Self::fit_with_names(&y, &x, &z, cov_type, Some(var_names))
@@ -363,7 +340,8 @@ impl IV {
         }
 
         // Detect collinearity in X (regressors only, not instruments Z)
-        let (x_clean, variable_names, omitted_positioned) = if let Some(ref names) = variable_names {
+        let (x_clean, variable_names, omitted_positioned) = if let Some(ref names) = variable_names
+        {
             let cr = crate::linalg::drop_collinear(x, names, 1e-10);
             if cr.omitted.is_empty() {
                 (x.clone(), variable_names, vec![])

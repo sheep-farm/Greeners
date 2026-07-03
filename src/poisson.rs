@@ -112,7 +112,9 @@ impl fmt::Display for PoissonResult {
 
 impl PoissonResult {
     /// X matrix used in estimation (for marginal effects).
-    pub fn x_data(&self) -> &Array2<f64> { &self._x_data }
+    pub fn x_data(&self) -> &Array2<f64> {
+        &self._x_data
+    }
 
     /// Predict expected counts for new data.
     pub fn predict_count(&self, x_new: &Array2<f64>) -> Array1<f64> {
@@ -337,14 +339,8 @@ impl Poisson {
         cov_type: CovarianceType,
     ) -> Result<PoissonResult, GreenersError> {
         let offset = exposure.mapv(|val| val.max(1e-10).ln());
-        let glm_result = GLM::fit_with_names_and_offset(
-            y,
-            x,
-            Family::Poisson,
-            cov_type,
-            None,
-            Some(&offset),
-        )?;
+        let glm_result =
+            GLM::fit_with_names_and_offset(y, x, Family::Poisson, cov_type, None, Some(&offset))?;
 
         Ok(PoissonResult {
             params: glm_result.params,

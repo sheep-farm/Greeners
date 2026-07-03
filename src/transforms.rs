@@ -1,5 +1,5 @@
-use crate::error::GreenersError;
 use crate::distributions::{chi2_pvalue, f_pvalue, norm_pdf, t_pvalue_two, t_quantile};
+use crate::error::GreenersError;
 
 /// Pure element-wise transforms on numeric slices.
 ///
@@ -327,12 +327,7 @@ impl Transforms {
     // ── Element-wise scalar functions (3-arg) ───────────────────────────────
 
     /// Apply a named ternary function element-wise to three slices.
-    pub fn apply3(
-        a: &[f64],
-        b: &[f64],
-        c: &[f64],
-        func: &str,
-    ) -> Result<Vec<f64>, GreenersError> {
+    pub fn apply3(a: &[f64], b: &[f64], c: &[f64], func: &str) -> Result<Vec<f64>, GreenersError> {
         if a.len() != b.len() || b.len() != c.len() {
             return Err(GreenersError::ShapeMismatch(format!(
                 "apply3: mismatched lengths {}, {}, {}",
@@ -377,7 +372,9 @@ impl Transforms {
 
     /// `regexm(s, pattern)` — true if pattern matches anywhere in s (Stata: `regexm()`)
     pub fn regexm(s: &str, pattern: &str) -> bool {
-        regex::Regex::new(pattern).map(|re| re.is_match(s)).unwrap_or(false)
+        regex::Regex::new(pattern)
+            .map(|re| re.is_match(s))
+            .unwrap_or(false)
     }
 
     /// `regexr(s, pattern, replacement)` — replace first match (Stata: `regexr()`)
@@ -409,29 +406,46 @@ impl Transforms {
     /// Apply regex match to a vector of strings, returning 1.0/0.0
     pub fn regexm_vec(strings: &[String], pattern: &str) -> Vec<f64> {
         let re = regex::Regex::new(pattern).ok();
-        strings.iter().map(|s| {
-            re.as_ref().map(|r| if r.is_match(s) { 1.0 } else { 0.0 }).unwrap_or(0.0)
-        }).collect()
+        strings
+            .iter()
+            .map(|s| {
+                re.as_ref()
+                    .map(|r| if r.is_match(s) { 1.0 } else { 0.0 })
+                    .unwrap_or(0.0)
+            })
+            .collect()
     }
 
     /// Apply regex replace to a vector of strings
     pub fn regexr_vec(strings: &[String], pattern: &str, replacement: &str) -> Vec<String> {
         let re = regex::Regex::new(pattern).ok();
-        strings.iter().map(|s| {
-            re.as_ref().map(|r| r.replace(s, replacement).into_owned()).unwrap_or_else(|| s.clone())
-        }).collect()
+        strings
+            .iter()
+            .map(|s| {
+                re.as_ref()
+                    .map(|r| r.replace(s, replacement).into_owned())
+                    .unwrap_or_else(|| s.clone())
+            })
+            .collect()
     }
 
     /// Apply regex extract to a vector of strings
     pub fn regexs_vec(strings: &[String], pattern: &str) -> Vec<String> {
         let re = regex::Regex::new(pattern).ok();
-        strings.iter().map(|s| {
-            re.as_ref().and_then(|r| {
-                r.captures(s).and_then(|caps| {
-                    caps.get(1).or_else(|| caps.get(0)).map(|m| m.as_str().to_string())
-                })
-            }).unwrap_or_default()
-        }).collect()
+        strings
+            .iter()
+            .map(|s| {
+                re.as_ref()
+                    .and_then(|r| {
+                        r.captures(s).and_then(|caps| {
+                            caps.get(1)
+                                .or_else(|| caps.get(0))
+                                .map(|m| m.as_str().to_string())
+                        })
+                    })
+                    .unwrap_or_default()
+            })
+            .collect()
     }
 }
 
@@ -485,7 +499,12 @@ mod tests {
 
     #[test]
     fn test_group() {
-        let strs = vec!["B".to_string(), "A".to_string(), "B".to_string(), "C".to_string()];
+        let strs = vec![
+            "B".to_string(),
+            "A".to_string(),
+            "B".to_string(),
+            "C".to_string(),
+        ];
         let g = Transforms::group(&strs);
         assert_eq!(g, vec![2.0, 1.0, 2.0, 3.0]);
     }
@@ -615,7 +634,10 @@ mod tests {
 
     #[test]
     fn test_regexr() {
-        assert_eq!(Transforms::regexr("hello world", "world", "rust"), "hello rust");
+        assert_eq!(
+            Transforms::regexr("hello world", "world", "rust"),
+            "hello rust"
+        );
         assert_eq!(Transforms::regexr("aaa bbb aaa", "aaa", "x"), "x bbb aaa");
     }
 
@@ -626,7 +648,10 @@ mod tests {
 
     #[test]
     fn test_regexs() {
-        assert_eq!(Transforms::regexs("price: $42.50", r"\$(\d+\.\d+)"), Some("42.50".to_string()));
+        assert_eq!(
+            Transforms::regexs("price: $42.50", r"\$(\d+\.\d+)"),
+            Some("42.50".to_string())
+        );
         assert_eq!(Transforms::regexs("no match", r"\d+"), None);
     }
 }

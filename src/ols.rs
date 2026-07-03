@@ -806,16 +806,15 @@ impl OLS {
 
         let has_intercept = force_intercept.unwrap_or_else(|| {
             (0..k_clean).any(|j| {
-                x_to_use.column(j).iter().all(|&val| (val - 1.0).abs() < 1e-12)
+                x_to_use
+                    .column(j)
+                    .iter()
+                    .all(|&val| (val - 1.0).abs() < 1e-12)
             })
         });
 
         let df_resid = n - k_clean;
-        let df_model = if has_intercept {
-            k_clean - 1
-        } else {
-            k_clean
-        };
+        let df_model = if has_intercept { k_clean - 1 } else { k_clean };
 
         let sigma2 = ssr / (df_resid as f64);
         let sigma = sigma2.sqrt();
@@ -1203,7 +1202,11 @@ impl OLS {
         };
 
         let msm = (sst - ssr) / (df_model as f64);
-        let f_statistic = if sigma2 < 1e-12 { f64::INFINITY } else { msm / sigma2 };
+        let f_statistic = if sigma2 < 1e-12 {
+            f64::INFINITY
+        } else {
+            msm / sigma2
+        };
 
         let prob_f = if df_model > 0 && f_statistic.is_finite() {
             let f_dist = FisherSnedecor::new(df_model as f64, df_resid as f64)

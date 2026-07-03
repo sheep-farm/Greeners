@@ -16,7 +16,6 @@ fn norm_cdf(x: f64) -> f64 {
     Normal::new(0.0, 1.0).unwrap().cdf(x)
 }
 
-
 // ===========================================================================
 // TobitResult
 // ===========================================================================
@@ -40,27 +39,55 @@ pub struct TobitResult {
 impl fmt::Display for TobitResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let thick = "═".repeat(70);
-        let thin  = "─".repeat(70);
+        let thin = "─".repeat(70);
         let n_unc = self.n_obs - self.n_censored;
         writeln!(f, "\n{thick}")?;
         writeln!(f, " Tobit  —  MLE  (censura inferior em {})", self.ll)?;
         writeln!(f, "{thick}")?;
-        writeln!(f, " Obs: {:<8}  Censuradas: {:<6}  Não-cens.: {:<6}  Iter.: {}",
-            self.n_obs, self.n_censored, n_unc, self.iterations)?;
-        writeln!(f, " Log-L: {:.4}   σ: {:.4}   df_resid: {}",
-            self.log_likelihood, self.sigma, self.df_resid)?;
+        writeln!(
+            f,
+            " Obs: {:<8}  Censuradas: {:<6}  Não-cens.: {:<6}  Iter.: {}",
+            self.n_obs, self.n_censored, n_unc, self.iterations
+        )?;
+        writeln!(
+            f,
+            " Log-L: {:.4}   σ: {:.4}   df_resid: {}",
+            self.log_likelihood, self.sigma, self.df_resid
+        )?;
         writeln!(f, "{thin}")?;
-        writeln!(f, " {:<18} {:>12}  {:>12}  {:>8}  {:>8}",
-            "Variável", "coef", "SE", "z", "P>|z|")?;
+        writeln!(
+            f,
+            " {:<18} {:>12}  {:>12}  {:>8}  {:>8}",
+            "Variável", "coef", "SE", "z", "P>|z|"
+        )?;
         writeln!(f, " {}", "─".repeat(64))?;
-        let sig = |p: f64| if p < 0.01 { "***" } else if p < 0.05 { "**" } else if p < 0.10 { "*" } else { "" };
+        let sig = |p: f64| {
+            if p < 0.01 {
+                "***"
+            } else if p < 0.05 {
+                "**"
+            } else if p < 0.10 {
+                "*"
+            } else {
+                ""
+            }
+        };
         for i in 0..self.params.len() {
-            let name = self.variable_names.as_ref()
+            let name = self
+                .variable_names
+                .as_ref()
                 .and_then(|v| v.get(i).cloned())
                 .unwrap_or_else(|| format!("x{}", i + 1));
-            writeln!(f, " {:<18} {:>12.4}  {:>12.4}  {:>8.3}  {:>8.4}  {}",
-                name, self.params[i], self.std_errors[i],
-                self.t_values[i], self.p_values[i], sig(self.p_values[i]))?;
+            writeln!(
+                f,
+                " {:<18} {:>12.4}  {:>12.4}  {:>8.3}  {:>8.4}  {}",
+                name,
+                self.params[i],
+                self.std_errors[i],
+                self.t_values[i],
+                self.p_values[i],
+                sig(self.p_values[i])
+            )?;
         }
         writeln!(f, " {}", "─".repeat(64))?;
         writeln!(f, " sigma            {:>12.4}", self.sigma)?;
@@ -91,13 +118,19 @@ impl Tobit {
         let k = x.ncols();
 
         if x.nrows() != n {
-            return Err(GreenersError::ShapeMismatch("Tobit: y e x têm dimensões incompatíveis".into()));
+            return Err(GreenersError::ShapeMismatch(
+                "Tobit: y e x têm dimensões incompatíveis".into(),
+            ));
         }
         if y.iter().any(|v| !v.is_finite()) || x.iter().any(|v| !v.is_finite()) {
-            return Err(GreenersError::InvalidOperation("Tobit: dados contêm NaN ou Inf".into()));
+            return Err(GreenersError::InvalidOperation(
+                "Tobit: dados contêm NaN ou Inf".into(),
+            ));
         }
         if n <= k {
-            return Err(GreenersError::ShapeMismatch("Tobit: graus de liberdade insuficientes".into()));
+            return Err(GreenersError::ShapeMismatch(
+                "Tobit: graus de liberdade insuficientes".into(),
+            ));
         }
 
         // ── Indicador de censura ──
@@ -108,13 +141,12 @@ impl Tobit {
         let unc_idx: Vec<usize> = (0..n).filter(|&i| d[i]).collect();
         let y_unc: Array1<f64> = unc_idx.iter().map(|&i| y[i]).collect::<Vec<_>>().into();
         let x_unc: Array2<f64> = {
-            let rows: Vec<ndarray::ArrayView1<f64>> =
-                unc_idx.iter().map(|&i| x.row(i)).collect();
+            let rows: Vec<ndarray::ArrayView1<f64>> = unc_idx.iter().map(|&i| x.row(i)).collect();
             ndarray::stack(ndarray::Axis(0), &rows).unwrap()
         };
 
-        let ols_init = OLS::fit(&y_unc, &x_unc, crate::CovarianceType::NonRobust)
-            .unwrap_or_else(|_| {
+        let ols_init =
+            OLS::fit(&y_unc, &x_unc, crate::CovarianceType::NonRobust).unwrap_or_else(|_| {
                 OLS::fit(y, x, crate::CovarianceType::NonRobust)
                     .expect("Tobit: falha na inicialização OLS")
             });
@@ -123,12 +155,14 @@ impl Tobit {
         let init_sigma = {
             let resid = &y_unc - &x_unc.dot(&beta);
             let ssr = resid.dot(&resid);
-            (ssr / (y_unc.len().saturating_sub(k)) as f64).sqrt().max(1e-6)
+            (ssr / (y_unc.len().saturating_sub(k)) as f64)
+                .sqrt()
+                .max(1e-6)
         };
         let mut gamma = init_sigma.ln(); // γ = ln σ
 
-        let norm = Normal::new(0.0, 1.0)
-            .map_err(|e| GreenersError::InvalidOperation(e.to_string()))?;
+        let norm =
+            Normal::new(0.0, 1.0).map_err(|e| GreenersError::InvalidOperation(e.to_string()))?;
 
         let tol = 1e-7;
         let max_iter = 200;
@@ -187,12 +221,7 @@ impl Tobit {
                     } else {
                         let phi_neg = norm_cdf(-a).max(1e-300);
                         let l = phi(a) / phi_neg;
-                        (
-                            phi_neg.ln(),
-                            l,
-                            l * (l - a),
-                            l * (a * (l - a) + 1.0),
-                        )
+                        (phi_neg.ln(), l, l * (l - a), l * (a * (l - a) + 1.0))
                     };
 
                     ll_val += phi_neg_ln;
@@ -310,7 +339,9 @@ impl Tobit {
         let m = k + 1;
         let mut h_full = Array2::<f64>::zeros((m, m));
         for j in 0..k {
-            for kk in 0..k { h_full[[j, kk]] = h_bb[[j, kk]]; }
+            for kk in 0..k {
+                h_full[[j, kk]] = h_bb[[j, kk]];
+            }
             h_full[[j, k]] = h_bg[j];
             h_full[[k, j]] = h_bg[j];
         }
@@ -321,7 +352,8 @@ impl Tobit {
 
         let std_errors: Array1<f64> = (0..k)
             .map(|i| vcov[[i, i]].max(0.0).sqrt())
-            .collect::<Vec<_>>().into();
+            .collect::<Vec<_>>()
+            .into();
         let t_values = &beta / &std_errors;
         let p_values: Array1<f64> = t_values.mapv(|z| 2.0 * (1.0 - norm.cdf(z.abs())));
 

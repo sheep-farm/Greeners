@@ -1,4 +1,4 @@
-use greeners::{DataFrame, Formula, FamaMacBeth};
+use greeners::{DataFrame, FamaMacBeth, Formula};
 
 #[test]
 fn test_fama_macbeth_basic() {
@@ -8,7 +8,9 @@ fn test_fama_macbeth_basic() {
 
     let mut state = 42u64;
     let mut rand_double = || {
-        state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        state = state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
         (state as f64) / (u64::MAX as f64)
     };
 

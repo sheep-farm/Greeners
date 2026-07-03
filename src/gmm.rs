@@ -1,6 +1,5 @@
 use crate::error::GreenersError;
 use crate::linalg::LinalgInverse as _;
-use crate::OLS;
 use ndarray as nd;
 use ndarray::{Array1, Array2};
 use statrs::distribution::{ChiSquared, ContinuousCDF};
@@ -76,8 +75,6 @@ impl GMM {
         let n = x.nrows();
         let _k = x.ncols(); // Regressors
         let l = z.ncols(); // Instruments (Moments)
-
-
 
         let fallback_names: Vec<String> = (0..x.ncols()).map(|i| format!("x{}", i)).collect();
         let cr = crate::linalg::drop_collinear(x, &fallback_names, 1e-10);

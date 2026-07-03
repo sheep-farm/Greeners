@@ -607,10 +607,7 @@ impl Diagnostics {
     /// Returns `ArchTestResult`.
     pub fn arch_test(series: &Array1<f64>, lags: usize) -> Result<ArchTestResult, GreenersError> {
         // drop NaN/Inf before any computation
-        let clean: Vec<f64> = series.iter()
-            .cloned()
-            .filter(|x| x.is_finite())
-            .collect();
+        let clean: Vec<f64> = series.iter().cloned().filter(|x| x.is_finite()).collect();
         let series = Array1::from_vec(clean);
 
         let n = series.len();
@@ -647,8 +644,7 @@ impl Diagnostics {
 
         let lm_stat = n_eff as f64 * r2;
         let df_lm = lags as f64;
-        let chi2 = ChiSquared::new(df_lm)
-            .map_err(|_| GreenersError::OptimizationFailed)?;
+        let chi2 = ChiSquared::new(df_lm).map_err(|_| GreenersError::OptimizationFailed)?;
         let lm_pvalue = 1.0 - chi2.cdf(lm_stat);
 
         let df1 = lags as f64;
@@ -660,8 +656,8 @@ impl Diagnostics {
         };
         let f_pvalue = if df2 > 0.0 {
             use statrs::distribution::FisherSnedecor;
-            let f_dist = FisherSnedecor::new(df1, df2)
-                .map_err(|_| GreenersError::OptimizationFailed)?;
+            let f_dist =
+                FisherSnedecor::new(df1, df2).map_err(|_| GreenersError::OptimizationFailed)?;
             1.0 - ContinuousCDF::cdf(&f_dist, f_stat)
         } else {
             0.0
@@ -704,27 +700,39 @@ impl Diagnostics {
         let denom: f64 = clean.iter().map(|&x| (x - mean).powi(2)).sum();
 
         if denom < 1e-15 {
-            return Err(GreenersError::InvalidOperation("zero-variance series".into()));
+            return Err(GreenersError::InvalidOperation(
+                "zero-variance series".into(),
+            ));
         }
 
         // sample ACF at lags 1..=lags
         let mut acf = Vec::with_capacity(lags);
         for k in 1..=lags {
-            let num: f64 = (k..n).map(|t| (clean[t] - mean) * (clean[t - k] - mean)).sum();
+            let num: f64 = (k..n)
+                .map(|t| (clean[t] - mean) * (clean[t - k] - mean))
+                .sum();
             acf.push(num / denom);
         }
 
         // Q = n(n+2) Σ ρ̂_k² / (n-k)
-        let q_stat = nf * (nf + 2.0)
-            * acf.iter().enumerate()
+        let q_stat = nf
+            * (nf + 2.0)
+            * acf
+                .iter()
+                .enumerate()
                 .map(|(i, &r)| r * r / (nf - (i + 1) as f64))
                 .sum::<f64>();
 
-        let chi2 = ChiSquared::new(lags as f64)
-            .map_err(|_| GreenersError::OptimizationFailed)?;
+        let chi2 = ChiSquared::new(lags as f64).map_err(|_| GreenersError::OptimizationFailed)?;
         let p_value = 1.0 - chi2.cdf(q_stat);
 
-        Ok(LjungBoxResult { q_stat, p_value, lags, n_obs: n, acf })
+        Ok(LjungBoxResult {
+            q_stat,
+            p_value,
+            lags,
+            n_obs: n,
+            acf,
+        })
     }
 
     /// Expected normal order statistics via Blom's approximation.
@@ -781,7 +789,11 @@ impl Diagnostics {
         }
 
         // W = (Σ aᵢ x₍ᵢ₎)² / SS
-        let numerator: f64 = a.iter().zip(sorted.iter()).map(|(ai, xi)| ai * xi).sum::<f64>();
+        let numerator: f64 = a
+            .iter()
+            .zip(sorted.iter())
+            .map(|(ai, xi)| ai * xi)
+            .sum::<f64>();
         let w = numerator * numerator / ss;
         let w = w.clamp(0.0, 1.0);
 
@@ -791,8 +803,8 @@ impl Diagnostics {
             // Small sample: polynomial approximation
             let gamma = 0.459 * nf - 2.273;
             let mu = -0.0006714 * nf.powi(3) + 0.025054 * nf.powi(2) - 0.39978 * nf + 0.5440;
-            let sigma = (-0.0020322 * nf.powi(3) + 0.062767 * nf.powi(2) - 0.77857 * nf + 1.3822)
-                .exp();
+            let sigma =
+                (-0.0020322 * nf.powi(3) + 0.062767 * nf.powi(2) - 0.77857 * nf + 1.3822).exp();
             let z = if 1.0 - w > 0.0 {
                 -((1.0 - w).powf(gamma) - mu) / sigma
             } else {
@@ -803,7 +815,8 @@ impl Diagnostics {
         } else {
             // Large sample: Royston (1995) transformation
             let ln_1mw = (1.0 - w).ln();
-            let mu = 0.0038915 * nf.ln().powi(3) - 0.083751 * nf.ln().powi(2)
+            let mu = 0.0038915 * nf.ln().powi(3)
+                - 0.083751 * nf.ln().powi(2)
                 - 0.31082 * nf.ln()
                 - 1.5861;
             let sigma = (0.0030302 * nf.ln().powi(2) - 0.082676 * nf.ln() - 0.4803).exp();

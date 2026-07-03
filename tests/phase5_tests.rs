@@ -107,7 +107,7 @@ fn test_ttest_1samp() {
 fn test_ttest_ind() {
     let a = Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
     let b = Array1::from(vec![10.0, 11.0, 12.0, 13.0, 14.0]);
-    let (t, p) = Stats::ttest_ind(&a, &b).unwrap();
+    let (t, p) = Stats::ttest_ind(&a, &b, false).unwrap();
     assert!(t < -5.0); // a clearly < b
     assert!(p < 0.001);
 }

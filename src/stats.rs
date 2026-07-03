@@ -101,7 +101,7 @@ impl fmt::Display for AnovaRegressionResult {
 }
 
 /// Result of comparing two sample means.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CompareMeansResult {
     pub mean1: f64,
     pub mean2: f64,
@@ -114,6 +114,25 @@ pub struct CompareMeansResult {
     pub cohens_d: f64,
     pub n1: usize,
     pub n2: usize,
+    pub std_dev1: f64,
+    pub std_dev2: f64,
+    pub std_err1: f64,
+    pub std_err2: f64,
+    pub equal_var: bool,
+}
+
+/// Result of a single sample or paired t-test.
+#[derive(Debug, Clone)]
+pub struct TTestResult {
+    pub mean: f64,
+    pub std_dev: f64,
+    pub std_err: f64,
+    pub t_statistic: f64,
+    pub p_value: f64,
+    pub df: f64,
+    pub ci_lower: f64,
+    pub ci_upper: f64,
+    pub n: usize,
 }
 
 impl fmt::Display for CompareMeansResult {
@@ -361,11 +380,12 @@ impl Stats {
         Ok((t, p_value))
     }
 
-    /// Two-sample t-test (Welch's, unequal variances).
+    /// Two-sample t-test (Welch's or Student's).
     /// Returns (t_statistic, p_value).
     pub fn ttest_ind(
         data1: &Array1<f64>,
         data2: &Array1<f64>,
+        equal_var: bool,
     ) -> Result<(f64, f64), GreenersError> {
         let n1 = data1.len();
         let n2 = data2.len();
@@ -379,19 +399,23 @@ impl Stats {
         let m2 = data2.mean().unwrap_or(0.0);
         let v1 = data1.iter().map(|&x| (x - m1).powi(2)).sum::<f64>() / (n1 - 1) as f64;
         let v2 = data2.iter().map(|&x| (x - m2).powi(2)).sum::<f64>() / (n2 - 1) as f64;
+        let diff = m1 - m2;
 
-        let se = (v1 / n1 as f64 + v2 / n2 as f64).sqrt();
-        if se < 1e-15 {
-            return Ok((0.0, 1.0));
-        }
-
-        let t = (m1 - m2) / se;
-
-        // Welch-Satterthwaite df
-        let num = (v1 / n1 as f64 + v2 / n2 as f64).powi(2);
-        let den =
-            (v1 / n1 as f64).powi(2) / (n1 - 1) as f64 + (v2 / n2 as f64).powi(2) / (n2 - 1) as f64;
-        let df = num / den.max(1e-15);
+        let (t, df) = if equal_var {
+            let pooled_var = ((n1 - 1) as f64 * v1 + (n2 - 1) as f64 * v2) / (n1 + n2 - 2) as f64;
+            let se = (pooled_var * (1.0 / n1 as f64 + 1.0 / n2 as f64)).sqrt();
+            let t = if se > 1e-15 { diff / se } else { 0.0 };
+            let df = (n1 + n2 - 2) as f64;
+            (t, df)
+        } else {
+            let se = (v1 / n1 as f64 + v2 / n2 as f64).sqrt();
+            let t = if se > 1e-15 { diff / se } else { 0.0 };
+            let num = (v1 / n1 as f64 + v2 / n2 as f64).powi(2);
+            let den = (v1 / n1 as f64).powi(2) / (n1 - 1) as f64
+                + (v2 / n2 as f64).powi(2) / (n2 - 1) as f64;
+            let df = num / den.max(1e-15);
+            (t, df)
+        };
 
         let dist = StudentsT::new(0.0, 1.0, df).map_err(|_| GreenersError::OptimizationFailed)?;
         let p_value = 2.0 * (1.0 - dist.cdf(t.abs()));
@@ -400,11 +424,12 @@ impl Stats {
 
     /// Compare means of two samples.
     ///
-    /// Returns Welch t-test, confidence interval for the difference,
+    /// Returns Welch or Student t-test, confidence interval for the difference,
     /// and Cohen's d effect size.
     pub fn compare_means(
         data1: &Array1<f64>,
         data2: &Array1<f64>,
+        equal_var: bool,
     ) -> Result<CompareMeansResult, GreenersError> {
         let n1 = data1.len();
         let n2 = data2.len();
@@ -419,32 +444,51 @@ impl Stats {
         let v1 = data1.iter().map(|&x| (x - m1).powi(2)).sum::<f64>() / (n1 - 1) as f64;
         let v2 = data2.iter().map(|&x| (x - m2).powi(2)).sum::<f64>() / (n2 - 1) as f64;
 
-        let se = (v1 / n1 as f64 + v2 / n2 as f64).sqrt();
         let diff = m1 - m2;
 
-        let t_stat = if se > 1e-15 { diff / se } else { 0.0 };
-
-        // Welch-Satterthwaite df
-        let num = (v1 / n1 as f64 + v2 / n2 as f64).powi(2);
-        let den =
-            (v1 / n1 as f64).powi(2) / (n1 - 1) as f64 + (v2 / n2 as f64).powi(2) / (n2 - 1) as f64;
-        let df = num / den.max(1e-15);
-
-        let dist = StudentsT::new(0.0, 1.0, df).map_err(|_| GreenersError::OptimizationFailed)?;
-        let p_value = 2.0 * (1.0 - dist.cdf(t_stat.abs()));
-
-        // 95% CI for difference
-        let t_crit = dist.inverse_cdf(0.975);
-        let ci_lower = diff - t_crit * se;
-        let ci_upper = diff + t_crit * se;
-
-        // Cohen's d: pooled std
-        let pooled_var = ((n1 - 1) as f64 * v1 + (n2 - 1) as f64 * v2) / (n1 + n2 - 2) as f64;
-        let cohens_d = if pooled_var > 1e-15 {
-            diff / pooled_var.sqrt()
+        let (t_stat, df, _se, ci_lower, ci_upper, cohens_d, p_value) = if equal_var {
+            let pooled_var = ((n1 - 1) as f64 * v1 + (n2 - 1) as f64 * v2) / (n1 + n2 - 2) as f64;
+            let se = (pooled_var * (1.0 / n1 as f64 + 1.0 / n2 as f64)).sqrt();
+            let t_stat = if se > 1e-15 { diff / se } else { 0.0 };
+            let df = (n1 + n2 - 2) as f64;
+            let dist =
+                StudentsT::new(0.0, 1.0, df).map_err(|_| GreenersError::OptimizationFailed)?;
+            let p_value = 2.0 * (1.0 - dist.cdf(t_stat.abs()));
+            let t_crit = dist.inverse_cdf(0.975);
+            let ci_lower = diff - t_crit * se;
+            let ci_upper = diff + t_crit * se;
+            let cohens_d = if pooled_var > 1e-15 {
+                diff / pooled_var.sqrt()
+            } else {
+                0.0
+            };
+            (t_stat, df, se, ci_lower, ci_upper, cohens_d, p_value)
         } else {
-            0.0
+            let se = (v1 / n1 as f64 + v2 / n2 as f64).sqrt();
+            let t_stat = if se > 1e-15 { diff / se } else { 0.0 };
+            let num = (v1 / n1 as f64 + v2 / n2 as f64).powi(2);
+            let den = (v1 / n1 as f64).powi(2) / (n1 - 1) as f64
+                + (v2 / n2 as f64).powi(2) / (n2 - 1) as f64;
+            let df = num / den.max(1e-15);
+            let dist =
+                StudentsT::new(0.0, 1.0, df).map_err(|_| GreenersError::OptimizationFailed)?;
+            let p_value = 2.0 * (1.0 - dist.cdf(t_stat.abs()));
+            let t_crit = dist.inverse_cdf(0.975);
+            let ci_lower = diff - t_crit * se;
+            let ci_upper = diff + t_crit * se;
+            let pooled_var = ((n1 - 1) as f64 * v1 + (n2 - 1) as f64 * v2) / (n1 + n2 - 2) as f64;
+            let cohens_d = if pooled_var > 1e-15 {
+                diff / pooled_var.sqrt()
+            } else {
+                0.0
+            };
+            (t_stat, df, se, ci_lower, ci_upper, cohens_d, p_value)
         };
+
+        let std_dev1 = v1.sqrt();
+        let std_dev2 = v2.sqrt();
+        let std_err1 = std_dev1 / (n1 as f64).sqrt();
+        let std_err2 = std_dev2 / (n2 as f64).sqrt();
 
         Ok(CompareMeansResult {
             mean1: m1,
@@ -458,6 +502,11 @@ impl Stats {
             cohens_d,
             n1,
             n2,
+            std_dev1,
+            std_dev2,
+            std_err1,
+            std_err2,
+            equal_var,
         })
     }
 
@@ -474,5 +523,55 @@ impl Stats {
         }
         let diff = data1 - data2;
         Self::ttest_1samp(&diff, 0.0)
+    }
+
+    /// One-sample t-test (full details).
+    pub fn ttest_1samp_full(data: &Array1<f64>, mu0: f64) -> Result<TTestResult, GreenersError> {
+        let n = data.len();
+        if n < 2 {
+            return Err(GreenersError::InvalidOperation(
+                "Need at least 2 observations".into(),
+            ));
+        }
+        let mean = data.mean().unwrap_or(0.0);
+        let var = data.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / (n - 1) as f64;
+        let std_dev = var.sqrt();
+        let std_err = std_dev / (n as f64).sqrt();
+        let t_statistic = if std_err > 1e-15 {
+            (mean - mu0) / std_err
+        } else {
+            0.0
+        };
+        let df = (n - 1) as f64;
+        let dist = StudentsT::new(0.0, 1.0, df).map_err(|_| GreenersError::OptimizationFailed)?;
+        let p_value = 2.0 * (1.0 - dist.cdf(t_statistic.abs()));
+        let t_crit = dist.inverse_cdf(0.975);
+        let ci_lower = mean - t_crit * std_err;
+        let ci_upper = mean + t_crit * std_err;
+        Ok(TTestResult {
+            mean,
+            std_dev,
+            std_err,
+            t_statistic,
+            p_value,
+            df,
+            ci_lower,
+            ci_upper,
+            n,
+        })
+    }
+
+    /// Paired t-test (full details).
+    pub fn ttest_paired_full(
+        data1: &Array1<f64>,
+        data2: &Array1<f64>,
+    ) -> Result<TTestResult, GreenersError> {
+        if data1.len() != data2.len() {
+            return Err(GreenersError::ShapeMismatch(
+                "data1 and data2 must have same length".into(),
+            ));
+        }
+        let diff = data1 - data2;
+        Self::ttest_1samp_full(&diff, 0.0)
     }
 }

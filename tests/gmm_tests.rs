@@ -189,11 +189,7 @@ fn test_gmm_underidentified() {
     let x = Array2::from_shape_vec(
         (5, 3),
         vec![
-            1.0, 1.0, 1.0,
-            1.0, 2.0, 3.0,
-            1.0, 3.0, 6.0,
-            1.0, 4.0, 10.0,
-            1.0, 5.0, 15.0,
+            1.0, 1.0, 1.0, 1.0, 2.0, 3.0, 1.0, 3.0, 6.0, 1.0, 4.0, 10.0, 1.0, 5.0, 15.0,
         ],
     )
     .unwrap();
@@ -257,26 +253,15 @@ fn test_gmm_collinearity_handling() {
     let x = Array2::from_shape_vec(
         (6, 3),
         vec![
-            1.0, 1.0, 2.0,
-            1.0, 2.0, 4.0,
-            1.0, 3.0, 6.0,
-            1.0, 4.0, 8.0,
-            1.0, 5.0, 10.0,
-            1.0, 6.0, 12.0,
+            1.0, 1.0, 2.0, 1.0, 2.0, 4.0, 1.0, 3.0, 6.0, 1.0, 4.0, 8.0, 1.0, 5.0, 10.0, 1.0, 6.0,
+            12.0,
         ],
     )
     .unwrap();
     // 3 instruments to satisfy order condition (exactly identified for clean K = 2)
     let z = Array2::from_shape_vec(
         (6, 2),
-        vec![
-            1.0, 1.0,
-            1.0, 2.0,
-            1.0, 3.0,
-            1.0, 4.0,
-            1.0, 5.0,
-            1.0, 6.0,
-        ],
+        vec![1.0, 1.0, 1.0, 2.0, 1.0, 3.0, 1.0, 4.0, 1.0, 5.0, 1.0, 6.0],
     )
     .unwrap();
 
@@ -287,4 +272,3 @@ fn test_gmm_collinearity_handling() {
     assert_eq!(result.omitted_vars.len(), 1);
     assert!(result.omitted_vars[0].1 == "x1" || result.omitted_vars[0].1 == "x2");
 }
-

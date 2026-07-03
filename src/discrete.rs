@@ -73,7 +73,11 @@ impl fmt::Display for BinaryModelResult {
                 writeln!(
                     f,
                     "{:<10} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
-                    var_name, self.params[fit_idx], self.std_errors[fit_idx], self.z_values[fit_idx], self.p_values[fit_idx]
+                    var_name,
+                    self.params[fit_idx],
+                    self.std_errors[fit_idx],
+                    self.z_values[fit_idx],
+                    self.p_values[fit_idx]
                 )?;
                 fit_idx += 1;
             }
@@ -120,7 +124,8 @@ impl Logit {
         }
 
         // Detect collinearity
-        let (x_to_use, variable_names, omitted_positioned) = if let Some(ref names) = variable_names {
+        let (x_to_use, variable_names, omitted_positioned) = if let Some(ref names) = variable_names
+        {
             let cr = crate::linalg::drop_collinear(x, names, 1e-10);
             if cr.omitted.is_empty() {
                 (x.clone(), variable_names, vec![])
@@ -371,7 +376,10 @@ impl BinaryModelResult {
     ///
     /// # Returns
     /// Array of AME standard errors (one per coefficient)
-    pub fn average_marginal_effects_se(&self, x: &Array2<f64>) -> Result<Array1<f64>, GreenersError> {
+    pub fn average_marginal_effects_se(
+        &self,
+        x: &Array2<f64>,
+    ) -> Result<Array1<f64>, GreenersError> {
         let n = x.nrows();
         let k = x.ncols();
 
@@ -521,7 +529,8 @@ impl Probit {
         }
 
         // Detect collinearity
-        let (x_to_use, variable_names, omitted_positioned) = if let Some(ref names) = variable_names {
+        let (x_to_use, variable_names, omitted_positioned) = if let Some(ref names) = variable_names
+        {
             let cr = crate::linalg::drop_collinear(x, names, 1e-10);
             if cr.omitted.is_empty() {
                 (x.clone(), variable_names, vec![])

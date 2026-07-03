@@ -317,7 +317,8 @@ fn test_arellano_bond_basic() {
         2,
         false,
         None,
-    ).unwrap();
+    )
+    .unwrap();
 
     // First param is the lagged dependent variable coefficient
     assert!(
@@ -1060,7 +1061,8 @@ fn test_arellano_bond_larger_panel() {
         2,
         false,
         None,
-    ).unwrap();
+    )
+    .unwrap();
 
     assert!(result.params.len() >= 2);
     assert!(result.n_obs > 0);
@@ -1119,7 +1121,8 @@ fn test_arellano_bond_with_exogenous() {
         2,
         false,
         None,
-    ).unwrap();
+    )
+    .unwrap();
 
     // Should have lag + 2 exogenous = 3 params
     assert!(

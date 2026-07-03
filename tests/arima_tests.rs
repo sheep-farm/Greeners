@@ -372,3 +372,40 @@ fn test_is_stationary_ma() {
         result.ma_params[0]
     );
 }
+
+#[test]
+fn test_mle_ar1_recovery() {
+    let y = generate_ar1(500, 0.7, 0.1, 42);
+    let result = ARIMA::fit_mle(&y, (1, 0, 0)).unwrap();
+
+    assert_eq!(result.estimation_method, "mle");
+    assert!((result.ar_params[0] - 0.7).abs() < 0.1);
+    assert!(result.std_errors[1] > 0.0);
+    assert!(result.log_likelihood.is_finite());
+}
+
+#[test]
+fn test_mle_ma1_recovery() {
+    let y = generate_ma1(500, 0.5, 0.0, 123);
+    let result = ARIMA::fit_mle(&y, (0, 0, 1)).unwrap();
+
+    assert_eq!(result.estimation_method, "mle");
+    assert!((result.ma_params[0] - 0.5).abs() < 0.05);
+    assert!(result.std_errors[1] > 0.0);
+}
+
+#[test]
+fn test_mle_arima111_display() {
+    let ar1 = generate_ar1(500, 0.5, 0.1, 77);
+    let mut y_vec = vec![0.0; ar1.len()];
+    let mut cum = 0.0;
+    for (i, &v) in ar1.iter().enumerate() {
+        cum += v;
+        y_vec[i] = cum;
+    }
+    let y = Array1::from_vec(y_vec);
+    let result = ARIMA::fit_mle(&y, (1, 1, 1)).unwrap();
+    let display = format!("{}", result);
+    assert!(display.contains("via MLE"));
+    assert!(display.contains("Log-Likelihood"));
+}

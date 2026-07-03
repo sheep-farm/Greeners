@@ -1,4 +1,4 @@
-use greeners::{DataFrame, Formula, DiffInDiff, CovarianceType};
+use greeners::{CovarianceType, DataFrame, DiffInDiff, Formula};
 
 #[test]
 fn test_did_dummy_types() {
@@ -14,7 +14,8 @@ fn test_did_dummy_types() {
         .unwrap();
 
     let formula = Formula::parse("y ~ treated").unwrap();
-    let res = DiffInDiff::from_formula(&formula, &df, "treated", "post", CovarianceType::HC1).unwrap();
+    let res =
+        DiffInDiff::from_formula(&formula, &df, "treated", "post", CovarianceType::HC1).unwrap();
 
     // ATT:
     // control_pre = (10 + 12) / 2 = 11

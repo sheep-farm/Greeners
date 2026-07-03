@@ -1,6 +1,6 @@
 use crate::error::GreenersError;
 use crate::linalg::LinalgInverse as _;
-use crate::{DataFrame, Formula, InferenceType, OLS};
+use crate::{DataFrame, Formula, InferenceType};
 use ndarray::{Array1, Array2};
 use statrs::distribution::{ContinuousCDF, Normal};
 use std::fmt;
@@ -225,13 +225,13 @@ impl MNLogit {
             })
             .collect();
 
-        let (x_clean, omitted_positioned, clean_var_names) =
-            if let Some(ref names) = variable_names {
-                let cr = crate::linalg::drop_collinear(x, names, 1e-10);
-                (cr.x_clean, cr.omitted, cr.clean_names)
-            } else {
-                (x.clone(), vec![], vec![])
-            };
+        let (x_clean, omitted_positioned, clean_var_names) = if let Some(ref names) = variable_names
+        {
+            let cr = crate::linalg::drop_collinear(x, names, 1e-10);
+            (cr.x_clean, cr.omitted, cr.clean_names)
+        } else {
+            (x.clone(), vec![], vec![])
+        };
 
         let x_use = &x_clean;
         let k_clean = x_use.ncols();

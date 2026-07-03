@@ -1,5 +1,9 @@
 use crate::linalg::LinalgInverse as _;
 use crate::{GreenersError, InferenceType};
+use argmin::{
+    core::{CostFunction, Error as ArgminError, Executor, IterState, State},
+    solver::neldermead::NelderMead,
+};
 use ndarray::{s, Array1, Array2};
 use statrs::distribution::{ChiSquared, ContinuousCDF, Normal as NormalDist};
 use std::fmt;
@@ -45,6 +49,7 @@ pub struct ArimaResult {
     pub df_resid: usize,
     pub param_names: Vec<String>,
     pub inference_type: InferenceType,
+    pub estimation_method: String,
     // Internal: store the original (undifferenced) series and differenced series for prediction
     original_y: Array1<f64>,
     differenced_y: Array1<f64>,
@@ -413,10 +418,409 @@ impl ARIMA {
             df_resid,
             param_names,
             inference_type: InferenceType::Normal,
+            estimation_method: "hr".to_string(),
             original_y,
             differenced_y: z,
             after_regular_diff,
         })
+    }
+
+    /// Exact Gaussian log-likelihood for a stationary ARMA process.
+    ///
+    /// The series is centred internally (intercept profiled out), so the returned
+    /// log-likelihood corresponds to an ARMA(p,q) model with mean zero. The sigma²
+    /// estimate is also returned.
+    fn exact_loglik(z: &Array1<f64>, ar: &[f64], ma: &[f64]) -> (f64, f64) {
+        let n = z.len();
+        if n == 0 {
+            return (f64::NEG_INFINITY, f64::NAN);
+        }
+        if ar.is_empty() && ma.is_empty() {
+            let m = z.mean().unwrap_or(0.0);
+            let sse = z.iter().map(|v| (v - m).powi(2)).sum::<f64>();
+            let sigma2 = sse / n as f64;
+            let ll = -0.5 * n as f64 * (1.0 + (2.0 * std::f64::consts::PI * sigma2).ln());
+            return (ll, sigma2);
+        }
+
+        // Centre the series (intercept is profiled out).
+        let m = z.mean().unwrap_or(0.0);
+        let zc: Vec<f64> = z.iter().map(|v| v - m).collect();
+
+        // MA(infinity) coefficients for autocovariances.
+        let max_psi = (n + 50).min(1000);
+        let mut psi = vec![0.0; max_psi];
+        psi[0] = 1.0;
+        for j in 1..max_psi {
+            let mut val = 0.0;
+            for (l, &a) in ar.iter().enumerate() {
+                let idx = j.saturating_sub(l + 1);
+                if idx < psi.len() {
+                    val += a * psi[idx];
+                }
+            }
+            if j <= ma.len() {
+                val += ma[j - 1];
+            }
+            psi[j] = val;
+            if j > n && val.abs() < 1e-12 {
+                break;
+            }
+        }
+
+        // Autocovariances at lags 0..MAX_LAG (sigma² = 1).
+        const MAX_LAG: usize = 50;
+        let max_lag = n.min(MAX_LAG);
+        let mut gamma = vec![0.0; max_lag + 1];
+        for k in 0..=max_lag {
+            let mut sum = 0.0;
+            for j in 0..max_psi {
+                if j + k >= max_psi {
+                    break;
+                }
+                sum += psi[j] * psi[j + k];
+                if j > n && psi[j].abs() < 1e-12 && psi[j + k].abs() < 1e-12 {
+                    break;
+                }
+            }
+            gamma[k] = sum;
+        }
+
+        let mut v = vec![0.0; n];
+        v[0] = gamma[0];
+        let mut phi: Vec<Vec<f64>> = Vec::with_capacity(n);
+        phi.push(vec![]);
+
+        let mut sum_log_v = 0.0;
+        let mut sum_eps2_v = 0.0;
+
+        for t in 0..n {
+            // Prediction of zc[t] using previous observations.
+            let mut xhat = 0.0;
+            if t > 0 {
+                let prev = &phi[t - 1];
+                for (j, &coeff) in prev.iter().enumerate() {
+                    xhat += coeff * zc[t - 1 - j];
+                }
+            }
+            let eps = zc[t] - xhat;
+            sum_log_v += v[t].ln();
+            sum_eps2_v += eps * eps / v[t];
+
+            if t + 1 < n {
+                let k = t + 1;
+                let mut num = gamma.get(k).copied().unwrap_or(0.0);
+                let prev = &phi[t];
+                for (j, &coeff) in prev.iter().enumerate() {
+                    let lag = k.saturating_sub(1 + j);
+                    num -= coeff * gamma.get(lag).copied().unwrap_or(0.0);
+                }
+                let phi_kk = if v[t] > 0.0 { num / v[t] } else { 0.0 };
+                let mut new_phi = Vec::with_capacity(k.min(max_lag));
+                for j in 0..(k - 1).min(max_lag) {
+                    let prev_j = prev[j];
+                    let prev_kj = prev.get(k - 2 - j).copied().unwrap_or(0.0);
+                    new_phi.push(prev_j - phi_kk * prev_kj);
+                }
+                new_phi.push(phi_kk);
+                v[k] = v[t] * (1.0 - phi_kk * phi_kk);
+                phi.push(new_phi);
+            }
+        }
+
+        let nf = n as f64;
+        let sigma2 = sum_eps2_v / nf;
+        if sigma2 <= 0.0 || !sigma2.is_finite() {
+            return (f64::NEG_INFINITY, f64::NAN);
+        }
+        let log_lik =
+            -0.5 * nf * (1.0 + (2.0 * std::f64::consts::PI * sigma2).ln()) - 0.5 * sum_log_v;
+        (log_lik, sigma2)
+    }
+
+    /// Fit a non-seasonal ARIMA(p,d,q) model via exact Gaussian MLE.
+    ///
+    /// The likelihood is maximised with the Nelder-Mead simplex algorithm using
+    /// Hannan-Rissanen starting values. For models with seasonal parts or
+    /// exogenous regressors, use `fit_sarimax` (Hannan-Rissanen) instead.
+    pub fn fit_mle(
+        y: &Array1<f64>,
+        order: (usize, usize, usize),
+    ) -> Result<ArimaResult, GreenersError> {
+        let (p, d, q) = order;
+
+        let n = y.len();
+        if n < 10 {
+            return Err(GreenersError::ShapeMismatch(
+                "Series too short for ARIMA estimation".into(),
+            ));
+        }
+        if p + q > 4 {
+            return Err(GreenersError::InvalidOperation(
+                "Exact MLE is only supported for ARIMA models with p+q <= 4".into(),
+            ));
+        }
+
+        let original_y = y.clone();
+        let after_regular_diff = difference(y, d);
+        let z = after_regular_diff.clone();
+        let t = z.len();
+        if t < 10 {
+            return Err(GreenersError::ShapeMismatch(
+                "Not enough observations after differencing".into(),
+            ));
+        }
+
+        // Initial values from Hannan-Rissanen.
+        let hr = Self::fit_sarimax(y, order, (0, 0, 0, 1), None)?;
+        let intercept = z.mean().unwrap_or(0.0);
+        let n_params = p + q;
+        if n_params == 0 {
+            let (log_lik, sigma2) = Self::exact_loglik(&z, &[], &[]);
+            return Self::build_mle_result(
+                &original_y,
+                &z,
+                after_regular_diff,
+                d,
+                Array1::zeros(0),
+                Array1::zeros(0),
+                intercept,
+                sigma2,
+                log_lik,
+            );
+        }
+
+        let initial: Vec<f64> = {
+            let mut v = Vec::with_capacity(n_params);
+            for i in 0..p {
+                v.push(clamp_stationarity(
+                    hr.ar_params.get(i).copied().unwrap_or(0.0),
+                ));
+            }
+            for i in 0..q {
+                v.push(clamp_invertibility(
+                    hr.ma_params.get(i).copied().unwrap_or(0.0),
+                ));
+            }
+            v
+        };
+
+        let problem = ArimaProblem { z: z.clone(), p, q };
+
+        // Nelder-Mead simplex. n+1 vertices built from the HR initial point.
+        let vertices = build_simplex(&initial, 0.25);
+        let solver: NelderMead<Vec<f64>, f64> =
+            NelderMead::new(vertices)
+                .with_sd_tolerance(1e-7)
+                .map_err(|e| GreenersError::InvalidOperation(format!("Nelder-Mead config: {e}")))?;
+
+        let result = Executor::new(problem, solver)
+            .configure(|state: IterState<Vec<f64>, (), (), (), (), f64>| state.max_iters(2000))
+            .run()
+            .map_err(|e| GreenersError::InvalidOperation(format!("Optimisation failed: {e}")))?;
+
+        let best = result.state().get_best_param().ok_or_else(|| {
+            GreenersError::InvalidOperation("Optimisation did not return a best parameter".into())
+        })?;
+        let best = project_to_stationary(best, p, q);
+        let (log_lik, sigma2) = Self::exact_loglik(&z, &best[..p], &best[p..]);
+
+        // Numerical Hessian for standard errors.
+        let std_errors = match Self::numerical_hessian_std_errors(&z, &best, p, q) {
+            Ok(se) => se,
+            Err(_) => Array1::zeros(n_params + 1),
+        };
+
+        let ar_params = Array1::from_vec(best[..p].to_vec());
+        let ma_params = Array1::from_vec(best[p..].to_vec());
+        let all_coefs: Array1<f64> = {
+            let mut v = Vec::with_capacity(1 + p + q);
+            v.push(intercept);
+            v.extend(ar_params.iter().cloned());
+            v.extend(ma_params.iter().cloned());
+            Array1::from_vec(v)
+        };
+        Self::build_mle_result(
+            &original_y,
+            &z,
+            after_regular_diff,
+            d,
+            ar_params,
+            ma_params,
+            intercept,
+            sigma2,
+            log_lik,
+        )
+        .map(|mut r| {
+            r.std_errors = std_errors.clone();
+            let n_se = r.std_errors.len();
+            let normal = NormalDist::new(0.0, 1.0).ok();
+            let z95 = 1.959963984540054;
+            for i in 0..n_se {
+                let se = r.std_errors[i];
+                let coef = all_coefs[i];
+                if se > 0.0 && se.is_finite() {
+                    let z = coef / se;
+                    r.t_values[i] = z;
+                    r.p_values[i] = normal
+                        .as_ref()
+                        .map(|n| 2.0 * (1.0 - n.cdf(z.abs())))
+                        .unwrap_or(1.0);
+                    r.conf_lower[i] = coef - z95 * se;
+                    r.conf_upper[i] = coef + z95 * se;
+                } else {
+                    r.t_values[i] = 0.0;
+                    r.p_values[i] = 1.0;
+                    r.conf_lower[i] = f64::NAN;
+                    r.conf_upper[i] = f64::NAN;
+                }
+            }
+            r
+        })
+    }
+
+    /// Build an `ArimaResult` after exact MLE optimisation.
+    #[allow(clippy::too_many_arguments)]
+    fn build_mle_result(
+        original_y: &Array1<f64>,
+        z: &Array1<f64>,
+        after_regular_diff: Array1<f64>,
+        d: usize,
+        ar_params: Array1<f64>,
+        ma_params: Array1<f64>,
+        intercept: f64,
+        sigma2: f64,
+        log_lik: f64,
+    ) -> Result<ArimaResult, GreenersError> {
+        let p = ar_params.len();
+        let q = ma_params.len();
+        let t = z.len();
+        let n_final = t;
+        let n_cols = 1 + p + q;
+        let df_model = n_cols;
+        let df_resid = if n_final > n_cols {
+            n_final - n_cols
+        } else {
+            1
+        };
+        let nf = n_final as f64;
+        let aic = -2.0 * log_lik + 2.0 * n_cols as f64;
+        let bic = -2.0 * log_lik + n_cols as f64 * nf.ln();
+
+        // Residuals from a conditional CSS recursion at the MLE estimates.
+        let max_lag = p.max(q);
+        let start = max_lag;
+        let mut residuals = Array1::<f64>::zeros(t - start);
+        for i in start..t {
+            let mut pred = intercept;
+            for (l, &a) in ar_params.iter().enumerate() {
+                pred += a * z[i - 1 - l];
+            }
+            for (l, &m) in ma_params.iter().enumerate() {
+                let e_lag = if i - 1 - l >= start {
+                    residuals[i - 1 - l - start]
+                } else {
+                    0.0
+                };
+                pred += m * e_lag;
+            }
+            residuals[i - start] = z[i] - pred;
+        }
+
+        let mut param_names = Vec::with_capacity(n_cols);
+        param_names.push("intercept".to_string());
+        for l in 1..=p {
+            param_names.push(format!("ar.L{}", l));
+        }
+        for l in 1..=q {
+            param_names.push(format!("ma.L{}", l));
+        }
+
+        // Inference: z = coef / se; two-sided normal p-values.
+        let n_se = std::cmp::max(n_cols, 1);
+        let std_errors = Array1::<f64>::zeros(n_se);
+        let t_values = Array1::<f64>::zeros(n_se);
+        let p_values = Array1::<f64>::ones(n_se);
+        let conf_lower = Array1::from_vec(std::iter::repeat_n(f64::NAN, n_se).collect::<Vec<_>>());
+        let conf_upper = conf_lower.clone();
+
+        Ok(ArimaResult {
+            ar_params,
+            ma_params,
+            seasonal_ar_params: Array1::zeros(0),
+            seasonal_ma_params: Array1::zeros(0),
+            intercept,
+            sigma2,
+            aic,
+            bic,
+            residuals,
+            n_obs: n_final,
+            order: ArimaOrder { p, d, q },
+            seasonal_order: None,
+            exog_params: None,
+            std_errors,
+            t_values,
+            p_values,
+            conf_lower,
+            conf_upper,
+            log_likelihood: log_lik,
+            df_model,
+            df_resid,
+            param_names,
+            inference_type: InferenceType::Normal,
+            estimation_method: "mle".to_string(),
+            original_y: original_y.clone(),
+            differenced_y: z.clone(),
+            after_regular_diff,
+        })
+    }
+
+    /// Numerical Hessian of the negative log-likelihood at the optimum.
+    ///
+    /// Returns the asymptotic standard errors for the AR/MA parameters.
+    /// The intercept is profiled out, so its SE is set to zero.
+    fn numerical_hessian_std_errors(
+        z: &Array1<f64>,
+        best: &[f64],
+        p: usize,
+        q: usize,
+    ) -> Result<Array1<f64>, GreenersError> {
+        let n = best.len();
+        let eps = 1e-5;
+        let mut hessian = Array2::<f64>::zeros((n, n));
+        for i in 0..n {
+            for j in 0..n {
+                let hi = eps * best[i].abs().max(1.0);
+                let hj = eps * best[j].abs().max(1.0);
+                let f_pp = neg_loglik_at(z, best, p, q, i, hi, j, hj);
+                let f_pm = neg_loglik_at(z, best, p, q, i, hi, j, -hj);
+                let f_mp = neg_loglik_at(z, best, p, q, i, -hi, j, hj);
+                let f_mm = neg_loglik_at(z, best, p, q, i, -hi, j, -hj);
+                hessian[[i, j]] = (f_pp - f_pm - f_mp + f_mm) / (4.0 * hi * hj);
+            }
+        }
+
+        // Invert Hessian to get the asymptotic covariance matrix.
+        let cov = hessian
+            .inv()
+            .map_err(|_| GreenersError::InvalidOperation("Hessian inversion failed".into()))?;
+        // Fallback: if the diagonal is not positive, use the pseudo-inverse via SVD.
+        let cov = if cov.diag().iter().all(|&v| v > 0.0 && v.is_finite()) {
+            cov
+        } else {
+            pseudo_inverse(&hessian).map_err(|_| {
+                GreenersError::InvalidOperation("Hessian pseudo-inverse failed".into())
+            })?
+        };
+        let n_total = n + 1;
+        let mut se = Array1::<f64>::zeros(n_total);
+        for i in 0..n {
+            let v = cov[[i, i]];
+            if v > 0.0 && v.is_finite() {
+                se[i + 1] = v.sqrt();
+            }
+        }
+        Ok(se)
     }
 }
 
@@ -852,6 +1256,149 @@ fn check_roots_outside_unit_circle(coeffs: &Array1<f64>) -> bool {
     spectral_radius < 1.0
 }
 
+/// Nelder-Mead cost function for exact ARIMA MLE.
+///
+/// The parameter vector is `[ar_1, ..., ar_p, ma_1, ..., ma_q]`.
+/// The cost is the negative exact log-likelihood (minimised by the solver).
+struct ArimaProblem {
+    z: Array1<f64>,
+    p: usize,
+    q: usize,
+}
+
+impl CostFunction for ArimaProblem {
+    type Param = Vec<f64>;
+    type Output = f64;
+
+    fn cost(&self, param: &Self::Param) -> Result<Self::Output, ArgminError> {
+        let param = project_to_stationary(param, self.p, self.q);
+        let ar = &param[..self.p];
+        let ma = &param[self.p..];
+        let (ll, _) = ARIMA::exact_loglik(&self.z, ar, ma);
+        if !ll.is_finite() {
+            return Ok(1e12); // large penalty for invalid/simplex rejection
+        }
+        Ok(-ll)
+    }
+}
+
+/// Build an initial simplex for Nelder-Mead from a starting point.
+fn build_simplex(center: &[f64], scale: f64) -> Vec<Vec<f64>> {
+    let n = center.len();
+    let mut vertices = Vec::with_capacity(n + 1);
+    vertices.push(center.to_vec());
+    for i in 0..n {
+        let mut v = center.to_vec();
+        v[i] += scale;
+        vertices.push(v);
+    }
+    vertices
+}
+
+/// Project AR/MA coefficients back to the open stationarity/invertibility region.
+fn project_to_stationary(v: &[f64], p: usize, q: usize) -> Vec<f64> {
+    let mut out = v.to_vec();
+    for item in out.iter_mut().take(p) {
+        *item = clamp_stationarity(*item);
+    }
+    for item in out.iter_mut().skip(p).take(q) {
+        *item = clamp_invertibility(*item);
+    }
+    out
+}
+
+const fn clamp_stationarity(x: f64) -> f64 {
+    if x >= 1.0 {
+        0.9999
+    } else if x <= -1.0 {
+        -0.9999
+    } else {
+        x
+    }
+}
+
+const fn clamp_invertibility(x: f64) -> f64 {
+    clamp_stationarity(x)
+}
+
+/// Negative log-likelihood evaluated at `best` with offsets applied to dimensions i and j.
+#[allow(clippy::too_many_arguments)]
+fn neg_loglik_at(
+    z: &Array1<f64>,
+    best: &[f64],
+    p: usize,
+    q: usize,
+    i: usize,
+    di: f64,
+    j: usize,
+    dj: f64,
+) -> f64 {
+    let mut x = best.to_vec();
+    x[i] += di;
+    x[j] += dj;
+    x = project_to_stationary(&x, p, q);
+    let (ll, _) = ARIMA::exact_loglik(z, &x[..p], &x[p..]);
+    if ll.is_finite() {
+        -ll
+    } else {
+        1e12
+    }
+}
+
+/// Moore-Penrose pseudo-inverse of a symmetric matrix via power iteration.
+fn pseudo_inverse(a: &Array2<f64>) -> Result<Array2<f64>, ()> {
+    let n = a.nrows();
+    let mut a_def = a.clone();
+    let mut eigenvectors = Array2::<f64>::zeros((n, n));
+    let mut eigenvalues = vec![0.0; n];
+    for col in 0..n {
+        let mut v = Array1::<f64>::zeros(n);
+        v[col] = 1.0;
+        for _ in 0..200 {
+            let mut w = Array1::<f64>::zeros(n);
+            for i in 0..n {
+                for j in 0..n {
+                    w[i] += a_def[[i, j]] * v[j];
+                }
+            }
+            let norm = w.iter().map(|x| x * x).sum::<f64>().sqrt();
+            if norm < 1e-15 {
+                break;
+            }
+            v = w / norm;
+        }
+        for i in 0..n {
+            eigenvectors[[i, col]] = v[i];
+        }
+        let mut av = Array1::<f64>::zeros(n);
+        for i in 0..n {
+            for j in 0..n {
+                av[i] += a_def[[i, j]] * v[j];
+            }
+        }
+        eigenvalues[col] = (0..n).map(|i| v[i] * av[i]).sum();
+        // Deflate
+        for i in 0..n {
+            for j in 0..n {
+                a_def[[i, j]] -= eigenvalues[col] * v[i] * v[j];
+            }
+        }
+    }
+    let mut result = Array2::<f64>::zeros((n, n));
+    for i in 0..n {
+        for j in 0..n {
+            let mut sum = 0.0;
+            for k in 0..n {
+                if eigenvalues[k].abs() > 1e-12 {
+                    sum += eigenvectors[[i, k]] * eigenvectors[[j, k]] / eigenvalues[k];
+                }
+            }
+            result[[i, j]] = sum;
+        }
+    }
+    Ok(result)
+}
+
 impl fmt::Display for ArimaResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let model_name = match &self.seasonal_order {
@@ -862,11 +1409,11 @@ impl fmt::Display for ArimaResult {
             None => format!("ARIMA({},{},{})", self.order.p, self.order.d, self.order.q),
         };
 
-        writeln!(
-            f,
-            "\n{:=^70}",
-            format!(" {} via Hannan-Rissanen ", model_name)
-        )?;
+        let method_label = match self.estimation_method.as_str() {
+            "mle" => " via MLE ",
+            _ => " via Hannan-Rissanen ",
+        };
+        writeln!(f, "\n{:=^70}", format!("{}{}", model_name, method_label))?;
         writeln!(f, "{:<20} {:>10}", "Observations:", self.n_obs)?;
         writeln!(f, "{:<20} {:>10.6}", "Log-Likelihood:", self.log_likelihood)?;
         writeln!(f, "{:<20} {:>10.6}", "Sigma²:", self.sigma2)?;
