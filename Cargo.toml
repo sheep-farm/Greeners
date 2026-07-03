@@ -40,8 +40,8 @@ ndarray-rand = "0.14"
 num-complex = "0.4.6"
 chrono = { version = "0.4", features = ["serde"] }
 # Pure-Rust numerical optimisation (L-BFGS, Nelder-Mead, etc.)
-argmin = "0.10.0"
-argmin-math = { version = "0.4", features = ["vec"] }
+argmin = "0.11.0"
+argmin-math = { version = "0.5", features = ["vec"] }
 
 [dev-dependencies]
 ndarray-rand = "0.14" # Para gerar matrizes aleatórias nos exemplos
