@@ -232,6 +232,7 @@ impl RD {
     /// * `d` — tratamento real recebido (binário ou contínuo em [0,1])
     ///
     /// τ̂_FRD = salto(Y) / salto(D)  (razão de dois RD sharps)
+    #[allow(clippy::too_many_arguments)]
     pub fn fit_fuzzy(
         y: &Array1<f64>,
         d: &Array1<f64>,

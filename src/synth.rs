@@ -402,8 +402,8 @@ fn simplex_qp(q: &Array2<f64>, c: &Array1<f64>) -> Array1<f64> {
 
 /// Projeção de v no simplex padrão: w ≥ 0, Σw = 1.
 /// Algoritmo: Duchi et al. (2008), O(n log n).
-fn project_simplex(v: &mut Vec<f64>) {
-    let mut u = v.clone();
+fn project_simplex(v: &mut [f64]) {
+    let mut u = v.to_vec();
     u.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
 
     let mut cssv = 0.0_f64;

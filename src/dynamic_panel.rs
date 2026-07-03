@@ -762,9 +762,12 @@ impl SystemGmm {
                 // Instrumento: Δy_{j-1} sempre disponível (j>=2), ΔX_{j-1}
                 let dy_lag_inst = ys[idx[j - 1]] - ys[idx[j - 2]];
                 let mut zinst_row = vec![dy_lag_inst];
-                for c in 0..k_x {
-                    zinst_row.push(xs[idx[j - 1]][c] - xs[idx[j - 2]][c]);
-                }
+                zinst_row.extend(
+                    xs[idx[j - 1]]
+                        .iter()
+                        .zip(&xs[idx[j - 2]])
+                        .map(|(a, b)| a - b),
+                );
                 zinst_lv.push(zinst_row);
             }
             entity_fd_count.push(t_i - 2);
@@ -946,7 +949,7 @@ impl SystemGmm {
                 .map(|s| s.as_str())
                 .collect();
             let mut names = vec!["L.y".to_string()];
-            for (_, &oc) in active_x.iter().enumerate() {
+            for &oc in active_x.iter() {
                 let offset = if vn.contains(&"const".to_string()) {
                     1
                 } else {

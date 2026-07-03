@@ -159,6 +159,7 @@ impl PSM {
     /// * `with_replacement`— reposição no matching (padrão false)
     /// * `n_boot`          — replicações bootstrap para SE (padrão 200)
     /// * `variable_names`  — (outcome, treatment, covariates)
+    #[allow(clippy::too_many_arguments)]
     pub fn fit(
         y: &Array1<f64>,
         d: &Array1<f64>,
@@ -347,7 +348,7 @@ fn nearest_neighbor_match(
             .iter()
             .filter(|&&ci| {
                 let dist = (ps_t - ps[ci]).abs();
-                caliper.map_or(true, |cap| dist <= cap)
+                caliper.is_none_or(|cap| dist <= cap)
             })
             .filter(|&&ci| with_replacement || !used.contains(&ci))
             .map(|&ci| (ci, (ps_t - ps[ci]).abs()))

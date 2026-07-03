@@ -680,6 +680,7 @@ impl ARIMA {
     }
 
     /// Build an `ArimaResult` after exact MLE optimisation.
+    #[allow(clippy::too_many_arguments)]
     fn build_mle_result(
         original_y: &Array1<f64>,
         z: &Array1<f64>,
@@ -740,8 +741,7 @@ impl ARIMA {
         let std_errors = Array1::<f64>::zeros(n_se);
         let t_values = Array1::<f64>::zeros(n_se);
         let p_values = Array1::<f64>::ones(n_se);
-        let conf_lower =
-            Array1::from_vec(std::iter::repeat(f64::NAN).take(n_se).collect::<Vec<_>>());
+        let conf_lower = Array1::from_vec(std::iter::repeat_n(f64::NAN, n_se).collect::<Vec<_>>());
         let conf_upper = conf_lower.clone();
 
         Ok(ArimaResult {
@@ -1298,11 +1298,11 @@ fn build_simplex(center: &[f64], scale: f64) -> Vec<Vec<f64>> {
 /// Project AR/MA coefficients back to the open stationarity/invertibility region.
 fn project_to_stationary(v: &[f64], p: usize, q: usize) -> Vec<f64> {
     let mut out = v.to_vec();
-    for i in 0..p {
-        out[i] = clamp_stationarity(out[i]);
+    for item in out.iter_mut().take(p) {
+        *item = clamp_stationarity(*item);
     }
-    for i in 0..q {
-        out[p + i] = clamp_invertibility(out[p + i]);
+    for item in out.iter_mut().skip(p).take(q) {
+        *item = clamp_invertibility(*item);
     }
     out
 }
@@ -1322,6 +1322,7 @@ const fn clamp_invertibility(x: f64) -> f64 {
 }
 
 /// Negative log-likelihood evaluated at `best` with offsets applied to dimensions i and j.
+#[allow(clippy::too_many_arguments)]
 fn neg_loglik_at(
     z: &Array1<f64>,
     best: &[f64],

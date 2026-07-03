@@ -1,6 +1,7 @@
 use ndarray::{Array1, Array2};
 
 type ModelStats = (f64, f64, f64, f64, f64, f64, f64, usize);
+type MundlakResult = (f64, f64, usize, Vec<f64>, Vec<f64>);
 
 /// Model selection and comparison utilities
 pub struct ModelSelection;
@@ -566,7 +567,7 @@ impl PanelDiagnostics {
         y: &Array1<f64>,
         x: &Array2<f64>,
         entity_ids: &[i64],
-    ) -> Result<(f64, f64, usize, Vec<f64>, Vec<f64>), String> {
+    ) -> Result<MundlakResult, String> {
         use crate::{CovarianceType, OLS};
         use statrs::distribution::{ContinuousCDF, FisherSnedecor};
         use std::collections::HashMap;
@@ -859,10 +860,8 @@ impl PanelDiagnostics {
         let mut cd_sum = 0.0;
         let mut n_pairs = 0usize;
 
-        for i in 0..n_entities {
-            let ei = residuals_by_entity[i];
-            for j in (i + 1)..n_entities {
-                let ej = residuals_by_entity[j];
+        for (i, &ei) in residuals_by_entity.iter().enumerate() {
+            for &ej in residuals_by_entity.iter().skip(i + 1) {
                 let t_ij = ei.len().min(ej.len());
                 if t_ij < 2 {
                     continue;
