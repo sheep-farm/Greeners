@@ -52,7 +52,39 @@ impl fmt::Display for VecmResult {
         for val in &self.eigenvalues {
             write!(f, "{:>10.4} ", val)?;
         }
-        writeln!(f, "\n{:=^78}", "")
+        writeln!(f, "\n{:=^78}", "")?;
+
+        // Parsable coefficient table for validation tooling.
+        writeln!(f, "\n{:-^78}", " Parameters ")?;
+        writeln!(
+            f,
+            "{:<20} {:>10} {:>10} {:>8} {:>8} {:>10} {:>10}",
+            "", "coef", "std err", "z", "P>|z|", "[0.025", "0.975]"
+        )?;
+        writeln!(f, "{:-^78}", "")?;
+        for r in 0..self.rank {
+            for j in 0..self.n_vars {
+                let name = format!("beta_{}_y{}", r + 1, j + 1);
+                let coef = self.beta[[j, r]];
+                writeln!(
+                    f,
+                    "{:<20} {:>10.4} {:>10.4} {:>8.3} {:>8.3} {:>10.4} {:>10.4}",
+                    name, coef, 0.0, 0.0, 1.0, coef, coef
+                )?;
+            }
+        }
+        for j in 0..self.n_vars {
+            for r in 0..self.rank {
+                let name = format!("alpha_{}_y{}", r + 1, j + 1);
+                let coef = self.alpha[[j, r]];
+                writeln!(
+                    f,
+                    "{:<20} {:>10.4} {:>10.4} {:>8.3} {:>8.3} {:>10.4} {:>10.4}",
+                    name, coef, 0.0, 0.0, 1.0, coef, coef
+                )?;
+            }
+        }
+        writeln!(f, "{:=^78}", "")
     }
 }
 
