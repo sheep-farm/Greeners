@@ -153,6 +153,10 @@ pub struct RollingResult {
     pub r_squared_history: Array1<f64>,
     /// Residuals (one-step-ahead)
     pub residuals: Array1<f64>,
+    /// Optional date labels for each time step (T)
+    pub dates: Vec<String>,
+    /// Optional variable names for the k parameters
+    pub variable_names: Option<Vec<String>>,
     pub n_obs: usize,
     pub window: usize,
 }
@@ -189,6 +193,8 @@ impl RollingOLS {
         y: &Array1<f64>,
         x: &Array2<f64>,
         window: usize,
+        dates: Option<&[String]>,
+        variable_names: Option<Vec<String>>,
     ) -> Result<RollingResult, GreenersError> {
         let n = y.len();
         let k = x.ncols();
@@ -197,6 +203,13 @@ impl RollingOLS {
             return Err(GreenersError::ShapeMismatch(
                 "y and x row count mismatch".into(),
             ));
+        }
+        if let Some(d) = dates {
+            if d.len() != n {
+                return Err(GreenersError::ShapeMismatch(
+                    "dates length must match y length".into(),
+                ));
+            }
         }
         if window <= k {
             return Err(GreenersError::InvalidOperation(
@@ -226,10 +239,14 @@ impl RollingOLS {
             }
         }
 
+        let dates = dates.map(|d| d.to_vec()).unwrap_or_default();
+
         Ok(RollingResult {
             params_history,
             r_squared_history,
             residuals,
+            dates,
+            variable_names,
             n_obs: n,
             window,
         })
@@ -245,6 +262,8 @@ impl RollingWLS {
         x: &Array2<f64>,
         window: usize,
         weights: &Array1<f64>,
+        dates: Option<&[String]>,
+        variable_names: Option<Vec<String>>,
     ) -> Result<RollingResult, GreenersError> {
         let n = y.len();
         let k = x.ncols();
@@ -253,6 +272,13 @@ impl RollingWLS {
             return Err(GreenersError::ShapeMismatch(
                 "y, x, and weights length mismatch".into(),
             ));
+        }
+        if let Some(d) = dates {
+            if d.len() != n {
+                return Err(GreenersError::ShapeMismatch(
+                    "dates length must match y length".into(),
+                ));
+            }
         }
         if window <= k {
             return Err(GreenersError::InvalidOperation(
@@ -291,12 +317,17 @@ impl RollingWLS {
             }
         }
 
+        let dates = dates.map(|d| d.to_vec()).unwrap_or_default();
+
         Ok(RollingResult {
             params_history,
             r_squared_history,
             residuals,
+            dates,
+            variable_names,
             n_obs: n,
             window,
         })
     }
 }
+
