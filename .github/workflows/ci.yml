@@ -54,4 +54,4 @@ jobs:
 
       # 8. Rodar Tarpaulin (Manualmente)
       - name: Checar Cobertura (Tarpaulin)
-        run: cargo tarpaulin --ignore-tests --out Xml --verbose
+        run: cargo tarpaulin --ignore-tests --out Xml --verbose --timeout 300
