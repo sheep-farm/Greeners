@@ -97,7 +97,7 @@ fn test_rolling_ols() {
     let x = Array2::from_shape_fn((n, 2), |(i, j)| if j == 0 { 1.0 } else { i as f64 });
     let y = Array1::from_vec((0..n).map(|i| 1.0 + 2.0 * i as f64).collect());
 
-    let result = RollingOLS::fit(&y, &x, 10).unwrap();
+    let result = RollingOLS::fit(&y, &x, 10, None, None).unwrap();
     assert_eq!(result.n_obs, n);
     assert_eq!(result.window, 10);
     // Last window should give slope ~ 2.0
@@ -113,7 +113,7 @@ fn test_rolling_wls() {
     let y = Array1::from_vec((0..n).map(|i| 1.0 + 2.0 * i as f64).collect());
     let weights = Array1::from_elem(n, 1.0);
 
-    let result = RollingWLS::fit(&y, &x, 10, &weights).unwrap();
+    let result = RollingWLS::fit(&y, &x, 10, &weights, None, None).unwrap();
     assert_eq!(result.n_obs, n);
 }
 
