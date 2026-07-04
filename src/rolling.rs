@@ -153,11 +153,15 @@ pub struct RollingResult {
     pub r_squared_history: Array1<f64>,
     /// Residuals (one-step-ahead)
     pub residuals: Array1<f64>,
-    /// Optional date labels for each time step (T)
+    /// Optional date labels for each time step (T).
+    /// Length must equal `n_obs` when provided; empty when not set.
     pub dates: Vec<String>,
-    /// Optional variable names for the k parameters
+    /// Optional variable names for the k parameters.
+    /// When present, length equals `params_history.ncols()`.
     pub variable_names: Option<Vec<String>>,
+    /// Total number of time steps (rows in y and x).
     pub n_obs: usize,
+    /// Rolling window size used for estimation.
     pub window: usize,
 }
 
