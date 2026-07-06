@@ -1140,6 +1140,7 @@ impl DataFrame {
     /// let df = DataFrame::from_csv_url("https://example.com/data.csv").unwrap();
     /// println!("Loaded {} rows and {} columns", df.n_rows(), df.n_cols());
     /// ```
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn from_csv_url(url: &str) -> Result<Self, GreenersError> {
         use csv::ReaderBuilder;
 
@@ -1323,6 +1324,7 @@ impl DataFrame {
     /// let df = DataFrame::from_json_url("https://example.com/data.json").unwrap();
     /// println!("Loaded {} rows and {} columns", df.n_rows(), df.n_cols());
     /// ```
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn from_json_url(url: &str) -> Result<Self, GreenersError> {
         // Fetch JSON content from URL
         let response = reqwest::blocking::get(url)
