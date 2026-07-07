@@ -304,7 +304,7 @@ fn float_key(v: f64) -> String {
 /// Extrai IDs de unidade como Vec<String> (tenta string, int, float).
 fn unit_ids_as_strings(df: &DataFrame, id_col: &str) -> Result<Vec<String>, GreenersError> {
     if let Ok(arr) = df.get_string(id_col) {
-        return Ok(arr.to_vec());
+        return Ok(arr);
     }
     if let Ok(arr) = df.get_int(id_col) {
         return Ok(arr.iter().map(|v| v.to_string()).collect());

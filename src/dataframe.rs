@@ -456,15 +456,14 @@ impl DataFrame {
     /// let str_col = df.get_string("name").unwrap();
     /// assert_eq!(str_col[0], "Alice");
     /// ```
-    pub fn get_string(&self, name: &str) -> Result<&Array1<String>, GreenersError> {
+    pub fn get_string(&self, name: &str) -> Result<Vec<String>, GreenersError> {
         match self.get_column(name)? {
-            Column::String(arr) => Ok(arr),
+            Column::String(arr) => Ok(arr.to_vec()),
+            Column::Categorical(cat) => {
+                Ok((0..cat.len()).map(|i| cat.get_string(i).unwrap_or("").to_string()).collect())
+            }
             Column::Float(_) => Err(GreenersError::VariableNotFound(format!(
                 "Column '{}' is float, not string",
-                name
-            ))),
-            Column::Categorical(_) => Err(GreenersError::VariableNotFound(format!(
-                "Column '{}' is categorical, not string",
                 name
             ))),
             Column::Bool(_) => Err(GreenersError::VariableNotFound(format!(
