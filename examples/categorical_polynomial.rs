@@ -1,6 +1,6 @@
 use greeners::{CovarianceType, DataFrame, Formula, OLS};
-use ndarray::Array1;
 use indexmap::IndexMap;
+use ndarray::Array1;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("══════════════════════════════════════════════════════════════════════════════");

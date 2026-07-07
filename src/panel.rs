@@ -1,7 +1,7 @@
 use crate::linalg::LinalgInverse as _;
 use crate::{CovarianceType, DataFrame, Formula, GreenersError, InferenceType, OLS};
-use ndarray::{Array1, Array2, Axis};
 use indexmap::IndexMap;
+use ndarray::{Array1, Array2, Axis};
 use std::fmt;
 use std::hash::Hash;
 

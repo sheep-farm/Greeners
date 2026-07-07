@@ -5,8 +5,8 @@ use greeners::{
     CovarianceType, DataFrame, FixedEffects, Formula, InferenceType, Logit, Probit, QuantileReg,
     RandomEffects, FGLS, IV, OLS,
 };
-use ndarray::{Array1, Array2};
 use indexmap::IndexMap;
+use ndarray::{Array1, Array2};
 use std::fs;
 
 /// Tolerance for coefficient / SE comparisons (4 decimal places)

@@ -459,9 +459,9 @@ impl DataFrame {
     pub fn get_string(&self, name: &str) -> Result<Vec<String>, GreenersError> {
         match self.get_column(name)? {
             Column::String(arr) => Ok(arr.to_vec()),
-            Column::Categorical(cat) => {
-                Ok((0..cat.len()).map(|i| cat.get_string(i).unwrap_or("").to_string()).collect())
-            }
+            Column::Categorical(cat) => Ok((0..cat.len())
+                .map(|i| cat.get_string(i).unwrap_or("").to_string())
+                .collect()),
             Column::Float(_) => Err(GreenersError::VariableNotFound(format!(
                 "Column '{}' is float, not string",
                 name
@@ -4434,8 +4434,7 @@ impl DataFrame {
     pub fn encode(&self, column: &str) -> Result<(Array1<f64>, Vec<String>), GreenersError> {
         let str_vals = self.get_string(column)?;
         let mut label_map: Vec<String> = Vec::new();
-        let mut val_to_idx: indexmap::IndexMap<String, usize> =
-            indexmap::IndexMap::new();
+        let mut val_to_idx: indexmap::IndexMap<String, usize> = indexmap::IndexMap::new();
         let numeric: Vec<f64> = str_vals
             .iter()
             .map(|s| {

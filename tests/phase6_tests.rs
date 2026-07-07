@@ -1,6 +1,6 @@
 use greeners::*;
-use ndarray::{Array1, Array2};
 use indexmap::IndexMap;
+use ndarray::{Array1, Array2};
 
 // ─── NegBinP ────────────────────────────────────────────────────────────────
 

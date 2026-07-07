@@ -1,6 +1,6 @@
 use greeners::{DataFrame, Formula, QuantileReg};
-use ndarray::Array1;
 use indexmap::IndexMap;
+use ndarray::Array1;
 
 #[test]
 fn test_quantile_median() {

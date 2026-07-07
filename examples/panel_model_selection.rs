@@ -1,9 +1,9 @@
 use greeners::{
     CovarianceType, DataFrame, Formula, ModelSelection, PanelDiagnostics, SummaryStats, OLS,
 };
+use indexmap::IndexMap;
 use ndarray::Array1;
 use rand::{thread_rng, Rng};
-use indexmap::IndexMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("══════════════════════════════════════════════════════════════════════════════");

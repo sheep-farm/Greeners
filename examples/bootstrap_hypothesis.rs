@@ -1,6 +1,6 @@
 use greeners::{Bootstrap, CovarianceType, DataFrame, Formula, HypothesisTest, OLS};
-use ndarray::{Array1, Array2};
 use indexmap::IndexMap;
+use ndarray::{Array1, Array2};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("══════════════════════════════════════════════════════════════════════════════");

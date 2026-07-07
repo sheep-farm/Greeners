@@ -1,7 +1,7 @@
 use crate::error::GreenersError;
 use crate::DataFrame;
-use ndarray::Array1;
 use indexmap::IndexMap;
+use ndarray::Array1;
 
 /// Built-in datasets for examples and testing.
 pub struct Datasets;

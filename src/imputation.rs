@@ -1,7 +1,7 @@
 use crate::error::GreenersError;
 use crate::{CovarianceType, OLS};
-use ndarray::{Array1, Array2};
 use indexmap::IndexMap;
+use ndarray::{Array1, Array2};
 use std::fmt;
 
 /// Result of MICE imputation.

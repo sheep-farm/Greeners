@@ -1,6 +1,6 @@
 use greeners::{DataFrame, Formula, Logit, Probit};
-use ndarray::Array1;
 use indexmap::IndexMap;
+use ndarray::Array1;
 
 // Helper function to create realistic binary outcome data without perfect separation
 fn create_test_data() -> (Vec<f64>, Vec<f64>) {

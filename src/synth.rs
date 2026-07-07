@@ -1,7 +1,7 @@
 use crate::error::GreenersError;
 use crate::DataFrame;
-use ndarray::{Array1, Array2};
 use indexmap::IndexMap;
+use ndarray::{Array1, Array2};
 use std::fmt;
 
 // ── SynthResult ───────────────────────────────────────────────────────────────

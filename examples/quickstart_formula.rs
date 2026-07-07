@@ -1,6 +1,6 @@
 use greeners::{CovarianceType, DataFrame, Formula, OLS};
-use ndarray::Array1;
 use indexmap::IndexMap;
+use ndarray::Array1;
 
 /// Quick start example demonstrating the Formula API
 /// This is the example shown in the README

@@ -1,6 +1,6 @@
 use greeners::{CovarianceType, DataFrame, Formula, OLS};
-use ndarray::{Array1, Array2};
 use indexmap::IndexMap;
+use ndarray::{Array1, Array2};
 
 #[test]
 fn test_ols_basic_estimation() {

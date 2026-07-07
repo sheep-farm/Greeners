@@ -1,8 +1,8 @@
 use greeners::{CovarianceType, DataFrame, Formula, FGLS};
+use indexmap::IndexMap;
 use ndarray::Array1;
 use rand::prelude::*;
 use statrs::distribution::Normal;
-use indexmap::IndexMap;
 
 /// Example demonstrating Difference-in-Differences using formula syntax
 /// Similar to: smf.wls('fte ~ tratado + t + effect', data=df).fit(cov_type='HC1')

@@ -1,6 +1,6 @@
 use chrono::NaiveDateTime;
-use ndarray::Array1;
 use indexmap::IndexMap;
+use ndarray::Array1;
 
 /// Data type of a column
 #[derive(Debug, Clone, PartialEq)]

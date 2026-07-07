@@ -9,8 +9,8 @@
 // 6. Direct construction from HashMap
 
 use greeners::{DataFrame, Formula};
-use ndarray::Array1;
 use indexmap::IndexMap;
+use ndarray::Array1;
 
 fn main() {
     println!("=== DataFrame Loading Examples ===\n");

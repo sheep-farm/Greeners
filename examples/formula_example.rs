@@ -1,8 +1,8 @@
 use greeners::{CovarianceType, DataFrame, Formula, FGLS, OLS};
+use indexmap::IndexMap;
 use ndarray::Array1;
 use rand::prelude::*;
 use statrs::distribution::Normal;
-use indexmap::IndexMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n{:=^78}", " Formula API Example ");

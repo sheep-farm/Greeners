@@ -1,9 +1,9 @@
 use crate::error::GreenersError;
 use crate::linalg::LinalgInverse as _;
 use crate::InferenceType;
+use indexmap::IndexMap;
 use ndarray::{Array1, Array2};
 use statrs::distribution::{ContinuousCDF, Normal};
-use indexmap::IndexMap;
 use std::fmt;
 
 /// Result from Conditional Logit/Poisson models.

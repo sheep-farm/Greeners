@@ -133,8 +133,8 @@ impl PanelDiagnostics {
         residuals_pooled: &Array1<f64>,
         entity_ids: &[usize],
     ) -> Result<(f64, f64), String> {
-        use statrs::distribution::{ChiSquared, ContinuousCDF};
         use indexmap::IndexMap;
+        use statrs::distribution::{ChiSquared, ContinuousCDF};
 
         let n = residuals_pooled.len();
 
@@ -248,8 +248,8 @@ impl PanelDiagnostics {
         time_vals: &[f64],
     ) -> Result<(f64, f64, f64, f64), String> {
         use crate::{CovarianceType, OLS};
-        use statrs::distribution::{ContinuousCDF, Normal};
         use indexmap::IndexMap;
+        use statrs::distribution::{ContinuousCDF, Normal};
 
         let n = y.len();
         let k = x.ncols();
@@ -397,8 +397,8 @@ impl PanelDiagnostics {
         time_vals: &[f64],
     ) -> Result<(f64, f64, usize, usize, usize, usize), String> {
         use crate::{CovarianceType, OLS};
-        use statrs::distribution::{ContinuousCDF, FisherSnedecor};
         use indexmap::IndexMap;
+        use statrs::distribution::{ContinuousCDF, FisherSnedecor};
 
         let n = y.len();
         let k_full = x.ncols();
@@ -569,8 +569,8 @@ impl PanelDiagnostics {
         entity_ids: &[i64],
     ) -> Result<MundlakResult, String> {
         use crate::{CovarianceType, OLS};
-        use statrs::distribution::{ContinuousCDF, FisherSnedecor};
         use indexmap::IndexMap;
+        use statrs::distribution::{ContinuousCDF, FisherSnedecor};
 
         let n = y.len();
         let k_full = x.ncols();
@@ -672,8 +672,8 @@ impl PanelDiagnostics {
         time_vals: &[f64],
     ) -> Result<(f64, f64, f64, usize), String> {
         use crate::{CovarianceType, OLS};
-        use statrs::distribution::{ContinuousCDF, StudentsT};
         use indexmap::IndexMap;
+        use statrs::distribution::{ContinuousCDF, StudentsT};
 
         let n = y.len();
         if entity_ids.len() != n || time_vals.len() != n {
@@ -832,8 +832,8 @@ impl PanelDiagnostics {
     /// Arguments: residuals from a panel model (pooled OLS or FE) and entity IDs
     /// in the same order as the observations.
     pub fn pesaran_cd(residuals: &Array1<f64>, entity_ids: &[usize]) -> Result<(f64, f64), String> {
-        use statrs::distribution::{ContinuousCDF, Normal};
         use indexmap::IndexMap;
+        use statrs::distribution::{ContinuousCDF, Normal};
 
         let n_obs = residuals.len();
         if entity_ids.len() != n_obs {

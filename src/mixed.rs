@@ -1,8 +1,8 @@
 use crate::error::GreenersError;
 use crate::linalg::LinalgInverse as _;
+use indexmap::IndexMap;
 use ndarray::{Array1, Array2};
 use statrs::distribution::ContinuousCDF;
-use indexmap::IndexMap;
 use std::fmt;
 
 /// Result of Mixed Linear Model estimation.

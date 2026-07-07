@@ -9,8 +9,8 @@ use greeners::{
     CovarianceType, DataFrame, FixedEffects, Formula, Logit, Probit, QuantileReg, RandomEffects,
     SurEquation, TimeSeries, FGLS, IV, OLS, SUR,
 };
-use ndarray::{Array1, Array2};
 use indexmap::IndexMap;
+use ndarray::{Array1, Array2};
 
 /// Catch panics (but not SIGSEGV). Use for tests where we suspect panic but not segfault.
 fn catch_panic<F, R>(f: F) -> Result<R, String>
