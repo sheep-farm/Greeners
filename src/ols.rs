@@ -652,9 +652,9 @@ impl OLS {
     /// ```no_run
     /// use greeners::{OLS, DataFrame, Formula, CovarianceType};
     /// use ndarray::Array1;
-    /// use std::collections::HashMap;
+    /// use indexmap::IndexMap;
     ///
-    /// let mut data = HashMap::new();
+    /// let mut data = IndexMap::new();
     /// data.insert("y".to_string(), Array1::from(vec![1.0, 2.1, 3.2, 3.9, 5.1]));
     /// data.insert("x1".to_string(), Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]));
     /// data.insert("x2".to_string(), Array1::from(vec![2.0, 2.5, 3.0, 3.5, 4.0]));
@@ -1019,8 +1019,8 @@ impl OLS {
                 }
 
                 // Group observations by cluster
-                use std::collections::HashMap;
-                let mut clusters: HashMap<usize, Vec<usize>> = HashMap::new();
+                use indexmap::IndexMap;
+                let mut clusters: IndexMap<usize, Vec<usize>> = IndexMap::new();
                 for (obs_idx, &cluster_id) in cluster_ids.iter().enumerate() {
                     clusters.entry(cluster_id).or_default().push(obs_idx);
                 }
@@ -1094,8 +1094,8 @@ impl OLS {
 
                 // Helper function to compute clustered meat matrix
                 let compute_clustered_meat = |cluster_ids: &[usize]| -> Array2<f64> {
-                    use std::collections::HashMap;
-                    let mut clusters: HashMap<usize, Vec<usize>> = HashMap::new();
+                    use indexmap::IndexMap;
+                    let mut clusters: IndexMap<usize, Vec<usize>> = IndexMap::new();
                     for (obs_idx, &cluster_id) in cluster_ids.iter().enumerate() {
                         clusters.entry(cluster_id).or_default().push(obs_idx);
                     }

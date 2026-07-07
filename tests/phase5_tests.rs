@@ -1,6 +1,6 @@
 use greeners::*;
+use indexmap::IndexMap;
 use ndarray::Array1;
-use std::collections::HashMap;
 
 // ─── Datasets ────────────────────────────────────────────────────────────────
 
@@ -252,7 +252,7 @@ fn test_formula_poly() {
 
 #[test]
 fn test_design_matrix_log() {
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
     data.insert(
         "x".to_string(),
@@ -274,7 +274,7 @@ fn test_design_matrix_log() {
 
 #[test]
 fn test_design_matrix_sqrt() {
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
     data.insert("x".to_string(), Array1::from(vec![1.0, 4.0, 9.0]));
     let df = DataFrame::new(data).unwrap();
@@ -287,7 +287,7 @@ fn test_design_matrix_sqrt() {
 
 #[test]
 fn test_design_matrix_poly() {
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
     data.insert("x".to_string(), Array1::from(vec![2.0, 3.0, 4.0]));
     let df = DataFrame::new(data).unwrap();
@@ -303,7 +303,7 @@ fn test_design_matrix_poly() {
 
 #[test]
 fn test_design_matrix_bs() {
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]));
     data.insert("x".to_string(), Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]));
     let df = DataFrame::new(data).unwrap();

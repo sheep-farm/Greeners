@@ -1,7 +1,7 @@
 use crate::error::GreenersError;
 use crate::DataFrame;
+use indexmap::IndexMap;
 use ndarray::Array1;
-use std::collections::HashMap;
 
 /// Built-in datasets for examples and testing.
 pub struct Datasets;
@@ -39,7 +39,7 @@ impl Datasets {
             66.513, 68.655, 69.564, 69.331, 70.551,
         ];
 
-        let mut data = HashMap::new();
+        let mut data = IndexMap::new();
         data.insert("gnp_deflator".to_string(), Array1::from(gnp_deflator));
         data.insert("gnp".to_string(), Array1::from(gnp));
         data.insert("unemployed".to_string(), Array1::from(unemployed));
@@ -71,7 +71,7 @@ impl Datasets {
             8.0, 7.0, 8.0, 8.0, 9.0, 15.0, 15.0,
         ];
 
-        let mut data = HashMap::new();
+        let mut data = IndexMap::new();
         data.insert("air_flow".to_string(), Array1::from(air_flow));
         data.insert("water_temp".to_string(), Array1::from(water_temp));
         data.insert("acid_conc".to_string(), Array1::from(acid_conc));
@@ -105,7 +105,7 @@ impl Datasets {
             y_vec.push(y);
         }
 
-        let mut data = HashMap::new();
+        let mut data = IndexMap::new();
         data.insert("y".to_string(), Array1::from(y_vec));
         data.insert("x1".to_string(), Array1::from(x1_vec));
         data.insert("x2".to_string(), Array1::from(x2_vec));
@@ -146,7 +146,7 @@ impl Datasets {
             }
         }
 
-        let mut data = HashMap::new();
+        let mut data = IndexMap::new();
         data.insert("y".to_string(), Array1::from(y_vec));
         data.insert("x".to_string(), Array1::from(x_vec));
         data.insert("entity".to_string(), Array1::from(entity_vec));

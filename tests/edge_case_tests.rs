@@ -9,8 +9,8 @@ use greeners::{
     CovarianceType, DataFrame, FixedEffects, Formula, Logit, Probit, QuantileReg, RandomEffects,
     SurEquation, TimeSeries, FGLS, IV, OLS, SUR,
 };
+use indexmap::IndexMap;
 use ndarray::{Array1, Array2};
-use std::collections::HashMap;
 
 /// Catch panics (but not SIGSEGV). Use for tests where we suspect panic but not segfault.
 fn catch_panic<F, R>(f: F) -> Result<R, String>
@@ -81,7 +81,7 @@ fn test_ols_nan_in_x_does_not_panic() {
 
 #[test]
 fn test_ols_perfect_collinearity_with_formula_drops_variable() {
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]));
     data.insert(
         "x1".to_string(),
@@ -499,7 +499,7 @@ fn test_adf_constant_series_does_not_panic() {
 
 #[test]
 fn test_dataframe_empty_hashmap_does_not_panic() {
-    let data: HashMap<String, Array1<f64>> = HashMap::new();
+    let data: IndexMap<String, Array1<f64>> = IndexMap::new();
 
     let result = catch_panic(|| DataFrame::new(data));
     match result {
@@ -510,7 +510,7 @@ fn test_dataframe_empty_hashmap_does_not_panic() {
 
 #[test]
 fn test_dataframe_mismatched_column_lengths() {
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("a".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
     data.insert("b".to_string(), Array1::from(vec![1.0, 2.0]));
 
@@ -524,7 +524,7 @@ fn test_dataframe_mismatched_column_lengths() {
 
 #[test]
 fn test_formula_missing_variable() {
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
     data.insert("x1".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
 

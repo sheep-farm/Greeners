@@ -1,6 +1,6 @@
 use greeners::*;
+use indexmap::IndexMap;
 use ndarray::{Array1, Array2};
-use std::collections::HashMap;
 
 // ─── NegBinP ────────────────────────────────────────────────────────────────
 
@@ -305,7 +305,7 @@ fn test_cancorr() {
 #[test]
 fn test_mice() {
     let n = 50;
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     let mut x1 = Array1::<f64>::zeros(n);
     let mut x2 = Array1::<f64>::zeros(n);
     for i in 0..n {
@@ -335,7 +335,7 @@ fn test_mice() {
 #[test]
 fn test_bayes_gauss_mi() {
     let n = 50;
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     let mut x1 = Array1::<f64>::zeros(n);
     let mut x2 = Array1::<f64>::zeros(n);
     for i in 0..n {

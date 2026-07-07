@@ -1,6 +1,6 @@
 use greeners::{CovarianceType, DataFrame, Formula, OLS};
+use indexmap::IndexMap;
 use ndarray::Array1;
-use std::collections::HashMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("══════════════════════════════════════════════════════════════════════════════");
@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("profit".to_string(), Array1::from(profit_data));
     data.insert("investment".to_string(), Array1::from(investment_data));
     data.insert("market_share".to_string(), Array1::from(market_share_data));

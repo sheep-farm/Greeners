@@ -1,6 +1,6 @@
 use greeners::{BetweenEstimator, DataFrame, FixedEffects, Formula, RandomEffects};
+use indexmap::IndexMap;
 use ndarray::Array1;
-use std::collections::HashMap;
 
 #[test]
 fn test_fixed_effects_basic() {
@@ -19,7 +19,7 @@ fn test_fixed_effects_basic() {
 
 #[test]
 fn test_fixed_effects_from_formula() {
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert(
         "y".to_string(),
         Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
@@ -86,7 +86,7 @@ fn test_random_effects_basic() {
 
 #[test]
 fn test_random_effects_from_formula() {
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert(
         "y".to_string(),
         Array1::from(vec![1.2, 2.1, 3.3, 3.9, 5.1, 5.8, 7.2, 7.9]),
@@ -123,7 +123,7 @@ fn test_between_estimator_basic() {
 
 #[test]
 fn test_between_estimator_from_formula() {
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert(
         "y".to_string(),
         Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),

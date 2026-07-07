@@ -1,6 +1,6 @@
 use greeners::{Bootstrap, CovarianceType, DataFrame, Formula, HypothesisTest, OLS};
+use indexmap::IndexMap;
 use ndarray::{Array1, Array2};
-use std::collections::HashMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("══════════════════════════════════════════════════════════════════════════════");
@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  • experience: Years of experience");
     println!("  • female: Gender dummy (1=female, 0=male)\n");
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
 
     // Generate realistic wage data
     let education = vec![

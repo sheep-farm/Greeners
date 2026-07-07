@@ -1,6 +1,6 @@
 use greeners::{CovarianceType, DataFrame, Formula, OLS};
+use indexmap::IndexMap;
 use ndarray::Array1;
-use std::collections::HashMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Clustered Standard Errors Example ===\n");
@@ -9,7 +9,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Simulated panel data: 5 firms, 10 time periods each = 50 observations
     // We expect errors to be correlated within firms
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
 
     // Dependent variable (e.g., profits)
     let y_data = vec![

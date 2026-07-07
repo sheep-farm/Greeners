@@ -265,9 +265,9 @@ impl IV {
     /// ```no_run
     /// use greeners::{IV, DataFrame, Formula, CovarianceType};
     /// use ndarray::Array1;
-    /// use std::collections::HashMap;
+    /// use indexmap::IndexMap;
     ///
-    /// let mut data = HashMap::new();
+    /// let mut data = IndexMap::new();
     /// data.insert("y".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
     /// data.insert("x1".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
     /// data.insert("z1".to_string(), Array1::from(vec![2.0, 3.0, 4.0]));
@@ -546,8 +546,8 @@ impl IV {
                     )));
                 }
 
-                use std::collections::HashMap;
-                let mut clusters: HashMap<usize, Vec<usize>> = HashMap::new();
+                use indexmap::IndexMap;
+                let mut clusters: IndexMap<usize, Vec<usize>> = IndexMap::new();
                 for (obs_idx, &cluster_id) in cluster_ids.iter().enumerate() {
                     clusters.entry(cluster_id).or_default().push(obs_idx);
                 }
@@ -599,8 +599,8 @@ impl IV {
                 }
 
                 let compute_clustered_meat = |cluster_ids: &[usize]| -> Array2<f64> {
-                    use std::collections::HashMap;
-                    let mut clusters: HashMap<usize, Vec<usize>> = HashMap::new();
+                    use indexmap::IndexMap;
+                    let mut clusters: IndexMap<usize, Vec<usize>> = IndexMap::new();
                     for (obs_idx, &cluster_id) in cluster_ids.iter().enumerate() {
                         clusters.entry(cluster_id).or_default().push(obs_idx);
                     }

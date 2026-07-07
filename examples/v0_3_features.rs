@@ -1,6 +1,6 @@
 use greeners::{CovarianceType, DataFrame, Formula, OLS};
+use indexmap::IndexMap;
 use ndarray::Array1;
-use std::collections::HashMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("══════════════════════════════════════════════════════════════════════════════");
@@ -8,7 +8,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("══════════════════════════════════════════════════════════════════════════════\n");
 
     // Create sample data: wage determination model
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
 
     // Wage (dependent variable)
     data.insert(

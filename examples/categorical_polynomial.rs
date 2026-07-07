@@ -1,6 +1,6 @@
 use greeners::{CovarianceType, DataFrame, Formula, OLS};
+use indexmap::IndexMap;
 use ndarray::Array1;
-use std::collections::HashMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("══════════════════════════════════════════════════════════════════════════════");
@@ -16,7 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("══════════════════════════════════════════════════════════════════════════════\n");
 
     // Create dataset with categorical variable (region: 0=North, 1=South, 2=East, 3=West)
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
 
     data.insert(
         "sales".to_string(),
@@ -96,7 +96,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("══════════════════════════════════════════════════════════════════════════════\n");
 
     // Create data with non-linear relationship (diminishing returns)
-    let mut data2 = HashMap::new();
+    let mut data2 = IndexMap::new();
 
     data2.insert(
         "output".to_string(),

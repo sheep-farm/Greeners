@@ -1,8 +1,8 @@
 use greeners::{CovarianceType, DataFrame, Formula, FGLS};
+use indexmap::IndexMap;
 use ndarray::Array1;
 use rand::prelude::*;
 use statrs::distribution::Normal;
-use std::collections::HashMap;
 
 /// Example demonstrating Difference-in-Differences using formula syntax
 /// Similar to: smf.wls('fte ~ tratado + t + effect', data=df).fit(cov_type='HC1')
@@ -50,7 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let effect_vec: Vec<f64> = (0..total_n).map(|i| tratado_vec[i] * t_vec[i]).collect();
 
     // Create DataFrame
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("fte".to_string(), Array1::from(fte_vec));
     data.insert("tratado".to_string(), Array1::from(tratado_vec));
     data.insert("t".to_string(), Array1::from(t_vec));

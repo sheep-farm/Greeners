@@ -1,5 +1,5 @@
 use greeners::DataFrame;
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 fn main() {
     println!("=== Advanced DataFrame Operations ===\n");
@@ -19,7 +19,7 @@ fn main() {
     println!("{}\n", sales);
 
     // Add new row
-    let mut new_sale = HashMap::new();
+    let mut new_sale = IndexMap::new();
     new_sale.insert("date".to_string(), 4.0);
     new_sale.insert("product".to_string(), 3.0);
     new_sale.insert("revenue".to_string(), 200.0);
@@ -178,7 +178,7 @@ fn main() {
     println!("{}\n", region_avg);
 
     // Step 5: Add a new high-value order and recalculate
-    let mut high_value_order = HashMap::new();
+    let mut high_value_order = IndexMap::new();
     high_value_order.insert("customer_id".to_string(), 1.0);
     high_value_order.insert("order_value".to_string(), 500.0);
     high_value_order.insert("quantity".to_string(), 10.0);
