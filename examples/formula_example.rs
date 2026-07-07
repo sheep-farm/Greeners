@@ -2,7 +2,7 @@ use greeners::{CovarianceType, DataFrame, Formula, FGLS, OLS};
 use ndarray::Array1;
 use rand::prelude::*;
 use statrs::distribution::Normal;
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n{:=^78}", " Formula API Example ");
@@ -13,7 +13,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let normal = Normal::new(0.0, 2.0).unwrap();
 
     let n = 100;
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
 
     // Generate independent variables
     let tratado: Vec<f64> = (0..n).map(|i| if i < n / 2 { 0.0 } else { 1.0 }).collect();

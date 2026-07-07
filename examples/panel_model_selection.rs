@@ -3,7 +3,7 @@ use greeners::{
 };
 use ndarray::Array1;
 use rand::{thread_rng, Rng};
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("══════════════════════════════════════════════════════════════════════════════");
@@ -64,7 +64,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("investment".to_string(), Array1::from(investment_data));
     data.insert("profit".to_string(), Array1::from(profit_data));
     data.insert("cash_flow".to_string(), Array1::from(cash_flow_data));

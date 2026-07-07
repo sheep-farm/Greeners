@@ -10,14 +10,14 @@
 
 use greeners::{DataFrame, Formula};
 use ndarray::Array1;
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 fn main() {
     println!("=== DataFrame Loading Examples ===\n");
 
     // Method 1: Direct construction from HashMap
     println!("1. Direct construction from HashMap:");
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("x".to_string(), Array1::from(vec![1.0, 2.0, 3.0, 4.0]));
     data.insert("y".to_string(), Array1::from(vec![2.0, 4.0, 6.0, 8.0]));
 

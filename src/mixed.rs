@@ -2,7 +2,7 @@ use crate::error::GreenersError;
 use crate::linalg::LinalgInverse as _;
 use ndarray::{Array1, Array2};
 use statrs::distribution::ContinuousCDF;
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use std::fmt;
 
 /// Result of Mixed Linear Model estimation.
@@ -12,7 +12,7 @@ pub struct MixedResult {
     pub fixed_se: Array1<f64>,
     pub z_values: Array1<f64>,
     pub p_values: Array1<f64>,
-    pub random_effects: HashMap<usize, Array1<f64>>,
+    pub random_effects: IndexMap<usize, Array1<f64>>,
     pub var_random: Array2<f64>,
     pub var_resid: f64,
     pub log_likelihood: f64,
@@ -128,7 +128,7 @@ impl MixedLM {
         let mut converged = false;
         let mut n_iter = 0;
         let mut beta = Array1::<f64>::zeros(p);
-        let mut blups: HashMap<usize, Array1<f64>> = HashMap::new();
+        let mut blups: IndexMap<usize, Array1<f64>> = IndexMap::new();
 
         for iter in 0..max_iter {
             n_iter = iter + 1;
@@ -322,8 +322,8 @@ impl MixedLM {
 pub struct BayesMixedGLMResult {
     pub posterior_mean: Array1<f64>,
     pub posterior_sd: Array1<f64>,
-    pub random_effects: HashMap<usize, Array1<f64>>,
-    pub random_effects_sd: HashMap<usize, Array1<f64>>,
+    pub random_effects: IndexMap<usize, Array1<f64>>,
+    pub random_effects_sd: IndexMap<usize, Array1<f64>>,
     pub log_likelihood: f64,
     pub n_obs: usize,
     pub n_groups: usize,
@@ -516,8 +516,8 @@ impl BayesMixedGLM {
         let posterior_sd: Array1<f64> = (0..p).map(|i| post_cov[[i, i]].max(0.0).sqrt()).collect();
 
         // Random effects and their SDs
-        let mut re_map = HashMap::new();
-        let mut re_sd_map = HashMap::new();
+        let mut re_map = IndexMap::new();
+        let mut re_sd_map = IndexMap::new();
         for (gi, &grp) in unique_groups.iter().enumerate() {
             re_map.insert(grp, Array1::from(vec![u[gi]]));
             // Approximate posterior SD of u_g

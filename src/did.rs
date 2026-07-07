@@ -99,9 +99,9 @@ impl DiffInDiff {
     /// ```no_run
     /// use greeners::{DiffInDiff, DataFrame, Formula, CovarianceType};
     /// use ndarray::Array1;
-    /// use std::collections::HashMap;
+    /// use indexmap::IndexMap;
     ///
-    /// let mut data = HashMap::new();
+    /// let mut data = IndexMap::new();
     /// data.insert("y".to_string(), Array1::from(vec![1.0, 2.0, 3.0, 4.0]));
     /// data.insert("treated".to_string(), Array1::from(vec![0.0, 0.0, 1.0, 1.0]));
     /// data.insert("post".to_string(), Array1::from(vec![0.0, 1.0, 0.0, 1.0]));

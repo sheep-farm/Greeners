@@ -1,6 +1,6 @@
 use greeners::{DataFrame, Formula, Logit, Probit};
 use ndarray::Array1;
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("══════════════════════════════════════════════════════════════════════════════");
@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  • sat: SAT score (standardized: mean 0, sd 1)");
     println!("  • legacy: 1 = legacy student, 0 = non-legacy\n");
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
 
     // Create realistic data with noise to avoid perfect separation
     // Pattern: Higher GPA + Higher SAT → Higher admission chance (but not perfect)

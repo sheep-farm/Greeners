@@ -1,7 +1,7 @@
 use crate::error::GreenersError;
 use crate::DataFrame;
 use ndarray::{Array1, Array2};
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use std::fmt;
 
 // ── SynthResult ───────────────────────────────────────────────────────────────
@@ -140,7 +140,7 @@ impl SyntheticControl {
         times.dedup_by(|a, b| (*a - *b).abs() < 1e-9);
         let n_t = times.len();
 
-        let time_idx: HashMap<String, usize> = times
+        let time_idx: IndexMap<String, usize> = times
             .iter()
             .enumerate()
             .map(|(i, &t)| (float_key(t), i))
@@ -151,7 +151,7 @@ impl SyntheticControl {
         units.dedup();
         let n_units = units.len();
 
-        let unit_idx: HashMap<&str, usize> = units
+        let unit_idx: IndexMap<&str, usize> = units
             .iter()
             .enumerate()
             .map(|(i, u)| (u.as_str(), i))

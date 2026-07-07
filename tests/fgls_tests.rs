@@ -1,6 +1,6 @@
 use greeners::{DataFrame, Formula, FGLS};
 use ndarray::Array1;
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 #[test]
 fn test_wls_basic() {
@@ -42,7 +42,7 @@ fn test_wls_unequal_weights() {
 
 #[test]
 fn test_wls_from_formula() {
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]));
     data.insert(
         "x1".to_string(),
@@ -140,7 +140,7 @@ fn test_cochrane_orcutt_rho_bounds() {
 
 #[test]
 fn test_cochrane_orcutt_from_formula() {
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     // Add some noise to avoid perfect fit
     data.insert(
         "y".to_string(),

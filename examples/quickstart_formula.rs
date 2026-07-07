@@ -1,12 +1,12 @@
 use greeners::{CovarianceType, DataFrame, Formula, OLS};
 use ndarray::Array1;
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 /// Quick start example demonstrating the Formula API
 /// This is the example shown in the README
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create data (like a pandas DataFrame)
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert(
         "y".to_string(),
         Array1::from(vec![1.0, 2.1, 3.2, 3.9, 5.1, 6.0, 7.2, 8.1, 9.0, 10.1]),

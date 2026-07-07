@@ -6,7 +6,7 @@ use greeners::{
     RandomEffects, FGLS, IV, OLS,
 };
 use ndarray::{Array1, Array2};
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use std::fs;
 
 /// Tolerance for coefficient / SE comparisons (4 decimal places)
@@ -16,10 +16,10 @@ const TOL_MID: f64 = 1e-3;
 /// Looser tolerance for values sensitive to algorithmic differences
 const TOL_LOOSE: f64 = 1e-2;
 
-fn load_reference() -> HashMap<String, f64> {
+fn load_reference() -> IndexMap<String, f64> {
     let content = fs::read_to_string("tests/reference_values.csv")
         .expect("tests/reference_values.csv not found — run generate_reference_data.py first");
-    let mut map = HashMap::new();
+    let mut map = IndexMap::new();
     for line in content.lines().skip(1) {
         let mut parts = line.splitn(2, ',');
         if let (Some(key), Some(val)) = (parts.next(), parts.next()) {
@@ -31,7 +31,7 @@ fn load_reference() -> HashMap<String, f64> {
     map
 }
 
-fn read_vec(ref_data: &HashMap<String, f64>, prefix: &str, n: usize) -> Vec<f64> {
+fn read_vec(ref_data: &IndexMap<String, f64>, prefix: &str, n: usize) -> Vec<f64> {
     (0..n)
         .map(|i| *ref_data.get(&format!("{}.{}", prefix, i)).unwrap())
         .collect()
@@ -66,14 +66,14 @@ fn assert_close_rel(actual: f64, expected: f64, rel_tol: f64, label: &str) {
 // OLS
 // ============================================================================
 
-fn build_ols_data(ref_data: &HashMap<String, f64>) -> (DataFrame, Formula) {
+fn build_ols_data(ref_data: &IndexMap<String, f64>) -> (DataFrame, Formula) {
     let n = 50;
     let y = read_vec(ref_data, "ols_data.y", n);
     let x1 = read_vec(ref_data, "ols_data.x1", n);
     let x2 = read_vec(ref_data, "ols_data.x2", n);
     let x3 = read_vec(ref_data, "ols_data.x3", n);
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y));
     data.insert("x1".to_string(), Array1::from(x1));
     data.insert("x2".to_string(), Array1::from(x2));
@@ -231,13 +231,13 @@ fn test_iv_2sls_vs_statsmodels() {
 // Logit
 // ============================================================================
 
-fn build_binary_data(ref_data: &HashMap<String, f64>) -> (DataFrame, Formula) {
+fn build_binary_data(ref_data: &IndexMap<String, f64>) -> (DataFrame, Formula) {
     let n = 200;
     let y = read_vec(ref_data, "binary_data.y", n);
     let x1 = read_vec(ref_data, "binary_data.x1", n);
     let x2 = read_vec(ref_data, "binary_data.x2", n);
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y));
     data.insert("x1".to_string(), Array1::from(x1));
     data.insert("x2".to_string(), Array1::from(x2));

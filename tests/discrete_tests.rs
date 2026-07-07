@@ -1,6 +1,6 @@
 use greeners::{DataFrame, Formula, Logit, Probit};
 use ndarray::Array1;
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 // Helper function to create realistic binary outcome data without perfect separation
 fn create_test_data() -> (Vec<f64>, Vec<f64>) {
@@ -19,7 +19,7 @@ fn create_test_data() -> (Vec<f64>, Vec<f64>) {
 fn test_logit_basic_estimation() {
     let (x_data, y_data) = create_test_data();
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x".to_string(), Array1::from(x_data));
 
@@ -38,7 +38,7 @@ fn test_logit_basic_estimation() {
 fn test_probit_basic_estimation() {
     let (x_data, y_data) = create_test_data();
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x".to_string(), Array1::from(x_data));
 
@@ -56,7 +56,7 @@ fn test_probit_basic_estimation() {
 fn test_logit_convergence() {
     let (x_data, y_data) = create_test_data();
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x".to_string(), Array1::from(x_data));
 
@@ -72,7 +72,7 @@ fn test_logit_convergence() {
 fn test_logit_average_marginal_effects() {
     let (x_data, y_data) = create_test_data();
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x".to_string(), Array1::from(x_data));
 
@@ -92,7 +92,7 @@ fn test_logit_average_marginal_effects() {
 fn test_logit_marginal_effects_at_means() {
     let (x_data, y_data) = create_test_data();
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x".to_string(), Array1::from(x_data));
 
@@ -111,7 +111,7 @@ fn test_logit_marginal_effects_at_means() {
 fn test_logit_predict_proba() {
     let (x_data, y_data) = create_test_data();
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x".to_string(), Array1::from(x_data));
 
@@ -141,7 +141,7 @@ fn test_logit_predict_proba() {
 fn test_probit_marginal_effects() {
     let (x_data, y_data) = create_test_data();
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x".to_string(), Array1::from(x_data));
 
@@ -160,7 +160,7 @@ fn test_probit_marginal_effects() {
 fn test_logit_model_stats() {
     let (x_data, y_data) = create_test_data();
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x".to_string(), Array1::from(x_data));
 
@@ -183,7 +183,7 @@ fn test_logit_model_stats() {
 fn test_logit_ame_confidence_intervals() {
     let (x_data, y_data) = create_test_data();
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x".to_string(), Array1::from(x_data));
 
@@ -206,7 +206,7 @@ fn test_logit_ame_confidence_intervals() {
 fn test_logit_vs_probit_similarity() {
     let (x_data, y_data) = create_test_data();
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x".to_string(), Array1::from(x_data));
 
@@ -236,7 +236,7 @@ fn test_logit_iterations_reasonable() {
     // Test that Logit converges in reasonable iterations
     let (x_data, y_data) = create_test_data();
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x".to_string(), Array1::from(x_data));
 

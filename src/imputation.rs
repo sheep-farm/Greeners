@@ -1,14 +1,14 @@
 use crate::error::GreenersError;
 use crate::{CovarianceType, OLS};
 use ndarray::{Array1, Array2};
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use std::fmt;
 
 /// Result of MICE imputation.
 #[derive(Debug)]
 pub struct MICEResult {
     /// Multiple imputed datasets: Vec of column-name -> complete column
-    pub datasets: Vec<HashMap<String, Array1<f64>>>,
+    pub datasets: Vec<IndexMap<String, Array1<f64>>>,
     pub n_imputations: usize,
     pub n_iter: usize,
     pub n_obs: usize,
@@ -29,7 +29,7 @@ impl fmt::Display for MICEResult {
 /// Result of Bayesian Gaussian MI.
 #[derive(Debug)]
 pub struct BayesGaussMIResult {
-    pub datasets: Vec<HashMap<String, Array1<f64>>>,
+    pub datasets: Vec<IndexMap<String, Array1<f64>>>,
     pub n_imputations: usize,
     pub n_obs: usize,
     pub n_vars: usize,
@@ -55,7 +55,7 @@ impl MICE {
     /// - `n_imputations`: number of imputed datasets to generate
     /// - `n_iter`: number of MICE iterations per imputation
     pub fn impute(
-        data: &HashMap<String, Array1<f64>>,
+        data: &IndexMap<String, Array1<f64>>,
         n_imputations: usize,
         n_iter: usize,
     ) -> Result<MICEResult, GreenersError> {
@@ -175,7 +175,7 @@ impl MICE {
             }
 
             // Convert back to HashMap
-            let mut dataset = HashMap::new();
+            let mut dataset = IndexMap::new();
             for (j, name) in col_names.iter().enumerate() {
                 dataset.insert(name.clone(), current.column(j).to_owned());
             }
@@ -201,7 +201,7 @@ pub struct BayesGaussMI;
 impl BayesGaussMI {
     /// Impute missing data assuming multivariate normality.
     pub fn impute(
-        data: &HashMap<String, Array1<f64>>,
+        data: &IndexMap<String, Array1<f64>>,
         n_imputations: usize,
     ) -> Result<BayesGaussMIResult, GreenersError> {
         if data.is_empty() {
@@ -332,7 +332,7 @@ impl BayesGaussMI {
                 }
             }
 
-            let mut dataset = HashMap::new();
+            let mut dataset = IndexMap::new();
             for (j, name) in col_names.iter().enumerate() {
                 dataset.insert(name.clone(), current.column(j).to_owned());
             }

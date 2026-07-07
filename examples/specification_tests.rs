@@ -1,7 +1,7 @@
 use greeners::{CovarianceType, DataFrame, Formula, SpecificationTests, OLS};
 use ndarray::Array1;
 use rand::{thread_rng, Rng};
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("══════════════════════════════════════════════════════════════════════════════");
@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         wage_data.push(wage);
     }
 
-    let mut data1 = HashMap::new();
+    let mut data1 = IndexMap::new();
     data1.insert("wage".to_string(), Array1::from(wage_data.clone()));
     data1.insert("education".to_string(), Array1::from(education_data));
     data1.insert("experience".to_string(), Array1::from(experience_data));
@@ -152,7 +152,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         consumption_data.push(consumption);
     }
 
-    let mut data2 = HashMap::new();
+    let mut data2 = IndexMap::new();
     data2.insert("consumption".to_string(), Array1::from(consumption_data));
     data2.insert("income".to_string(), Array1::from(income_data));
     data2.insert("wealth".to_string(), Array1::from(wealth_data));

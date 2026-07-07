@@ -1,7 +1,7 @@
 use crate::linalg::LinalgInverse as _;
 use crate::{CovarianceType, DataFrame, Formula, GreenersError, InferenceType, OLS};
 use ndarray::{Array1, Array2, Axis};
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use std::fmt;
 use std::hash::Hash;
 
@@ -149,8 +149,8 @@ impl FixedEffects {
         }
 
         // 1. Calculate sums and counts per group
-        let mut group_sums: HashMap<T, Array1<f64>> = HashMap::new();
-        let mut group_counts: HashMap<T, usize> = HashMap::new();
+        let mut group_sums: IndexMap<T, Array1<f64>> = IndexMap::new();
+        let mut group_counts: IndexMap<T, usize> = IndexMap::new();
 
         for (i, group_id) in groups.iter().enumerate() {
             let row = data.row(i).to_owned();
@@ -222,7 +222,7 @@ impl FixedEffects {
         let ols_result = OLS::fit(&y_demeaned, &x_demeaned, CovarianceType::NonRobust)?;
 
         // 4. Degrees of Freedom Correction
-        let mut unique_groups: HashMap<T, bool> = HashMap::new();
+        let mut unique_groups: IndexMap<T, bool> = IndexMap::new();
         for g in groups {
             unique_groups.insert(g.clone(), true);
         }
@@ -409,7 +409,7 @@ impl RandomEffects {
         }
 
         // 1. Mapear Índices por Entidade
-        let mut groups: HashMap<i64, Vec<usize>> = HashMap::new();
+        let mut groups: IndexMap<i64, Vec<usize>> = IndexMap::new();
         for (idx, &id) in entity_ids.iter().enumerate() {
             // CORREÇÃO: or_insert em vez de or_insert_vec
             groups.entry(id).or_default().push(idx);
@@ -658,7 +658,7 @@ impl BetweenEstimator {
         }
 
         // 1. Agrupar por Entidade
-        let mut groups: HashMap<i64, Vec<usize>> = HashMap::new();
+        let mut groups: IndexMap<i64, Vec<usize>> = IndexMap::new();
         for (idx, &id) in entity_ids.iter().enumerate() {
             groups.entry(id).or_default().push(idx);
         }
@@ -837,7 +837,7 @@ impl FE2SLS {
         let ssr = resid.dot(&resid);
 
         let n_entities = {
-            let mut seen = HashMap::new();
+            let mut seen = IndexMap::new();
             for g in groups {
                 seen.insert(g.clone(), ());
             }
@@ -937,7 +937,7 @@ fn extract_balanced_panels(
     }
 
     // Conta T por entidade e verifica balance
-    let mut counts: HashMap<i64, usize> = HashMap::new();
+    let mut counts: IndexMap<i64, usize> = IndexMap::new();
     for &i in &order {
         *counts.entry(entity_ids[i]).or_insert(0) += 1;
     }

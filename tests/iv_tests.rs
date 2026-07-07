@@ -1,6 +1,6 @@
 use greeners::{CovarianceType, DataFrame, Formula, IV};
 use ndarray::{Array1, Array2};
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 #[test]
 fn test_iv_basic_estimation() {
@@ -22,7 +22,7 @@ fn test_iv_basic_estimation() {
 
 #[test]
 fn test_iv_from_formula() {
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(vec![1.2, 2.3, 2.9, 4.1, 5.2]));
     data.insert(
         "x1".to_string(),

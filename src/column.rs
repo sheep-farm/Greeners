@@ -1,6 +1,6 @@
 use chrono::NaiveDateTime;
 use ndarray::Array1;
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 /// Data type of a column
 #[derive(Debug, Clone, PartialEq)]
@@ -21,14 +21,14 @@ pub struct CategoricalColumn {
     /// Integer codes mapping to levels (e.g., [0, 1, 0, 2])
     pub codes: Vec<u32>,
     /// Reverse mapping: level name -> code
-    level_to_code: HashMap<String, u32>,
+    level_to_code: IndexMap<String, u32>,
 }
 
 impl CategoricalColumn {
     /// Create a new categorical column from string values
     pub fn from_strings(values: Vec<String>) -> Self {
         let mut levels = Vec::new();
-        let mut level_to_code = HashMap::new();
+        let mut level_to_code = IndexMap::new();
         let mut codes = Vec::new();
 
         for value in values {
@@ -113,8 +113,8 @@ impl CategoricalColumn {
     }
 
     /// Get value counts
-    pub fn value_counts(&self) -> HashMap<String, usize> {
-        let mut counts = HashMap::new();
+    pub fn value_counts(&self) -> IndexMap<String, usize> {
+        let mut counts = IndexMap::new();
         for &code in &self.codes {
             if let Some(level) = self.get_level(code) {
                 *counts.entry(level.to_string()).or_insert(0) += 1;
@@ -131,8 +131,8 @@ impl CategoricalColumn {
 
     /// Create dummy variables (one-hot encoding)
     /// Returns HashMap of column_name -> Array1<f64>
-    pub fn get_dummies(&self, prefix: &str, drop_first: bool) -> HashMap<String, Array1<f64>> {
-        let mut dummies = HashMap::new();
+    pub fn get_dummies(&self, prefix: &str, drop_first: bool) -> IndexMap<String, Array1<f64>> {
+        let mut dummies = IndexMap::new();
         let start_idx = if drop_first { 1 } else { 0 };
 
         for (i, level) in self.levels.iter().enumerate().skip(start_idx) {

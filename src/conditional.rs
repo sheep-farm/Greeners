@@ -3,7 +3,7 @@ use crate::linalg::LinalgInverse as _;
 use crate::InferenceType;
 use ndarray::{Array1, Array2};
 use statrs::distribution::{ContinuousCDF, Normal};
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use std::fmt;
 
 /// Result from Conditional Logit/Poisson models.
@@ -105,7 +105,7 @@ impl ConditionalLogit {
         }
 
         // Group observations
-        let mut group_map: HashMap<usize, Vec<usize>> = HashMap::new();
+        let mut group_map: IndexMap<usize, Vec<usize>> = IndexMap::new();
         for (i, &g) in groups.iter().enumerate() {
             group_map.entry(g).or_default().push(i);
         }
@@ -391,7 +391,7 @@ impl ConditionalPoisson {
             ));
         }
 
-        let mut group_map: HashMap<usize, Vec<usize>> = HashMap::new();
+        let mut group_map: IndexMap<usize, Vec<usize>> = IndexMap::new();
         for (i, &g) in groups.iter().enumerate() {
             group_map.entry(g).or_default().push(i);
         }
@@ -595,7 +595,7 @@ impl ConditionalMNLogit {
         }
 
         // Build choice sets
-        let mut group_map: HashMap<usize, Vec<usize>> = HashMap::new();
+        let mut group_map: IndexMap<usize, Vec<usize>> = IndexMap::new();
         for (i, &g) in groups.iter().enumerate() {
             group_map.entry(g).or_default().push(i);
         }

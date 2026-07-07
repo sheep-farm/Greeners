@@ -1,6 +1,6 @@
 use crate::{column::CategoricalColumn, column::Column, formula::Formula, GreenersError};
+use indexmap::IndexMap;
 use ndarray::{Array1, Array2};
-use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -16,7 +16,8 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub struct DataFrame {
     /// Column data stored as Arc<Column> for zero-copy COW semantics
-    columns: HashMap<String, Arc<Column>>,
+    /// IndexMap preserves insertion order (fixes CSV export column ordering)
+    columns: IndexMap<String, Arc<Column>>,
     /// Number of rows (all columns must have the same length)
     n_rows: usize,
 }
@@ -42,25 +43,25 @@ impl Default for TypeInferenceConfig {
 }
 
 impl DataFrame {
-    /// Create a new DataFrame from a HashMap of column names to data arrays.
+    /// Create a new DataFrame from a IndexMap of column names to data arrays.
     ///
     /// # Examples
     /// ```
     /// use greeners::dataframe::DataFrame;
     /// use ndarray::Array1;
-    /// use std::collections::HashMap;
+    /// use indexmap::IndexMap;
     ///
-    /// let mut data = HashMap::new();
+    /// let mut data = IndexMap::new();
     /// data.insert("x".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
     /// data.insert("y".to_string(), Array1::from(vec![2.0, 4.0, 6.0]));
     ///
     /// let df = DataFrame::new(data).unwrap();
     /// assert_eq!(df.n_rows(), 3);
     /// ```
-    pub fn new(columns: HashMap<String, Array1<f64>>) -> Result<Self, GreenersError> {
+    pub fn new(columns: IndexMap<String, Array1<f64>>) -> Result<Self, GreenersError> {
         if columns.is_empty() {
             return Ok(DataFrame {
-                columns: HashMap::new(),
+                columns: IndexMap::new(),
                 n_rows: 0,
             });
         }
@@ -79,7 +80,7 @@ impl DataFrame {
         }
 
         // Convert Array1<f64> to Arc<Column::Float>
-        let typed_columns: HashMap<String, Arc<Column>> = columns
+        let typed_columns: IndexMap<String, Arc<Column>> = columns
             .into_iter()
             .map(|(name, arr)| (name, Arc::new(Column::Float(arr))))
             .collect();
@@ -90,25 +91,25 @@ impl DataFrame {
         })
     }
 
-    /// Create a new DataFrame from a HashMap of typed Columns.
+    /// Create a new DataFrame from a IndexMap of typed Columns.
     ///
     /// # Examples
     /// ```
     /// use greeners::{DataFrame, Column};
     /// use ndarray::Array1;
-    /// use std::collections::HashMap;
+    /// use indexmap::IndexMap;
     ///
-    /// let mut data = HashMap::new();
+    /// let mut data = IndexMap::new();
     /// data.insert("x".to_string(), Column::Float(Array1::from(vec![1.0, 2.0, 3.0])));
     /// data.insert("category".to_string(), Column::from_strings(vec!["A".to_string(), "B".to_string(), "A".to_string()]));
     ///
     /// let df = DataFrame::from_columns(data).unwrap();
     /// assert_eq!(df.n_rows(), 3);
     /// ```
-    pub fn from_columns(columns: HashMap<String, Column>) -> Result<Self, GreenersError> {
+    pub fn from_columns(columns: IndexMap<String, Column>) -> Result<Self, GreenersError> {
         if columns.is_empty() {
             return Ok(DataFrame {
-                columns: HashMap::new(),
+                columns: IndexMap::new(),
                 n_rows: 0,
             });
         }
@@ -137,10 +138,10 @@ impl DataFrame {
         })
     }
 
-    fn from_arc_columns(columns: HashMap<String, Arc<Column>>) -> Result<Self, GreenersError> {
+    fn from_arc_columns(columns: IndexMap<String, Arc<Column>>) -> Result<Self, GreenersError> {
         if columns.is_empty() {
             return Ok(DataFrame {
-                columns: HashMap::new(),
+                columns: IndexMap::new(),
                 n_rows: 0,
             });
         }
@@ -569,9 +570,9 @@ impl DataFrame {
     /// use greeners::dataframe::DataFrame;
     /// use greeners::formula::Formula;
     /// use ndarray::Array1;
-    /// use std::collections::HashMap;
+    /// use indexmap::IndexMap;
     ///
-    /// let mut data = HashMap::new();
+    /// let mut data = IndexMap::new();
     /// data.insert("y".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
     /// data.insert("x1".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
     /// data.insert("x2".to_string(), Array1::from(vec![2.0, 3.0, 4.0]));
@@ -1094,7 +1095,7 @@ impl DataFrame {
             .clone();
 
         // Initialize column vectors for raw string data
-        let mut raw_columns: HashMap<String, Vec<String>> = HashMap::new();
+        let mut raw_columns: IndexMap<String, Vec<String>> = IndexMap::new();
         for header in headers.iter() {
             raw_columns.insert(header.to_string(), Vec::new());
         }
@@ -1112,7 +1113,7 @@ impl DataFrame {
         }
 
         // Infer type for each column and create typed columns
-        let mut typed_columns: HashMap<String, Arc<Column>> = HashMap::new();
+        let mut typed_columns: IndexMap<String, Arc<Column>> = IndexMap::new();
         for (name, values) in raw_columns {
             typed_columns.insert(name, Arc::new(Self::infer_column_type(&values)));
         }
@@ -1171,7 +1172,7 @@ impl DataFrame {
             .clone();
 
         // Initialize column vectors for raw string data
-        let mut raw_columns: HashMap<String, Vec<String>> = HashMap::new();
+        let mut raw_columns: IndexMap<String, Vec<String>> = IndexMap::new();
         for header in headers.iter() {
             raw_columns.insert(header.to_string(), Vec::new());
         }
@@ -1189,7 +1190,7 @@ impl DataFrame {
         }
 
         // Infer type for each column and create typed columns
-        let mut typed_columns: HashMap<String, Arc<Column>> = HashMap::new();
+        let mut typed_columns: IndexMap<String, Arc<Column>> = IndexMap::new();
         for (name, values) in raw_columns {
             typed_columns.insert(name, Arc::new(Self::infer_column_type(&values)));
         }
@@ -1240,7 +1241,7 @@ impl DataFrame {
 
         // Try to parse as column-oriented (object with arrays)
         if let serde_json::Value::Object(obj) = &json_value {
-            let mut raw_columns: HashMap<String, Vec<String>> = HashMap::new();
+            let mut raw_columns: IndexMap<String, Vec<String>> = IndexMap::new();
 
             for (key, value) in obj {
                 if let serde_json::Value::Array(arr) = value {
@@ -1251,7 +1252,7 @@ impl DataFrame {
             }
 
             if !raw_columns.is_empty() {
-                let mut typed_columns: HashMap<String, Arc<Column>> = HashMap::new();
+                let mut typed_columns: IndexMap<String, Arc<Column>> = IndexMap::new();
                 for (name, values) in raw_columns {
                     typed_columns.insert(name, Arc::new(Self::infer_column_type(&values)));
                 }
@@ -1262,11 +1263,11 @@ impl DataFrame {
         // Try to parse as record-oriented (array of objects)
         if let serde_json::Value::Array(records) = &json_value {
             if records.is_empty() {
-                return DataFrame::new(HashMap::new());
+                return DataFrame::new(IndexMap::new());
             }
 
             // Get column names from first record
-            let mut raw_columns: HashMap<String, Vec<String>> = HashMap::new();
+            let mut raw_columns: IndexMap<String, Vec<String>> = IndexMap::new();
             if let serde_json::Value::Object(first_record) = &records[0] {
                 for key in first_record.keys() {
                     raw_columns.insert(key.clone(), Vec::new());
@@ -1284,7 +1285,7 @@ impl DataFrame {
                 }
             }
 
-            let mut typed_columns: HashMap<String, Arc<Column>> = HashMap::new();
+            let mut typed_columns: IndexMap<String, Arc<Column>> = IndexMap::new();
             for (name, values) in raw_columns {
                 typed_columns.insert(name, Arc::new(Self::infer_column_type(&values)));
             }
@@ -1346,7 +1347,7 @@ impl DataFrame {
 
         // Try to parse as column-oriented (object with arrays)
         if let serde_json::Value::Object(obj) = &json_value {
-            let mut raw_columns: HashMap<String, Vec<String>> = HashMap::new();
+            let mut raw_columns: IndexMap<String, Vec<String>> = IndexMap::new();
 
             for (key, value) in obj {
                 if let serde_json::Value::Array(arr) = value {
@@ -1357,7 +1358,7 @@ impl DataFrame {
             }
 
             if !raw_columns.is_empty() {
-                let mut typed_columns: HashMap<String, Arc<Column>> = HashMap::new();
+                let mut typed_columns: IndexMap<String, Arc<Column>> = IndexMap::new();
                 for (name, values) in raw_columns {
                     typed_columns.insert(name, Arc::new(Self::infer_column_type(&values)));
                 }
@@ -1368,11 +1369,11 @@ impl DataFrame {
         // Try to parse as record-oriented (array of objects)
         if let serde_json::Value::Array(records) = &json_value {
             if records.is_empty() {
-                return DataFrame::new(HashMap::new());
+                return DataFrame::new(IndexMap::new());
             }
 
             // Get column names from first record
-            let mut raw_columns: HashMap<String, Vec<String>> = HashMap::new();
+            let mut raw_columns: IndexMap<String, Vec<String>> = IndexMap::new();
             if let serde_json::Value::Object(first_record) = &records[0] {
                 for key in first_record.keys() {
                     raw_columns.insert(key.clone(), Vec::new());
@@ -1390,7 +1391,7 @@ impl DataFrame {
                 }
             }
 
-            let mut typed_columns: HashMap<String, Arc<Column>> = HashMap::new();
+            let mut typed_columns: IndexMap<String, Arc<Column>> = IndexMap::new();
             for (name, values) in raw_columns {
                 typed_columns.insert(name, Arc::new(Self::infer_column_type(&values)));
             }
@@ -1439,7 +1440,7 @@ impl DataFrame {
         let n = n.min(self.n_rows);
         let indices: Vec<usize> = (0..n).collect();
 
-        let mut new_columns = HashMap::new();
+        let mut new_columns = IndexMap::new();
         for (name, col) in &self.columns {
             new_columns.insert(name.clone(), Arc::new(col.filter_indices(&indices)));
         }
@@ -1466,7 +1467,7 @@ impl DataFrame {
         let start = self.n_rows.saturating_sub(n);
         let indices: Vec<usize> = (start..self.n_rows).collect();
 
-        let mut new_columns = HashMap::new();
+        let mut new_columns = IndexMap::new();
         for (name, col) in &self.columns {
             new_columns.insert(name.clone(), Arc::new(col.filter_indices(&indices)));
         }
@@ -1490,7 +1491,7 @@ impl DataFrame {
     /// assert_eq!(means.get("x"), Some(&2.0));
     /// assert_eq!(means.get("y"), Some(&4.0));
     /// ```
-    pub fn mean(&self) -> HashMap<String, f64> {
+    pub fn mean(&self) -> IndexMap<String, f64> {
         self.columns
             .iter()
             .map(|(name, col)| {
@@ -1515,7 +1516,7 @@ impl DataFrame {
     /// let sums = df.sum();
     /// assert_eq!(sums.get("x"), Some(&6.0));
     /// ```
-    pub fn sum(&self) -> HashMap<String, f64> {
+    pub fn sum(&self) -> IndexMap<String, f64> {
         self.columns
             .iter()
             .map(|(name, col)| {
@@ -1539,7 +1540,7 @@ impl DataFrame {
     /// let mins = df.min();
     /// assert_eq!(mins.get("x"), Some(&1.0));
     /// ```
-    pub fn min(&self) -> HashMap<String, f64> {
+    pub fn min(&self) -> IndexMap<String, f64> {
         self.columns
             .iter()
             .map(|(name, col)| {
@@ -1566,7 +1567,7 @@ impl DataFrame {
     /// let maxs = df.max();
     /// assert_eq!(maxs.get("x"), Some(&3.0));
     /// ```
-    pub fn max(&self) -> HashMap<String, f64> {
+    pub fn max(&self) -> IndexMap<String, f64> {
         self.columns
             .iter()
             .map(|(name, col)| {
@@ -1593,7 +1594,7 @@ impl DataFrame {
     /// let stds = df.std();
     /// assert!(*stds.get("x").unwrap() > 0.0);
     /// ```
-    pub fn std(&self) -> HashMap<String, f64> {
+    pub fn std(&self) -> IndexMap<String, f64> {
         self.columns
             .iter()
             .map(|(name, col)| {
@@ -1624,7 +1625,7 @@ impl DataFrame {
     /// let vars = df.var();
     /// assert!(*vars.get("x").unwrap() > 0.0);
     /// ```
-    pub fn var(&self) -> HashMap<String, f64> {
+    pub fn var(&self) -> IndexMap<String, f64> {
         self.columns
             .iter()
             .map(|(name, col)| {
@@ -1655,7 +1656,7 @@ impl DataFrame {
     /// let medians = df.median();
     /// assert_eq!(medians.get("x"), Some(&2.0));
     /// ```
-    pub fn median(&self) -> HashMap<String, f64> {
+    pub fn median(&self) -> IndexMap<String, f64> {
         self.columns
             .iter()
             .map(|(name, col)| {
@@ -1675,7 +1676,7 @@ impl DataFrame {
     }
 
     /// Generate descriptive statistics for each column.
-    /// Returns a HashMap where each column name maps to a HashMap of statistics.
+    /// Returns a IndexMap where each column name maps to a IndexMap of statistics.
     ///
     /// # Examples
     /// ```
@@ -1691,7 +1692,7 @@ impl DataFrame {
     /// assert_eq!(x_stats.get("count"), Some(&5.0));
     /// assert_eq!(x_stats.get("mean"), Some(&3.0));
     /// ```
-    pub fn describe(&self) -> HashMap<String, HashMap<String, f64>> {
+    pub fn describe(&self) -> IndexMap<String, IndexMap<String, f64>> {
         let means = self.mean();
         let stds = self.std();
         let mins = self.min();
@@ -1701,7 +1702,7 @@ impl DataFrame {
         self.columns
             .iter()
             .map(|(name, col)| {
-                let mut stats = HashMap::new();
+                let mut stats = IndexMap::new();
                 stats.insert("count".to_string(), col.len() as f64);
                 stats.insert("mean".to_string(), means[name]);
                 stats.insert("std".to_string(), stds[name]);
@@ -1740,7 +1741,7 @@ impl DataFrame {
                     col_name
                 )));
             }
-            new_columns.remove(*col_name);
+            new_columns.shift_remove(*col_name);
         }
 
         DataFrame::from_arc_columns(new_columns)
@@ -1778,7 +1779,7 @@ impl DataFrame {
         // Keep all indices NOT in drop_set
         let keep_indices: Vec<usize> = (0..self.n_rows).filter(|i| !drop_set.contains(i)).collect();
 
-        let mut new_columns = HashMap::new();
+        let mut new_columns = IndexMap::new();
         for (name, col) in &self.columns {
             new_columns.insert(name.clone(), Arc::new(col.filter_indices(&keep_indices)));
         }
@@ -1791,7 +1792,7 @@ impl DataFrame {
     /// # Examples
     /// ```
     /// use greeners::DataFrame;
-    /// use std::collections::HashMap;
+    /// use indexmap::IndexMap;
     ///
     /// let df = DataFrame::builder()
     ///     .add_column("x", vec![1.0, 2.0])
@@ -1799,15 +1800,15 @@ impl DataFrame {
     ///     .build()
     ///     .unwrap();
     ///
-    /// let mut rename_map = HashMap::new();
+    /// let mut rename_map = IndexMap::new();
     /// rename_map.insert("x".to_string(), "new_x".to_string());
     ///
     /// let df2 = df.rename(&rename_map).unwrap();
     /// assert!(df2.has_column("new_x"));
     /// assert!(!df2.has_column("x"));
     /// ```
-    pub fn rename(&self, rename_map: &HashMap<String, String>) -> Result<Self, GreenersError> {
-        let mut new_columns = HashMap::new();
+    pub fn rename(&self, rename_map: &IndexMap<String, String>) -> Result<Self, GreenersError> {
+        let mut new_columns = IndexMap::new();
 
         for (old_name, col) in &self.columns {
             let new_name = rename_map.get(old_name).unwrap_or(old_name);
@@ -1851,7 +1852,7 @@ impl DataFrame {
         });
 
         // Reorder all columns based on sorted indices
-        let mut new_columns = HashMap::new();
+        let mut new_columns = IndexMap::new();
         for (name, col) in &self.columns {
             new_columns.insert(name.clone(), Arc::new(col.filter_indices(&indices)));
         }
@@ -1878,19 +1879,19 @@ impl DataFrame {
     /// ```
     pub fn filter<F>(&self, predicate: F) -> Result<Self, GreenersError>
     where
-        F: Fn(&HashMap<String, f64>) -> bool,
+        F: Fn(&IndexMap<String, f64>) -> bool,
     {
         let mut keep_indices = Vec::new();
 
         // Convert all columns to f64 arrays for filtering
-        let float_columns: HashMap<String, Array1<f64>> = self
+        let float_columns: IndexMap<String, Array1<f64>> = self
             .columns
             .iter()
             .map(|(name, col)| (name.clone(), col.to_float()))
             .collect();
 
         for i in 0..self.n_rows {
-            let mut row = HashMap::new();
+            let mut row = IndexMap::new();
             for (name, col) in &float_columns {
                 row.insert(name.clone(), col[i]);
             }
@@ -1900,7 +1901,7 @@ impl DataFrame {
             }
         }
 
-        let mut new_columns = HashMap::new();
+        let mut new_columns = IndexMap::new();
         for (name, col) in &self.columns {
             new_columns.insert(name.clone(), Arc::new(col.filter_indices(&keep_indices)));
         }
@@ -1932,9 +1933,8 @@ impl DataFrame {
 
         let mut writer = Writer::from_writer(file);
 
-        // Write headers
-        let mut column_names: Vec<String> = self.columns.keys().cloned().collect();
-        column_names.sort(); // Sort for consistent ordering
+        // Write headers — preserve insertion order (IndexMap)
+        let column_names: Vec<String> = self.columns.keys().cloned().collect();
         writer
             .write_record(&column_names)
             .map_err(|e| GreenersError::FormulaError(format!("Failed to write headers: {}", e)))?;
@@ -1992,7 +1992,7 @@ impl DataFrame {
         let writer = BufWriter::new(file);
 
         // Convert to column-oriented format
-        let mut data: HashMap<String, serde_json::Value> = HashMap::new();
+        let mut data: IndexMap<String, serde_json::Value> = IndexMap::new();
         for (name, col) in &self.columns {
             let value = match col.as_ref() {
                 Column::Float(arr) => serde_json::to_value(arr.to_vec()).unwrap(),
@@ -2047,8 +2047,7 @@ impl DataFrame {
         ));
         output.push_str("\nColumns:\n");
 
-        let mut column_names: Vec<String> = self.columns.keys().cloned().collect();
-        column_names.sort();
+        let column_names: Vec<String> = self.columns.keys().cloned().collect();
 
         for name in &column_names {
             output.push_str(&format!("  {} (f64)\n", name));
@@ -2082,7 +2081,7 @@ impl DataFrame {
     /// assert!(!selected.has_column("y"));
     /// ```
     pub fn select(&self, columns: &[&str]) -> Result<Self, GreenersError> {
-        let mut new_columns = HashMap::new();
+        let mut new_columns = IndexMap::new();
 
         for &col_name in columns {
             if !self.columns.contains_key(col_name) {
@@ -2126,9 +2125,8 @@ impl DataFrame {
         rows: Option<&[usize]>,
         cols: Option<&[usize]>,
     ) -> Result<Self, GreenersError> {
-        // Get sorted column names for consistent indexing
-        let mut column_names: Vec<String> = self.columns.keys().cloned().collect();
-        column_names.sort();
+        // Column names in insertion order
+        let column_names: Vec<String> = self.columns.keys().cloned().collect();
 
         // Determine which columns to select
         let selected_col_names: Vec<String> = if let Some(col_indices) = cols {
@@ -2168,7 +2166,7 @@ impl DataFrame {
         };
 
         // Build new DataFrame with selected rows and columns
-        let mut new_columns = HashMap::new();
+        let mut new_columns = IndexMap::new();
         for col_name in selected_col_names {
             let col_data = &self.columns[&col_name];
             new_columns.insert(col_name, Arc::new(col_data.filter_indices(&selected_rows)));
@@ -2218,7 +2216,7 @@ impl DataFrame {
         }
 
         // Concatenate columns
-        let mut new_columns = HashMap::new();
+        let mut new_columns = IndexMap::new();
         for (col_name, col_data) in &self.columns {
             let other_col_data = &other.columns[col_name];
 
@@ -2299,7 +2297,7 @@ impl DataFrame {
     where
         F: Fn(&Array1<f64>) -> Array1<f64>,
     {
-        let mut new_columns = HashMap::new();
+        let mut new_columns = IndexMap::new();
 
         for (col_name, col_data) in &self.columns {
             // Convert to float for applying function
@@ -2381,8 +2379,7 @@ impl DataFrame {
             ));
         }
 
-        let mut column_names: Vec<String> = self.columns.keys().cloned().collect();
-        column_names.sort();
+        let column_names: Vec<String> = self.columns.keys().cloned().collect();
 
         let n_cols = column_names.len();
         let mut corr_matrix = Array2::<f64>::zeros((n_cols, n_cols));
@@ -2452,8 +2449,7 @@ impl DataFrame {
             ));
         }
 
-        let mut column_names: Vec<String> = self.columns.keys().cloned().collect();
-        column_names.sort();
+        let column_names: Vec<String> = self.columns.keys().cloned().collect();
 
         let n_cols = column_names.len();
         let mut cov_matrix = Array2::<f64>::zeros((n_cols, n_cols));
@@ -2556,7 +2552,7 @@ impl DataFrame {
 
         if keep_indices.is_empty() {
             return Ok(DataFrame {
-                columns: HashMap::new(),
+                columns: IndexMap::new(),
                 n_rows: 0,
             });
         }
@@ -2615,7 +2611,7 @@ impl DataFrame {
 
         if keep_indices.is_empty() {
             return Ok(DataFrame {
-                columns: HashMap::new(),
+                columns: IndexMap::new(),
                 n_rows: 0,
             });
         }
@@ -2669,7 +2665,7 @@ impl DataFrame {
 
         if keep_indices.is_empty() {
             return Ok(DataFrame {
-                columns: HashMap::new(),
+                columns: IndexMap::new(),
                 n_rows: 0,
             });
         }
@@ -2694,7 +2690,7 @@ impl DataFrame {
     /// assert_eq!(filled.get("y").unwrap()[2], 0.0);
     /// ```
     pub fn fillna(&self, value: f64) -> Result<Self, GreenersError> {
-        let mut new_columns = HashMap::new();
+        let mut new_columns = IndexMap::new();
 
         for (col_name, col_data) in &self.columns {
             // Only fill NaN in Float columns (Categorical, Bool, Int, and DateTime have no NaN concept)
@@ -2770,7 +2766,7 @@ impl DataFrame {
     /// assert!((filled.get("y").unwrap()[2] - 23.333333).abs() < 0.001);
     /// ```
     pub fn fillna_mean(&self) -> Result<Self, GreenersError> {
-        let mut new_columns = HashMap::new();
+        let mut new_columns = IndexMap::new();
 
         for (col_name, col_data) in &self.columns {
             let filled = match col_data.as_ref() {
@@ -2814,7 +2810,7 @@ impl DataFrame {
     /// assert_eq!(filled.get("y").unwrap()[2], 30.0);
     /// ```
     pub fn fillna_median(&self) -> Result<Self, GreenersError> {
-        let mut new_columns = HashMap::new();
+        let mut new_columns = IndexMap::new();
 
         for (col_name, col_data) in &self.columns {
             let filled = match col_data.as_ref() {
@@ -2873,7 +2869,7 @@ impl DataFrame {
     /// assert_eq!(price[4], 105.0);  // Filled from price[3]
     /// ```
     pub fn fillna_ffill(&self) -> Result<Self, GreenersError> {
-        let mut new_columns = HashMap::new();
+        let mut new_columns = IndexMap::new();
 
         for (col_name, col_data) in &self.columns {
             let filled = match col_data.as_ref() {
@@ -2930,7 +2926,7 @@ impl DataFrame {
     /// assert_eq!(price[4], 105.0);
     /// ```
     pub fn fillna_bfill(&self) -> Result<Self, GreenersError> {
-        let mut new_columns = HashMap::new();
+        let mut new_columns = IndexMap::new();
 
         for (col_name, col_data) in &self.columns {
             let filled = match col_data.as_ref() {
@@ -2978,7 +2974,7 @@ impl DataFrame {
     /// assert_eq!(na_counts.get("x"), Some(&2));
     /// assert_eq!(na_counts.get("y"), Some(&1));
     /// ```
-    pub fn count_na(&self) -> HashMap<String, usize> {
+    pub fn count_na(&self) -> IndexMap<String, usize> {
         self.columns
             .iter()
             .map(|(name, col)| {
@@ -3049,7 +3045,7 @@ impl DataFrame {
     /// assert_eq!(x_mask[2], false);
     /// ```
     pub fn isna(&self) -> Result<Self, GreenersError> {
-        let mut new_columns = HashMap::new();
+        let mut new_columns = IndexMap::new();
 
         for (col_name, col_data) in &self.columns {
             let na_mask = match col_data.as_ref() {
@@ -3097,7 +3093,7 @@ impl DataFrame {
     /// assert_eq!(x_mask[2], true);
     /// ```
     pub fn notna(&self) -> Result<Self, GreenersError> {
-        let mut new_columns = HashMap::new();
+        let mut new_columns = IndexMap::new();
 
         for (col_name, col_data) in &self.columns {
             let not_na_mask = match col_data.as_ref() {
@@ -3126,7 +3122,7 @@ impl DataFrame {
     /// # Examples
     /// ```
     /// use greeners::DataFrame;
-    /// use std::collections::HashMap;
+    /// use indexmap::IndexMap;
     ///
     /// let df = DataFrame::builder()
     ///     .add_column("x", vec![1.0, 2.0])
@@ -3134,14 +3130,14 @@ impl DataFrame {
     ///     .build()
     ///     .unwrap();
     ///
-    /// let mut row = HashMap::new();
+    /// let mut row = IndexMap::new();
     /// row.insert("x".to_string(), 5.0);
     /// row.insert("y".to_string(), 6.0);
     ///
     /// let df2 = df.append_row(&row).unwrap();
     /// assert_eq!(df2.n_rows(), 3);
     /// ```
-    pub fn append_row(&self, row: &HashMap<String, f64>) -> Result<Self, GreenersError> {
+    pub fn append_row(&self, row: &IndexMap<String, f64>) -> Result<Self, GreenersError> {
         // Check that row has all required columns
         for col_name in self.columns.keys() {
             if !row.contains_key(col_name) {
@@ -3162,7 +3158,7 @@ impl DataFrame {
             }
         }
 
-        let mut new_columns = HashMap::new();
+        let mut new_columns = IndexMap::new();
         for (col_name, col_data) in &self.columns {
             // Convert to float, append, wrap back in Column::Float
             let mut new_col = col_data.to_float().to_vec();
@@ -3223,19 +3219,19 @@ impl DataFrame {
         let right_key = other.get_column(on)?.to_float();
 
         // Convert all columns to float arrays for indexing
-        let left_arrays: HashMap<String, Array1<f64>> = self
+        let left_arrays: IndexMap<String, Array1<f64>> = self
             .columns
             .iter()
             .map(|(name, col)| (name.clone(), col.to_float()))
             .collect();
-        let right_arrays: HashMap<String, Array1<f64>> = other
+        let right_arrays: IndexMap<String, Array1<f64>> = other
             .columns
             .iter()
             .map(|(name, col)| (name.clone(), col.to_float()))
             .collect();
 
         // Build result columns
-        let mut result_data: HashMap<String, Vec<f64>> = HashMap::new();
+        let mut result_data: IndexMap<String, Vec<f64>> = IndexMap::new();
 
         // Initialize all columns
         for col_name in self.columns.keys() {
@@ -3402,7 +3398,7 @@ impl DataFrame {
         }
 
         // Convert to Column
-        let mut final_columns = HashMap::new();
+        let mut final_columns = IndexMap::new();
         for (col_name, values) in result_data {
             final_columns.insert(col_name, Column::Float(Array1::from(values)));
         }
@@ -3505,7 +3501,7 @@ impl DataFrame {
         }
 
         // Build result DataFrame
-        let mut result_columns = HashMap::new();
+        let mut result_columns = IndexMap::new();
         for (i, col_name) in by.iter().enumerate() {
             result_columns.insert(
                 col_name.to_string(),
@@ -3582,10 +3578,10 @@ impl DataFrame {
             columns_data.iter().map(|&v| v.round() as i64).collect();
 
         // Build pivot table structure
-        use std::collections::HashMap as StdHashMap;
+        use indexmap::IndexMap as StdIndexMap;
 
         // Map (index_val, column_val) -> list of values
-        let mut pivot_data: StdHashMap<(i64, i64), Vec<f64>> = StdHashMap::new();
+        let mut pivot_data: StdIndexMap<(i64, i64), Vec<f64>> = StdIndexMap::new();
 
         for i in 0..self.n_rows {
             let idx = index_data[i].round() as i64;
@@ -3618,7 +3614,7 @@ impl DataFrame {
         };
 
         // Build result DataFrame
-        let mut result_columns = HashMap::new();
+        let mut result_columns = IndexMap::new();
 
         // Add index column
         let index_vec: Vec<f64> = unique_indices.iter().map(|&v| v as f64).collect();
@@ -4370,7 +4366,7 @@ impl DataFrame {
         }
 
         // Build melted data
-        let mut result_data: HashMap<String, Vec<f64>> = HashMap::new();
+        let mut result_data: IndexMap<String, Vec<f64>> = IndexMap::new();
 
         // Initialize columns
         for &id_var in id_vars {
@@ -4401,7 +4397,7 @@ impl DataFrame {
         }
 
         // Convert to Array1
-        let mut final_columns = HashMap::new();
+        let mut final_columns = IndexMap::new();
         for (name, values) in result_data {
             final_columns.insert(name, Array1::from(values));
         }
@@ -4439,8 +4435,8 @@ impl DataFrame {
     pub fn encode(&self, column: &str) -> Result<(Array1<f64>, Vec<String>), GreenersError> {
         let str_vals = self.get_string(column)?;
         let mut label_map: Vec<String> = Vec::new();
-        let mut val_to_idx: std::collections::HashMap<String, usize> =
-            std::collections::HashMap::new();
+        let mut val_to_idx: indexmap::IndexMap<String, usize> =
+            indexmap::IndexMap::new();
         let numeric: Vec<f64> = str_vals
             .iter()
             .map(|s| {
@@ -4511,12 +4507,11 @@ impl std::fmt::Display for DataFrame {
             return write!(f, "Empty DataFrame");
         }
 
-        // Get sorted column names for consistent display
-        let mut column_names: Vec<String> = self.columns.keys().cloned().collect();
-        column_names.sort();
+        // Column names in insertion order
+        let column_names: Vec<String> = self.columns.keys().cloned().collect();
 
         // Calculate column widths
-        let mut widths: HashMap<String, usize> = HashMap::new();
+        let mut widths: IndexMap<String, usize> = IndexMap::new();
         for name in &column_names {
             let col = &self.columns[name];
             let max_value_width = match col.as_ref() {
@@ -4602,14 +4597,14 @@ impl std::fmt::Display for DataFrame {
 
 /// Builder for creating DataFrames conveniently
 pub struct DataFrameBuilder {
-    columns: HashMap<String, Arc<Column>>,
+    columns: IndexMap<String, Arc<Column>>,
 }
 
 impl DataFrameBuilder {
     /// Create a new DataFrameBuilder
     pub fn new() -> Self {
         DataFrameBuilder {
-            columns: HashMap::new(),
+            columns: IndexMap::new(),
         }
     }
 
@@ -4760,7 +4755,7 @@ mod tests {
 
     #[test]
     fn test_dataframe_creation() {
-        let mut data = HashMap::new();
+        let mut data = IndexMap::new();
         data.insert("x".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
         data.insert("y".to_string(), Array1::from(vec![2.0, 4.0, 6.0]));
 
@@ -4771,7 +4766,7 @@ mod tests {
 
     #[test]
     fn test_dataframe_get() {
-        let mut data = HashMap::new();
+        let mut data = IndexMap::new();
         data.insert("x".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
 
         let df = DataFrame::new(data).unwrap();
@@ -4783,7 +4778,7 @@ mod tests {
 
     #[test]
     fn test_to_design_matrix() {
-        let mut data = HashMap::new();
+        let mut data = IndexMap::new();
         data.insert("y".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
         data.insert("x1".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
         data.insert("x2".to_string(), Array1::from(vec![2.0, 3.0, 4.0]));
@@ -4809,7 +4804,7 @@ mod tests {
 
     #[test]
     fn test_design_matrix_no_intercept() {
-        let mut data = HashMap::new();
+        let mut data = IndexMap::new();
         data.insert("y".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
         data.insert("x1".to_string(), Array1::from(vec![1.0, 2.0, 3.0]));
 

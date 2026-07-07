@@ -1,5 +1,5 @@
 use greeners::DataFrame;
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 fn main() {
     println!("=== DataFrame Demo - Greeners ===\n");
@@ -86,7 +86,7 @@ fn main() {
 
     // Test rename()
     println!("=== Rename 'age' to 'years_old' ===");
-    let mut rename_map = HashMap::new();
+    let mut rename_map = IndexMap::new();
     rename_map.insert("age".to_string(), "years_old".to_string());
     let renamed = df.rename(&rename_map).unwrap();
     println!("{}\n", renamed);

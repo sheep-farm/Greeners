@@ -1,6 +1,6 @@
 use greeners::{CovarianceType, DataFrame, Formula, OLS};
 use ndarray::{Array1, Array2};
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 #[test]
 fn test_ols_basic_estimation() {
@@ -8,7 +8,7 @@ fn test_ols_basic_estimation() {
     let x_data = vec![1.0, 2.0, 3.0, 4.0, 5.0];
     let y_data = vec![5.0, 8.0, 11.0, 14.0, 17.0]; // Perfect fit: y = 2 + 3*x
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x".to_string(), Array1::from(x_data));
 
@@ -31,7 +31,7 @@ fn test_ols_multiple_regression() {
     let x2_data = vec![2.0, 1.5, 3.0, 2.5, 4.0, 3.5, 5.0, 4.5];
     let y_data = vec![4.0, 6.5, 10.0, 12.5, 16.0, 18.5, 22.0, 24.5];
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x1".to_string(), Array1::from(x1_data));
     data.insert("x2".to_string(), Array1::from(x2_data));
@@ -51,7 +51,7 @@ fn test_ols_robust_se_hc1() {
     let x_data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
     let y_data = vec![2.5, 5.2, 7.8, 10.1, 12.9, 15.3, 17.5, 20.2, 22.8, 25.1];
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x".to_string(), Array1::from(x_data));
 
@@ -79,7 +79,7 @@ fn test_ols_predictions() {
     let x_data = vec![1.0, 2.0, 3.0, 4.0, 5.0];
     let y_data = vec![3.0, 5.0, 7.0, 9.0, 11.0]; // y = 1 + 2*x
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data.clone()));
     data.insert("x".to_string(), Array1::from(x_data.clone()));
 
@@ -123,7 +123,7 @@ fn test_ols_no_intercept() {
     let x_data = vec![1.0, 2.0, 3.0, 4.0, 5.0];
     let y_data = vec![2.0, 4.0, 6.0, 8.0, 10.0];
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x".to_string(), Array1::from(x_data));
 
@@ -149,7 +149,7 @@ fn test_ols_hc3_robust_se() {
     let x_data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
     let y_data = vec![2.1, 4.3, 6.2, 8.5, 10.1, 12.4, 14.2, 16.8];
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x".to_string(), Array1::from(x_data));
 
@@ -168,7 +168,7 @@ fn test_ols_hc4_robust_se() {
     let x_data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
     let y_data = vec![2.5, 5.1, 7.3, 9.8, 12.2, 14.9, 17.1, 19.7, 22.3, 24.8];
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x".to_string(), Array1::from(x_data));
 
@@ -187,7 +187,7 @@ fn test_ols_log_likelihood() {
     let x_data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
     let y_data = vec![3.5, 4.2, 7.8, 8.1, 11.5, 12.3, 15.9, 16.2, 19.8, 20.5];
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x".to_string(), Array1::from(x_data));
 
@@ -204,7 +204,7 @@ fn test_ols_model_stats() {
     let x_data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
     let y_data = vec![2.5, 4.8, 7.2, 9.5, 11.9, 14.1];
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x".to_string(), Array1::from(x_data));
 
@@ -230,7 +230,7 @@ fn test_ols_confidence_intervals() {
     // Noisy y so se > 0 and CI bounds are strictly ordered
     let y_data = vec![3.1, 4.9, 7.2, 8.8, 11.1];
 
-    let mut data = HashMap::new();
+    let mut data = IndexMap::new();
     data.insert("y".to_string(), Array1::from(y_data));
     data.insert("x".to_string(), Array1::from(x_data));
 

@@ -134,7 +134,7 @@ impl PanelDiagnostics {
         entity_ids: &[usize],
     ) -> Result<(f64, f64), String> {
         use statrs::distribution::{ChiSquared, ContinuousCDF};
-        use std::collections::HashMap;
+        use indexmap::IndexMap;
 
         let n = residuals_pooled.len();
 
@@ -143,7 +143,7 @@ impl PanelDiagnostics {
         }
 
         // Group residuals by entity
-        let mut entity_residuals: HashMap<usize, Vec<f64>> = HashMap::new();
+        let mut entity_residuals: IndexMap<usize, Vec<f64>> = IndexMap::new();
         for (i, &entity_id) in entity_ids.iter().enumerate() {
             entity_residuals
                 .entry(entity_id)
@@ -249,7 +249,7 @@ impl PanelDiagnostics {
     ) -> Result<(f64, f64, f64, f64), String> {
         use crate::{CovarianceType, OLS};
         use statrs::distribution::{ContinuousCDF, Normal};
-        use std::collections::HashMap;
+        use indexmap::IndexMap;
 
         let n = y.len();
         let k = x.ncols();
@@ -259,7 +259,7 @@ impl PanelDiagnostics {
         }
 
         // 1. Group indices by entity, sorted by time
-        let mut entity_idx: HashMap<i64, Vec<usize>> = HashMap::new();
+        let mut entity_idx: IndexMap<i64, Vec<usize>> = IndexMap::new();
         for (i, &eid) in entity_ids.iter().enumerate() {
             entity_idx.entry(eid).or_default().push(i);
         }
@@ -325,7 +325,7 @@ impl PanelDiagnostics {
 
         // 4. Map FD residuals back to entity groups
         //    fd_resid[row_ptr..row_ptr+fd_count] = entity eid's FD residuals in time order
-        let mut entity_fd_resid: HashMap<i64, Vec<f64>> = HashMap::new();
+        let mut entity_fd_resid: IndexMap<i64, Vec<f64>> = IndexMap::new();
         let mut row_ptr = 0usize;
         for eid in &sorted_entities {
             let t = entity_idx[eid].len();
@@ -398,7 +398,7 @@ impl PanelDiagnostics {
     ) -> Result<(f64, f64, usize, usize, usize, usize), String> {
         use crate::{CovarianceType, OLS};
         use statrs::distribution::{ContinuousCDF, FisherSnedecor};
-        use std::collections::HashMap;
+        use indexmap::IndexMap;
 
         let n = y.len();
         let k_full = x.ncols();
@@ -435,14 +435,14 @@ impl PanelDiagnostics {
         }
 
         // Time value → sorted index
-        let time_to_idx: HashMap<u64, usize> = unique_times
+        let time_to_idx: IndexMap<u64, usize> = unique_times
             .iter()
             .enumerate()
             .map(|(i, &t)| (t.to_bits(), i))
             .collect();
 
         // For each entity, collect non-const regressor values at each period
-        let mut entity_period: HashMap<i64, HashMap<usize, Vec<f64>>> = HashMap::new();
+        let mut entity_period: IndexMap<i64, IndexMap<usize, Vec<f64>>> = IndexMap::new();
         for (obs, &eid) in entity_ids.iter().enumerate() {
             let t_idx = *time_to_idx
                 .get(&time_vals[obs].to_bits())
@@ -570,7 +570,7 @@ impl PanelDiagnostics {
     ) -> Result<MundlakResult, String> {
         use crate::{CovarianceType, OLS};
         use statrs::distribution::{ContinuousCDF, FisherSnedecor};
-        use std::collections::HashMap;
+        use indexmap::IndexMap;
 
         let n = y.len();
         let k_full = x.ncols();
@@ -594,7 +594,7 @@ impl PanelDiagnostics {
         }
 
         // Compute entity means for non-constant columns
-        let mut entity_sums: HashMap<i64, (Vec<f64>, usize)> = HashMap::new();
+        let mut entity_sums: IndexMap<i64, (Vec<f64>, usize)> = IndexMap::new();
         for (i, &eid) in entity_ids.iter().enumerate() {
             let entry = entity_sums.entry(eid).or_insert_with(|| (vec![0.0; k], 0));
             for (j, &c) in non_const_cols.iter().enumerate() {
@@ -602,7 +602,7 @@ impl PanelDiagnostics {
             }
             entry.1 += 1;
         }
-        let entity_means: HashMap<i64, Vec<f64>> = entity_sums
+        let entity_means: IndexMap<i64, Vec<f64>> = entity_sums
             .into_iter()
             .map(|(eid, (sums, cnt))| (eid, sums.into_iter().map(|s| s / cnt as f64).collect()))
             .collect();
@@ -673,7 +673,7 @@ impl PanelDiagnostics {
     ) -> Result<(f64, f64, f64, usize), String> {
         use crate::{CovarianceType, OLS};
         use statrs::distribution::{ContinuousCDF, StudentsT};
-        use std::collections::HashMap;
+        use indexmap::IndexMap;
 
         let n = y.len();
         if entity_ids.len() != n || time_vals.len() != n {
@@ -685,7 +685,7 @@ impl PanelDiagnostics {
         }
 
         // 1. Group indices by entity, sorted by time
-        let mut entity_idx: HashMap<i64, Vec<usize>> = HashMap::new();
+        let mut entity_idx: IndexMap<i64, Vec<usize>> = IndexMap::new();
         for (i, &eid) in entity_ids.iter().enumerate() {
             entity_idx.entry(eid).or_default().push(i);
         }
@@ -833,7 +833,7 @@ impl PanelDiagnostics {
     /// in the same order as the observations.
     pub fn pesaran_cd(residuals: &Array1<f64>, entity_ids: &[usize]) -> Result<(f64, f64), String> {
         use statrs::distribution::{ContinuousCDF, Normal};
-        use std::collections::HashMap;
+        use indexmap::IndexMap;
 
         let n_obs = residuals.len();
         if entity_ids.len() != n_obs {
@@ -841,7 +841,7 @@ impl PanelDiagnostics {
         }
 
         // Group residuals by entity, preserving observation order (= time order)
-        let mut groups: HashMap<usize, Vec<f64>> = HashMap::new();
+        let mut groups: IndexMap<usize, Vec<f64>> = IndexMap::new();
         for (&id, &r) in entity_ids.iter().zip(residuals.iter()) {
             groups.entry(id).or_default().push(r);
         }
