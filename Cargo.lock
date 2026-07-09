@@ -687,7 +687,7 @@ dependencies = [
 
 [[package]]
 name = "greeners"
-version = "1.5.4"
+version = "1.5.5-dev"
 dependencies = [
  "argmin",
  "argmin-math",
