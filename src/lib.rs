@@ -155,8 +155,8 @@ pub use rlm::{RlmResult, RobustNorm, RLM};
 pub use rolling::{RecursiveLS, RecursiveLSResult, RollingOLS, RollingResult, RollingWLS};
 pub use specification_tests::SpecificationTests;
 pub use statespace::{
-    state_space_estimate, KalmanFilter, KalmanResult, KalmanSmoother, SmoothedResult,
-    StateSpaceModel, StateSpaceResult,
+    state_space_estimate, KalmanFilter, KalmanResult, KalmanSmoother, LocalLevel, LocalLevelResult,
+    SmoothedResult, StateSpaceModel, StateSpaceResult,
 };
 pub use stats::{AnovaRegressionResult, AnovaResult, CompareMeansResult, Stats, TTestResult};
 pub use summary_col::{ModelSummary, SummaryCol, SummaryColResult};
