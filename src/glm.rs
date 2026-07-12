@@ -287,9 +287,10 @@ impl Link {
             Link::InversePower => -1.0 / (mu * mu).max(1e-10),
             Link::InverseSquared => -2.0 / (mu * mu * mu).max(1e-10),
             Link::CLogLog => {
-                // g'(mu) = 1 / ((1-mu) * log(1-mu))  [with sign]
+                // g(mu) = log(-log(1-mu))
+                // g'(mu) = 1 / ((1-mu) * (-log(1-mu)))
                 let mu_c = mu.clamp(1e-10, 1.0 - 1e-10);
-                -1.0 / ((1.0 - mu_c) * (1.0 - mu_c).ln()).abs().max(1e-10)
+                1.0 / ((1.0 - mu_c) * (-(1.0 - mu_c).ln())).max(1e-10)
             }
             Link::Power(p) => {
                 if p.abs() < 1e-10 {
