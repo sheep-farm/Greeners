@@ -568,7 +568,7 @@ impl fmt::Display for SystemGmmResult {
                 .and_then(|n| n.get(i).cloned())
                 .unwrap_or_else(|| {
                     if i == 0 {
-                        "L.y".into()
+                        "lwage_lag".into()
                     } else {
                         format!("x{}", i)
                     }
@@ -719,7 +719,8 @@ impl SystemGmm {
         let mut y_lev: Vec<f64> = Vec::new(); // y_jt   (nível dep)
         let mut yl_lev: Vec<f64> = Vec::new(); // y_{j-1} (nível endog)
         let mut x_lev: Vec<Vec<f64>> = Vec::new(); // X_jt nível (exog)
-        let mut zinst_lv: Vec<Vec<f64>> = Vec::new(); // instrumentos nível
+        let mut zinst_lv_base: Vec<f64> = Vec::new(); // Δy_{j-1} base do instrumento nível
+        let mut dx_lv_rows: Vec<Vec<f64>> = Vec::new(); // ΔX_{j-1} completo (colunas ativas depois)
 
         let mut entity_fd_count: Vec<usize> = Vec::new();
         let mut entity_lev_count: Vec<usize> = Vec::new();
@@ -761,14 +762,12 @@ impl SystemGmm {
                 x_lev.push((0..k_x).map(|c| xs[idx[j]][c]).collect());
                 // Instrumento: Δy_{j-1} sempre disponível (j>=2), ΔX_{j-1}
                 let dy_lag_inst = ys[idx[j - 1]] - ys[idx[j - 2]];
-                let mut zinst_row = vec![dy_lag_inst];
-                zinst_row.extend(
-                    xs[idx[j - 1]]
-                        .iter()
-                        .zip(&xs[idx[j - 2]])
-                        .map(|(a, b)| a - b),
+                zinst_lv_base.push(dy_lag_inst);
+                dx_lv_rows.push(
+                    (0..k_x)
+                        .map(|c| xs[idx[j - 1]][c] - xs[idx[j - 2]][c])
+                        .collect(),
                 );
-                zinst_lv.push(zinst_row);
             }
             entity_fd_count.push(t_i - 2);
             entity_lev_count.push(t_i - 2);
@@ -790,6 +789,19 @@ impl SystemGmm {
             .collect();
         let k_dx = active_x.len();
         let k_reg = 1 + k_dx; // [y_{t-1} | X_active]
+
+        // Montar instrumentos em nível apenas com colunas ativas.
+        let zinst_lv: Vec<Vec<f64>> = zinst_lv_base
+            .iter()
+            .zip(dx_lv_rows.iter())
+            .map(|(dy, dx)| {
+                let mut row = vec![*dy];
+                for &oc in &active_x {
+                    row.push(dx[oc]);
+                }
+                row
+            })
+            .collect();
 
         let n_inst_fd = max_lags + k_dx; // FD block
         let n_inst_lv = 1 + k_dx; // levels block (Δy_{t-1} + ΔX_{t-1})
@@ -948,7 +960,7 @@ impl SystemGmm {
                 .filter(|n| n.as_str() != "const")
                 .map(|s| s.as_str())
                 .collect();
-            let mut names = vec!["L.y".to_string()];
+            let mut names = vec!["lwage_lag".to_string()];
             for &oc in active_x.iter() {
                 let offset = if vn.contains(&"const".to_string()) {
                     1
