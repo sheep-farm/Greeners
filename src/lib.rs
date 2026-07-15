@@ -49,6 +49,7 @@ pub mod mstl;
 pub mod multipletests;
 pub mod multivariate;
 pub mod negbin;
+pub mod nls;
 pub mod nonparametric;
 pub mod ols;
 pub mod ordered;
@@ -60,6 +61,7 @@ pub mod quantile;
 pub mod rd;
 pub mod rlm;
 pub mod rolling;
+pub mod spatial;
 pub mod specification_tests;
 pub mod statespace;
 pub mod stats;
@@ -121,7 +123,7 @@ pub use hausman::HausmanTest;
 pub use heckman::{Heckman, HeckmanResult};
 pub use imputation::{BayesGaussMI, BayesGaussMIResult, MICEResult, MICE};
 pub use influence::{CUSUMResult, CUSUMTest, Influence, InfluenceResult};
-pub use iv::{EndogeneityTestResult, IV, IvResult, SarganTestResult};
+pub use iv::{EndogeneityTestResult, IvResult, SarganTestResult, IV};
 pub use margins::{MarginalEffectsResult, Margins};
 pub use markov::{MarkovSwitching, MarkovSwitchingResult};
 pub use markov_autoreg::{MarkovAutoregResult, MarkovAutoregression};
@@ -136,6 +138,9 @@ pub use multivariate::{
     MANOVA, PCA,
 };
 pub use negbin::{GenPoisson, GenPoissonResult, NegBin, NegBinP, NegBinPResult, NegBinResult};
+pub use nls::{
+    predict_ces, predict_cobb_douglas, predict_exp, predict_logistic, predict_power, NlsResult, NLS,
+};
 pub use nonparametric::{
     KDEMultivariate, KDEMultivariateResult, KDEResult, KDEUnivariate, Kernel, KernelReg,
     KernelRegResult, Lowess, LowessResult,
@@ -159,6 +164,7 @@ pub use quantile::{QuantileReg, QuantileResult};
 pub use rd::{RdKernel, RdResult, RD};
 pub use rlm::{RlmResult, RobustNorm, RLM};
 pub use rolling::{RecursiveLS, RecursiveLSResult, RollingOLS, RollingResult, RollingWLS};
+pub use spatial::{Spatial, SpatialResult};
 pub use specification_tests::SpecificationTests;
 pub use statespace::{
     state_space_estimate, KalmanFilter, KalmanResult, KalmanSmoother, LocalLevel, LocalLevelResult,
