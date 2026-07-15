@@ -121,7 +121,7 @@ pub use markov::{MarkovSwitching, MarkovSwitchingResult};
 pub use markov_autoreg::{MarkovAutoregResult, MarkovAutoregression};
 pub use mixed::{BayesMixedGLM, BayesMixedGLMResult, MixedLM, MixedResult};
 pub use mnlogit::{MNLogit, MNLogitResult};
-pub use model_selection::{ModelSelection, PanelDiagnostics, SummaryStats};
+pub use model_selection::{LrTestResult, ModelSelection, PanelDiagnostics, SummaryStats};
 pub use moment_helpers::MomentHelpers;
 pub use mstl::{MSTLResult, MSTL};
 pub use multipletests::{MultiTestMethod, MultipleTests};
