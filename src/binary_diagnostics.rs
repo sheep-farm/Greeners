@@ -1,8 +1,10 @@
 //! Diagnostics for binary choice models (logit/probit):
-//! classification table, ROC/AUC, Hosmer-Lemeshow goodness-of-fit.
+//! classification table, ROC/AUC, Hosmer-Lemeshow goodness-of-fit, linktest.
 
 use crate::error::GreenersError;
-use statrs::distribution::{ChiSquared, ContinuousCDF};
+use crate::Logit;
+use ndarray::{Array1, Array2};
+use statrs::distribution::{ChiSquared, ContinuousCDF, Normal};
 
 /// Result of the classification table for binary models.
 #[derive(Debug)]
@@ -374,5 +376,120 @@ impl BinaryDiagnostics {
             n_groups,
             df,
         })
+    }
+
+    /// Linktest (specification error detection) for binary models.
+    ///
+    /// Stata's `linktest` procedure: re-estimates the model using ŷ (linear
+    /// predictor = Xβ) and ŷ² as the only regressors. If the coefficient on
+    /// ŷ² is statistically significant, there is a specification error
+    /// (wrong link function or omitted functional form).
+    ///
+    /// H0: the model is correctly specified (coefficient of ŷ² = 0).
+    ///
+    /// # Arguments
+    /// * `y` - Actual binary outcomes (0 or 1), length n
+    /// * `x` - Design matrix used in the original model (n × k)
+    /// * `beta` - Coefficient estimates from the original model (k)
+    pub fn linktest(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        beta: &Array1<f64>,
+    ) -> Result<LinktestResult, GreenersError> {
+        let n = y.len();
+
+        // Linear predictor: ŷ = Xβ
+        let yhat = x.dot(beta);
+
+        // Build augmented design matrix: [1, ŷ, ŷ²]
+        let mut x_new = Array2::<f64>::zeros((n, 3));
+        for i in 0..n {
+            x_new[(i, 0)] = 1.0;
+            x_new[(i, 1)] = yhat[i];
+            x_new[(i, 2)] = yhat[i].powi(2);
+        }
+
+        // Re-estimate logit
+        let result = Logit::fit(y, &x_new)?;
+        let normal = Normal::new(0.0, 1.0).unwrap();
+
+        // Coefficient on ŷ² is at index 2
+        let hatsq_coef = result.params[2];
+        let hatsq_se = result.std_errors[2];
+        let hatsq_z = result.z_values[2];
+        let hatsq_p = 2.0 * (1.0 - normal.cdf(hatsq_z.abs()));
+
+        // Also report coefficient on ŷ (should be significant if model has any power)
+        let hat_coef = result.params[1];
+        let hat_se = result.std_errors[1];
+        let hat_z = result.z_values[1];
+        let hat_p = 2.0 * (1.0 - normal.cdf(hat_z.abs()));
+
+        Ok(LinktestResult {
+            hat_coef,
+            hat_se,
+            hat_z,
+            hat_p,
+            hatsq_coef,
+            hatsq_se,
+            hatsq_z,
+            hatsq_p,
+            n,
+        })
+    }
+}
+
+/// Result of the linktest (specification error detection).
+#[derive(Debug)]
+pub struct LinktestResult {
+    /// Coefficient on ŷ (linear predictor) — should be significant
+    pub hat_coef: f64,
+    /// Standard error of ŷ coefficient
+    pub hat_se: f64,
+    /// z-statistic for ŷ coefficient
+    pub hat_z: f64,
+    /// p-value for ŷ coefficient
+    pub hat_p: f64,
+    /// Coefficient on ŷ² — should NOT be significant if model is correct
+    pub hatsq_coef: f64,
+    /// Standard error of ŷ² coefficient
+    pub hatsq_se: f64,
+    /// z-statistic for ŷ² coefficient
+    pub hatsq_z: f64,
+    /// p-value for ŷ² coefficient
+    pub hatsq_p: f64,
+    /// Number of observations
+    pub n: usize,
+}
+
+impl std::fmt::Display for LinktestResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "\n{:=^60}", " Linktest (Specification Test) ")?;
+        writeln!(f, "H0: model is correctly specified (coef of ŷ² = 0)")?;
+        writeln!(f, "{:-^60}", "")?;
+        writeln!(
+            f,
+            "{:<12} {:>12} {:>10} {:>10} {:>10}",
+            "Variable", "Coef.", "Std.Err.", "z", "P>|z|"
+        )?;
+        writeln!(f, "{:-^60}", "")?;
+        writeln!(
+            f,
+            "{:<12} {:>12.4} {:>10.4} {:>10.4} {:>10.4}",
+            "_hat", self.hat_coef, self.hat_se, self.hat_z, self.hat_p
+        )?;
+        writeln!(
+            f,
+            "{:<12} {:>12.4} {:>10.4} {:>10.4} {:>10.4}",
+            "_hatsq", self.hatsq_coef, self.hatsq_se, self.hatsq_z, self.hatsq_p
+        )?;
+        writeln!(f, "{:-^60}", "")?;
+        let verdict = if self.hatsq_p < 0.05 {
+            "Reject H0 — model may be misspecified (ŷ² is significant)"
+        } else {
+            "Fail to reject H0 — model appears correctly specified"
+        };
+        writeln!(f, "Conclusion: {verdict}")?;
+        write!(f, "{:=^60}", "")
     }
 }
