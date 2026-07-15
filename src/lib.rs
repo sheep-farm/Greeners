@@ -5,6 +5,7 @@ pub mod odre_ffi;
 pub mod arima;
 pub mod autoreg;
 pub mod beta_model;
+pub mod binary_diagnostics;
 pub mod bootstrap;
 pub mod column;
 pub mod conditional;
@@ -81,6 +82,9 @@ pub mod zero_inflated;
 pub use arima::{ArimaOrder, ArimaResult, SeasonalOrder, ARIMA};
 pub use autoreg::{ARDLResult, AutoReg, AutoRegResult, ARDL};
 pub use beta_model::{BetaLink, BetaModel, BetaResult};
+pub use binary_diagnostics::{
+    BinaryDiagnostics, ClassificationResult, HosmerLemeshowResult, RocResult,
+};
 pub use bootstrap::{Bootstrap, HypothesisTest};
 pub use column::{CategoricalColumn, Column, DataType};
 pub use conditional::{
