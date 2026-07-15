@@ -10,10 +10,12 @@ pub mod binary_diagnostics;
 pub mod bootstrap;
 pub mod column;
 pub mod conditional;
+pub mod copula;
 pub mod dataframe;
 pub mod datasets;
 pub mod decomposition;
 pub mod descrstatsw;
+pub mod dfm;
 pub mod diagnostics;
 pub mod did;
 pub mod discrete;
@@ -67,6 +69,7 @@ pub mod panel_tobit;
 pub mod poisson;
 pub mod proportion;
 pub mod psm;
+pub mod pstr;
 pub mod quantile;
 pub mod quantile_var;
 pub mod rd;
@@ -97,6 +100,7 @@ pub mod unobserved_components;
 pub mod var;
 pub mod varma;
 pub mod vecm;
+pub mod wavelet;
 pub mod wls;
 pub mod zero_inflated;
 
@@ -112,10 +116,12 @@ pub use column::{CategoricalColumn, Column, DataType};
 pub use conditional::{
     ConditionalLogit, ConditionalMNLogit, ConditionalPoisson, ConditionalResult,
 };
+pub use copula::{Copula, CopulaResult, CopulaType};
 pub use dataframe::DataFrame;
 pub use datasets::Datasets;
 pub use decomposition::{Decomposition, DecompositionResult};
 pub use descrstatsw::DescrStatsW;
+pub use dfm::{DfmResult, DFM};
 pub use diagnostics::{
     AndersonDarlingResult, ArchTestResult, Diagnostics, LjungBoxResult, ShapiroFranciaResult,
     ShapiroWilkResult,
@@ -188,6 +194,7 @@ pub use panel_tobit::{PanelTobit, PanelTobitResult};
 pub use poisson::{Poisson, PoissonResult};
 pub use proportion::ProportionTests;
 pub use psm::{BalanceRow, PsmResult, PSM};
+pub use pstr::{PstrResult, PSTR};
 pub use quantile::{QuantileReg, QuantileResult};
 pub use quantile_var::{QuantileVAR, QuantileVarResult};
 pub use rd::{RdKernel, RdResult, RD};
@@ -221,6 +228,7 @@ pub use unobserved_components::{UCLevel, UCResult, UCSeasonal, UnobservedCompone
 pub use var::VAR;
 pub use varma::VARMA;
 pub use vecm::VECM;
+pub use wavelet::{ModwtResult, MODWT};
 pub use wls::WLS;
 pub use zero_inflated::{ZeroInflatedResult, ZINB, ZIP};
 
