@@ -115,7 +115,7 @@ pub use hausman::HausmanTest;
 pub use heckman::{Heckman, HeckmanResult};
 pub use imputation::{BayesGaussMI, BayesGaussMIResult, MICEResult, MICE};
 pub use influence::{CUSUMResult, CUSUMTest, Influence, InfluenceResult};
-pub use iv::IV;
+pub use iv::{EndogeneityTestResult, IV, IvResult, SarganTestResult};
 pub use margins::{MarginalEffectsResult, Margins};
 pub use markov::{MarkovSwitching, MarkovSwitchingResult};
 pub use markov_autoreg::{MarkovAutoregResult, MarkovAutoregression};

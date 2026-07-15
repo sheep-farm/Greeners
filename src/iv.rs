@@ -1,12 +1,88 @@
 use crate::error::GreenersError;
 use crate::linalg::LinalgInverse as _;
-use crate::{CovarianceType, InferenceType};
+use crate::{f_pvalue, CovarianceType, InferenceType};
 use crate::{DataFrame, Formula};
 use ndarray::{Array1, Array2};
-use statrs::distribution::{ContinuousCDF, Normal, StudentsT};
+use statrs::distribution::{ChiSquared, ContinuousCDF, Normal, StudentsT};
 use std::fmt;
 // Alias to facilitate Axis usage in Newey-West loop
 use ndarray as nd;
+
+/// Result of the Sargan / Hansen J overidentification test.
+#[derive(Debug)]
+pub struct SarganTestResult {
+    /// Sargan statistic: n * R² from regression of IV residuals on Z
+    pub sargan_stat: f64,
+    /// p-value from chi²(df)
+    pub p_value: f64,
+    /// Degrees of freedom: L - K (overidentifying restrictions)
+    pub df: usize,
+    /// Number of instruments
+    pub n_instruments: usize,
+    /// Number of regressors
+    pub n_regressors: usize,
+}
+
+impl fmt::Display for SarganTestResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "\n{:=^60}", " Sargan / Hansen J Overidentification Test ")?;
+        writeln!(f, "H0: instruments are exogenous (valid)")?;
+        writeln!(f, "{:-^60}", "")?;
+        writeln!(f, "{:<24} {:>12.4}", "Sargan statistic:", self.sargan_stat)?;
+        writeln!(f, "{:<24} {:>12}", "df:", self.df)?;
+        writeln!(f, "{:<24} {:>12.4}", "p-value:", self.p_value)?;
+        writeln!(f, "{:<24} {:>12}", "instruments (L):", self.n_instruments)?;
+        writeln!(f, "{:<24} {:>12}", "regressors (K):", self.n_regressors)?;
+        let verdict = if self.df == 0 {
+            "Exactly identified — test not applicable"
+        } else if self.p_value < 0.05 {
+            "Reject H0 — instruments may be invalid"
+        } else {
+            "Fail to reject H0 — instruments are valid"
+        };
+        writeln!(f, "{:-^60}", "")?;
+        writeln!(f, "Conclusion: {verdict}")?;
+        write!(f, "{:=^60}", "")
+    }
+}
+
+/// Result of the Durbin-Wu-Hausman endogeneity test.
+#[derive(Debug)]
+pub struct EndogeneityTestResult {
+    /// F-statistic from the augmented regression
+    pub f_stat: f64,
+    /// p-value from F(df, n - k - df)
+    pub p_value: f64,
+    /// Degrees of freedom (number of endogenous variables tested)
+    pub df: usize,
+    /// Names of the endogenous variables tested
+    pub endogenous_vars: Vec<String>,
+}
+
+impl fmt::Display for EndogeneityTestResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "\n{:=^60}", " Durbin-Wu-Hausman Endogeneity Test ")?;
+        writeln!(f, "H0: regressors are exogenous (OLS is consistent)")?;
+        writeln!(f, "{:-^60}", "")?;
+        writeln!(f, "{:<24} {:>12.4}", "F statistic:", self.f_stat)?;
+        writeln!(f, "{:<24} {:>12}", "df:", self.df)?;
+        writeln!(f, "{:<24} {:>12.4}", "p-value:", self.p_value)?;
+        writeln!(
+            f,
+            "{:<24} {:>12}",
+            "endogenous vars:",
+            self.endogenous_vars.join(", ")
+        )?;
+        let verdict = if self.p_value < 0.05 {
+            "Reject H0 — IV is needed (OLS is inconsistent)"
+        } else {
+            "Fail to reject H0 — OLS is consistent and preferred"
+        };
+        writeln!(f, "{:-^60}", "")?;
+        writeln!(f, "Conclusion: {verdict}")?;
+        write!(f, "{:=^60}", "")
+    }
+}
 
 #[derive(Debug)]
 pub struct IvResult {
@@ -687,6 +763,169 @@ impl IV {
             inference_type: InferenceType::default(),
             variable_names,
             omitted_vars: omitted_positioned,
+        })
+    }
+
+    /// Sargan / Hansen J overidentification test.
+    ///
+    /// Tests H0: the instruments are exogenous (valid). Only applicable
+    /// when the model is overidentified (L > K). If exactly identified
+    /// (L == K), the test is not applicable and returns df = 0.
+    ///
+    /// The Sargan statistic is n * R² from the regression of IV residuals
+    /// on all instruments Z, distributed as chi²(L - K).
+    ///
+    /// # Arguments
+    /// * `y` - Dependent variable (n × 1)
+    /// * `x` - Regressor matrix (n × K), same as used in `fit`
+    /// * `z` - Instrument matrix (n × L), same as used in `fit`
+    /// * `beta` - IV coefficient estimates (K × 1)
+    pub fn sargan_test(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        z: &Array2<f64>,
+        beta: &Array1<f64>,
+    ) -> Result<SarganTestResult, GreenersError> {
+        let n = y.len();
+        let k = x.ncols();
+        let l = z.ncols();
+
+        // IV residuals
+        let residuals = y - x.dot(beta);
+
+        // Regress residuals on Z: e = Z*gamma + error
+        // R² = 1 - SSR/SST, but since mean of residuals ≈ 0, R² = 1 - e'Mz e / e'e
+        // Sargan = n * R²
+        let z_t = z.t();
+        let ztz = z_t.dot(z);
+        let ztz_inv = ztz.inv()?;
+        let zt_e = z_t.dot(&residuals);
+        let gamma = ztz_inv.dot(&zt_e);
+        let e_hat = z.dot(&gamma);
+        let sse = (&residuals - &e_hat).mapv(|v| v.powi(2)).sum();
+        let sst = residuals.mapv(|v| v.powi(2)).sum();
+
+        let r_squared = if sst > 1e-15 {
+            1.0 - sse / sst
+        } else {
+            0.0
+        };
+
+        let df = l.saturating_sub(k);
+        let sargan_stat = n as f64 * r_squared;
+
+        let p_value = if df > 0 {
+            let chi2 = ChiSquared::new(df as f64).map_err(|e| GreenersError::InvalidOperation(e.to_string()))?;
+            1.0 - chi2.cdf(sargan_stat)
+        } else {
+            // Exactly identified — not applicable
+            f64::NAN
+        };
+
+        Ok(SarganTestResult {
+            sargan_stat,
+            p_value,
+            df,
+            n_instruments: l,
+            n_regressors: k,
+        })
+    }
+
+    /// Durbin-Wu-Hausman endogeneity test (augmented regression approach).
+    ///
+    /// Tests H0: the specified regressors are exogenous (OLS is consistent).
+    /// If rejected, IV is needed.
+    ///
+    /// Procedure:
+    /// 1. Regress each endogenous variable on Z (first stage), get residuals v
+    /// 2. Run OLS of y on [X, v] (augmented regression)
+    /// 3. F-test on the v coefficients
+    ///
+    /// # Arguments
+    /// * `y` - Dependent variable (n × 1)
+    /// * `x` - Full regressor matrix (n × K), same as used in `fit`
+    /// * `z` - Instrument matrix (n × L), same as used in `fit`
+    /// * `endog_cols` - Indices of endogenous columns in X (0-based)
+    /// * `endog_names` - Names of the endogenous variables (for display)
+    pub fn endogeneity_test(
+        y: &Array1<f64>,
+        x: &Array2<f64>,
+        z: &Array2<f64>,
+        endog_cols: &[usize],
+        endog_names: Vec<String>,
+    ) -> Result<EndogeneityTestResult, GreenersError> {
+        let n = y.len();
+        let k = x.ncols();
+        let n_endog = endog_cols.len();
+
+        if n_endog == 0 {
+            return Err(GreenersError::InvalidOperation(
+                "endogeneity_test: no endogenous columns specified".into(),
+            ));
+        }
+
+        // ── First stage: regress each endogenous X on Z, get residuals ──
+        let z_t = z.t();
+        let ztz = z_t.dot(z);
+        let ztz_inv = ztz.inv()?;
+        let zt_x = z_t.dot(x);
+        let pi = ztz_inv.dot(&zt_x); // L × K
+
+        // Residuals for endogenous variables only
+        let mut v_mat = Array2::<f64>::zeros((n, n_endog));
+        for (j, &col) in endog_cols.iter().enumerate() {
+            let pi_col = pi.column(col);
+            let x_hat_col = z.dot(&pi_col);
+            let x_col = x.column(col);
+            v_mat.column_mut(j).assign(&(&x_col - &x_hat_col));
+        }
+
+        // ── Augmented regression: y on [X, v] ──
+        let k_aug = k + n_endog;
+        let mut x_aug = Array2::<f64>::zeros((n, k_aug));
+        x_aug.slice_mut(nd::s![.., ..k]).assign(x);
+        x_aug.slice_mut(nd::s![.., k..]).assign(&v_mat);
+
+        // OLS on augmented matrix
+        let xa_t = x_aug.t();
+        let xaxa = xa_t.dot(&x_aug);
+        let xaxa_inv = xaxa.inv()?;
+        let xa_y = xa_t.dot(y);
+        let beta_aug = xaxa_inv.dot(&xa_y);
+
+        // Residuals from augmented regression
+        let resid = y - x_aug.dot(&beta_aug);
+        let ssr = resid.dot(&resid);
+        let df_resid = n - k_aug;
+
+        // ── F-test on the v coefficients (last n_endog elements of beta_aug) ──
+        // H0: v coefficients = 0
+        // F = (Rβ - r)' [R (X'X)^{-1} R']^{-1} (Rβ - r) / q / σ²
+        // Here R selects the last n_endog rows, r = 0
+        let v_coefs = beta_aug.slice(nd::s![k..]).to_owned();
+        let v_cov = xaxa_inv
+            .slice(nd::s![k.., k..])
+            .to_owned();
+
+        let sigma2 = ssr / df_resid as f64;
+        let v_cov_scaled = &v_cov * sigma2;
+
+        // F = v' * inv(V_v) * v / n_endog
+        let v_cov_inv = v_cov_scaled.inv()?;
+        let f_num = v_coefs.t().dot(&v_cov_inv.dot(&v_coefs));
+        let f_stat = f_num / n_endog as f64;
+
+        let p_value = if f_stat.is_finite() && df_resid > 0 {
+            f_pvalue(f_stat, n_endog as f64, df_resid as f64)
+        } else {
+            f64::NAN
+        };
+
+        Ok(EndogeneityTestResult {
+            f_stat,
+            p_value,
+            df: n_endog,
+            endogenous_vars: endog_names,
         })
     }
 }
