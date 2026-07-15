@@ -373,7 +373,7 @@ impl NARDL {
 }
 
 fn ln_gamma(x: f64) -> f64 {
-    // Stirling's approximation
+    // Lanczos approximation (g=7, n=9)
     if x < 0.5 {
         return (std::f64::consts::PI / (x * (std::f64::consts::PI * x).sin())).ln()
             - ln_gamma(1.0 - x);
