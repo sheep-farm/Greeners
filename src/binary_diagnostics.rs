@@ -76,6 +76,10 @@ pub struct RocResult {
     pub n_thresholds: usize,
     /// Gini coefficient: 2 * AUC - 1
     pub gini: f64,
+    /// False positive rate points (for ROC curve plot)
+    pub fpr: Vec<f64>,
+    /// True positive rate points (for ROC curve plot)
+    pub tpr: Vec<f64>,
 }
 
 impl std::fmt::Display for RocResult {
@@ -98,6 +102,52 @@ impl std::fmt::Display for RocResult {
         };
         writeln!(f, "{:-^60}", "")?;
         writeln!(f, "Interpretation: {interpretation}")?;
+
+        // ASCII ROC curve
+        if self.fpr.len() > 1 {
+            writeln!(f, "{:-^60}", "")?;
+            writeln!(f, "  ROC Curve (ASCII)")?;
+            writeln!(f, "{:-^60}", "")?;
+            let w = 40_usize;
+            let h = 15_usize;
+            let mut grid = vec![vec![' '; w]; h];
+            // Diagonal (random classifier)
+            for (i, grid_row) in grid.iter_mut().enumerate().take(w.min(h)) {
+                let row = h - 1 - i;
+                if row < h && i < w {
+                    grid_row[i] = '.';
+                }
+            }
+            // ROC curve
+            for k in 0..self.fpr.len() {
+                let col = (self.fpr[k] * (w - 1) as f64).round() as usize;
+                let row = h - 1 - (self.tpr[k] * (h - 1) as f64).round() as usize;
+                if row < h && col < w {
+                    grid[row][col] = '*';
+                }
+            }
+            // Axes
+            let h_line: String = "-".repeat(w);
+            writeln!(f, "  1.0 +{h_line}+")?;
+            for (row, grid_row) in grid.iter().enumerate().take(h) {
+                let label = if row == h - 1 {
+                    "0.0"
+                } else if row == 0 {
+                    "1.0"
+                } else if row == h / 2 {
+                    "0.5"
+                } else {
+                    "   "
+                };
+                let line: String = grid_row.iter().collect();
+                writeln!(f, "  {label} |{line}|")?;
+            }
+            let spaces1 = " ".repeat(w / 4);
+            let spaces2 = " ".repeat(w / 2);
+            writeln!(f, "      {spaces1}0.0{spaces1}0.5{spaces1}1.0")?;
+            writeln!(f, "      {spaces2}False Positive Rate")?;
+        }
+
         write!(f, "{:=^60}", "")
     }
 }
@@ -279,10 +329,44 @@ impl BinaryDiagnostics {
             .collect::<std::collections::HashSet<_>>()
             .len();
 
+        // Compute ROC curve points (FPR, TPR) at sorted unique thresholds
+        let mut sorted_probs: Vec<f64> = probs.to_vec();
+        sorted_probs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        sorted_probs.dedup_by(|a, b| a == b);
+
+        let mut fpr = Vec::new();
+        let mut tpr = Vec::new();
+
+        // Start point: threshold = 1.0+ → everything predicted negative
+        fpr.push(0.0);
+        tpr.push(0.0);
+
+        for &thr in &sorted_probs {
+            let mut tp = 0usize;
+            let mut fp = 0usize;
+            for (yi, pi) in y.iter().zip(probs.iter()) {
+                if *pi >= thr {
+                    if *yi == 1.0 {
+                        tp += 1;
+                    } else {
+                        fp += 1;
+                    }
+                }
+            }
+            fpr.push(fp as f64 / n_neg as f64);
+            tpr.push(tp as f64 / n_pos as f64);
+        }
+
+        // End point: threshold = 0- → everything predicted positive
+        fpr.push(1.0);
+        tpr.push(1.0);
+
         Ok(RocResult {
             auc,
             gini,
             n_thresholds,
+            fpr,
+            tpr,
         })
     }
 
