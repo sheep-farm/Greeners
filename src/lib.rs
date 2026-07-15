@@ -4,6 +4,7 @@ pub mod odre_ffi;
 
 pub mod arima;
 pub mod autoreg;
+pub mod bayesian_sfa;
 pub mod beta_model;
 pub mod binary_diagnostics;
 pub mod bootstrap;
@@ -55,6 +56,7 @@ pub mod nonparametric;
 pub mod ols;
 pub mod ordered;
 pub mod panel;
+pub mod panel_heckman;
 pub mod panel_tobit;
 pub mod poisson;
 pub mod proportion;
@@ -64,6 +66,7 @@ pub mod rd;
 pub mod rlm;
 pub mod rolling;
 pub mod spatial;
+pub mod spatial_panel;
 pub mod specification_tests;
 pub mod statespace;
 pub mod stats;
@@ -87,6 +90,7 @@ pub mod zero_inflated;
 
 pub use arima::{ArimaOrder, ArimaResult, SeasonalOrder, ARIMA};
 pub use autoreg::{ARDLResult, AutoReg, AutoRegResult, ARDL};
+pub use bayesian_sfa::{BayesianSFA, BayesianSfaResult};
 pub use beta_model::{BetaLink, BetaModel, BetaResult};
 pub use binary_diagnostics::{
     BinaryDiagnostics, ClassificationResult, HosmerLemeshowResult, LinktestResult, RocResult,
@@ -161,6 +165,7 @@ pub use panel::PcseResult;
 pub use panel::RandomEffects;
 pub use panel::FE2SLS;
 pub use panel::PCSE;
+pub use panel_heckman::{PanelHeckman, PanelHeckmanResult};
 pub use panel_tobit::{PanelTobit, PanelTobitResult};
 pub use poisson::{Poisson, PoissonResult};
 pub use proportion::ProportionTests;
@@ -170,6 +175,7 @@ pub use rd::{RdKernel, RdResult, RD};
 pub use rlm::{RlmResult, RobustNorm, RLM};
 pub use rolling::{RecursiveLS, RecursiveLSResult, RollingOLS, RollingResult, RollingWLS};
 pub use spatial::{Spatial, SpatialResult};
+pub use spatial_panel::{SpatialPanel, SpatialPanelResult};
 pub use specification_tests::SpecificationTests;
 pub use statespace::{
     state_space_estimate, KalmanFilter, KalmanResult, KalmanSmoother, LocalLevel, LocalLevelResult,
