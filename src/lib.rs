@@ -4,6 +4,7 @@ pub mod odre_ffi;
 
 pub mod arima;
 pub mod autoreg;
+pub mod bayesian_sc;
 pub mod bayesian_sfa;
 pub mod beta_model;
 pub mod binary_diagnostics;
@@ -23,6 +24,7 @@ pub mod diagnostics;
 pub mod did;
 pub mod discrete;
 pub mod distributions;
+pub mod dml_crossfit;
 pub mod double_ml;
 pub mod dynamic_factor;
 pub mod dynamic_panel;
@@ -81,6 +83,7 @@ pub mod poisson;
 pub mod proportion;
 pub mod psm;
 pub mod pstr;
+pub mod qrf;
 pub mod quantile;
 pub mod quantile_var;
 pub mod random_forest;
@@ -118,10 +121,12 @@ pub mod varma;
 pub mod vecm;
 pub mod wavelet;
 pub mod wls;
+pub mod xgboost;
 pub mod zero_inflated;
 
 pub use arima::{ArimaOrder, ArimaResult, SeasonalOrder, ARIMA};
 pub use autoreg::{ARDLResult, AutoReg, AutoRegResult, ARDL};
+pub use bayesian_sc::{BayesianSC, BayesianScResult};
 pub use bayesian_sfa::{BayesianSFA, BayesianSfaResult};
 pub use beta_model::{BetaLink, BetaModel, BetaResult};
 pub use binary_diagnostics::{
@@ -148,6 +153,7 @@ pub use diagnostics::{
 pub use did::{DidResult, DiffInDiff};
 pub use discrete::{Logit, Probit};
 pub use distributions::{chi2_pvalue, f_pvalue, logistic, norm_pdf, t_pvalue_two, t_quantile};
+pub use dml_crossfit::{DmlResult, DML as DMLCrossfit};
 pub use double_ml::{DoubleML, DoubleMLResult};
 pub use dynamic_factor::{DynamicFactor, DynamicFactorResult};
 pub use dynamic_panel::{ArellanoBond, ArellanoBondResult, SystemGmm, SystemGmmResult};
@@ -222,6 +228,7 @@ pub use poisson::{Poisson, PoissonResult};
 pub use proportion::ProportionTests;
 pub use psm::{BalanceRow, PsmResult, PSM};
 pub use pstr::{PstrResult, PSTR};
+pub use qrf::{QrfResult, QRF};
 pub use quantile::{QuantileReg, QuantileResult};
 pub use quantile_var::{QuantileVAR, QuantileVarResult};
 pub use random_forest::{RandomForest, RandomForestResult};
@@ -262,6 +269,7 @@ pub use varma::VARMA;
 pub use vecm::VECM;
 pub use wavelet::{ModwtResult, MODWT};
 pub use wls::WLS;
+pub use xgboost::{XGBoost, XgboostResult};
 pub use zero_inflated::{ZeroInflatedResult, ZINB, ZIP};
 
 #[derive(Debug, Clone, PartialEq)]
