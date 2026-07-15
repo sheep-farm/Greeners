@@ -13,6 +13,7 @@ pub mod conditional;
 pub mod copula;
 pub mod dataframe;
 pub mod datasets;
+pub mod dcc_garch;
 pub mod decomposition;
 pub mod descrstatsw;
 pub mod dfm;
@@ -31,6 +32,7 @@ pub mod fama_macbeth;
 pub mod favar;
 pub mod fmols;
 pub mod formula;
+pub mod functional_coef;
 pub mod garch;
 pub mod gee;
 pub mod glm;
@@ -57,6 +59,7 @@ pub mod ms_var;
 pub mod mstl;
 pub mod multipletests;
 pub mod multivariate;
+pub mod nardl;
 pub mod negbin;
 pub mod nls;
 pub mod nonparametric;
@@ -66,6 +69,7 @@ pub mod panel;
 pub mod panel_heckman;
 pub mod panel_quantile;
 pub mod panel_tobit;
+pub mod panel_var;
 pub mod poisson;
 pub mod proportion;
 pub mod psm;
@@ -119,6 +123,7 @@ pub use conditional::{
 pub use copula::{Copula, CopulaResult, CopulaType};
 pub use dataframe::DataFrame;
 pub use datasets::Datasets;
+pub use dcc_garch::{DccGarchResult, DCCGARCH};
 pub use decomposition::{Decomposition, DecompositionResult};
 pub use descrstatsw::DescrStatsW;
 pub use dfm::{DfmResult, DFM};
@@ -140,6 +145,7 @@ pub use fama_macbeth::{FamaMacBeth, FamaMacBethResult};
 pub use favar::{FavarResult, FAVAR};
 pub use fmols::{FmolsResult, FMOLS};
 pub use formula::Formula;
+pub use functional_coef::{FunctionalCoef, FunctionalCoefResult, KernelType};
 pub use garch::{GarchDist, GarchModelType, GarchResult, EGARCH, GARCH, GJRGARCH};
 pub use gee::{CorrStructure, GeeResult, NominalGEE, OrdinalGEE, GEE};
 pub use glm::{Family, GlmResult, Link, GLM};
@@ -168,6 +174,7 @@ pub use multivariate::{
     CanCorr, CanCorrResult, FactorAnalysis, FactorResult, ManovaResult, PCAResult, Rotation,
     MANOVA, PCA,
 };
+pub use nardl::{NardlResult, NARDL};
 pub use negbin::{GenPoisson, GenPoissonResult, NegBin, NegBinP, NegBinPResult, NegBinResult};
 pub use nls::{
     predict_ces, predict_cobb_douglas, predict_exp, predict_logistic, predict_power, NlsResult, NLS,
@@ -191,6 +198,7 @@ pub use panel::PCSE;
 pub use panel_heckman::{PanelHeckman, PanelHeckmanResult};
 pub use panel_quantile::{PanelQuantile, PanelQuantileResult};
 pub use panel_tobit::{PanelTobit, PanelTobitResult};
+pub use panel_var::{PanelVAR, PanelVarResult};
 pub use poisson::{Poisson, PoissonResult};
 pub use proportion::ProportionTests;
 pub use psm::{BalanceRow, PsmResult, PSM};
