@@ -25,7 +25,11 @@ pub struct SarganTestResult {
 
 impl fmt::Display for SarganTestResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "\n{:=^60}", " Sargan / Hansen J Overidentification Test ")?;
+        writeln!(
+            f,
+            "\n{:=^60}",
+            " Sargan / Hansen J Overidentification Test "
+        )?;
         writeln!(f, "H0: instruments are exogenous (valid)")?;
         writeln!(f, "{:-^60}", "")?;
         writeln!(f, "{:<24} {:>12.4}", "Sargan statistic:", self.sargan_stat)?;
@@ -805,17 +809,14 @@ impl IV {
         let sse = (&residuals - &e_hat).mapv(|v| v.powi(2)).sum();
         let sst = residuals.mapv(|v| v.powi(2)).sum();
 
-        let r_squared = if sst > 1e-15 {
-            1.0 - sse / sst
-        } else {
-            0.0
-        };
+        let r_squared = if sst > 1e-15 { 1.0 - sse / sst } else { 0.0 };
 
         let df = l.saturating_sub(k);
         let sargan_stat = n as f64 * r_squared;
 
         let p_value = if df > 0 {
-            let chi2 = ChiSquared::new(df as f64).map_err(|e| GreenersError::InvalidOperation(e.to_string()))?;
+            let chi2 = ChiSquared::new(df as f64)
+                .map_err(|e| GreenersError::InvalidOperation(e.to_string()))?;
             1.0 - chi2.cdf(sargan_stat)
         } else {
             // Exactly identified — not applicable
@@ -903,9 +904,7 @@ impl IV {
         // F = (Rβ - r)' [R (X'X)^{-1} R']^{-1} (Rβ - r) / q / σ²
         // Here R selects the last n_endog rows, r = 0
         let v_coefs = beta_aug.slice(nd::s![k..]).to_owned();
-        let v_cov = xaxa_inv
-            .slice(nd::s![k.., k..])
-            .to_owned();
+        let v_cov = xaxa_inv.slice(nd::s![k.., k..]).to_owned();
 
         let sigma2 = ssr / df_resid as f64;
         let v_cov_scaled = &v_cov * sigma2;
