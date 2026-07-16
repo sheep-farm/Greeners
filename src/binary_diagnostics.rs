@@ -43,26 +43,23 @@ impl std::fmt::Display for ClassificationResult {
         writeln!(
             f,
             "{:<20} {:>10} {:>10} {:>10}",
-            "Actual=0", self.tn, self.fp, self.tn + self.fp
+            "Actual=0",
+            self.tn,
+            self.fp,
+            self.tn + self.fp
         )?;
         writeln!(
             f,
             "{:<20} {:>10} {:>10} {:>10}",
-            "Actual=1", self.fn_count, self.tp, self.fn_count + self.tp
+            "Actual=1",
+            self.fn_count,
+            self.tp,
+            self.fn_count + self.tp
         )?;
         writeln!(f, "{:-^60}", "")?;
-        writeln!(
-            f,
-            "{:<20} {:>10.4}", "Sensitivity:", self.sensitivity
-        )?;
-        writeln!(
-            f,
-            "{:<20} {:>10.4}", "Specificity:", self.specificity
-        )?;
-        writeln!(
-            f,
-            "{:<20} {:>10.4}", "Correct rate:", self.correct_rate
-        )?;
+        writeln!(f, "{:<20} {:>10.4}", "Sensitivity:", self.sensitivity)?;
+        writeln!(f, "{:<20} {:>10.4}", "Specificity:", self.specificity)?;
+        writeln!(f, "{:<20} {:>10.4}", "Correct rate:", self.correct_rate)?;
         write!(f, "{:=^60}", "")
     }
 }
@@ -291,7 +288,8 @@ impl BinaryDiagnostics {
         }
 
         // Rank probabilities (ascending), average ranks for ties
-        let mut indexed: Vec<(usize, f64)> = probs.iter().enumerate().map(|(i, &p)| (i, p)).collect();
+        let mut indexed: Vec<(usize, f64)> =
+            probs.iter().enumerate().map(|(i, &p)| (i, p)).collect();
         indexed.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
 
         // Assign average ranks (1-based)
@@ -410,7 +408,11 @@ impl BinaryDiagnostics {
         }
 
         // Sort by predicted probability
-        let mut indexed: Vec<(f64, f64)> = y.iter().zip(probs.iter()).map(|(&yi, &pi)| (yi, pi)).collect();
+        let mut indexed: Vec<(f64, f64)> = y
+            .iter()
+            .zip(probs.iter())
+            .map(|(&yi, &pi)| (yi, pi))
+            .collect();
         indexed.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
 
         // Divide into groups of approximately equal size
@@ -447,8 +449,8 @@ impl BinaryDiagnostics {
 
         let df = n_groups.saturating_sub(2);
         let p_value = if df > 0 {
-            let chi2 =
-                ChiSquared::new(df as f64).map_err(|e| GreenersError::InvalidOperation(e.to_string()))?;
+            let chi2 = ChiSquared::new(df as f64)
+                .map_err(|e| GreenersError::InvalidOperation(e.to_string()))?;
             1.0 - chi2.cdf(hl_stat)
         } else {
             f64::NAN
