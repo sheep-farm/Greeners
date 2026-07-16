@@ -223,8 +223,7 @@ impl EventStudy {
             conf_lower: Array1::zeros(k),
             conf_upper: Array1::zeros(k),
             r_squared,
-            adj_r_squared: 1.0
-                - (1.0 - r_squared) * (n - 1) as f64 / df_resid.max(1) as f64,
+            adj_r_squared: 1.0 - (1.0 - r_squared) * (n - 1) as f64 / df_resid.max(1) as f64,
             f_statistic: 0.0,
             prob_f: 0.0,
             log_likelihood: 0.0,
