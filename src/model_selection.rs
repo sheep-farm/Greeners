@@ -24,15 +24,15 @@ impl std::fmt::Display for LrTestResult {
         writeln!(f, "\n{:=^60}", " Likelihood-Ratio Test ")?;
         writeln!(f, "H0: restricted model is adequate")?;
         writeln!(f, "{:-^60}", "")?;
-        writeln!(
-            f,
-            "{:<24} {:>12.4}",
-            "LR statistic:", self.lr_stat
-        )?;
+        writeln!(f, "{:<24} {:>12.4}", "LR statistic:", self.lr_stat)?;
         writeln!(f, "{:<24} {:>12}", "df:", self.df)?;
         writeln!(f, "{:<24} {:>12.4}", "p-value:", self.p_value)?;
         writeln!(f, "{:<24} {:>12.4}", "ll (restricted):", self.ll_restricted)?;
-        writeln!(f, "{:<24} {:>12.4}", "ll (unrestricted):", self.ll_unrestricted)?;
+        writeln!(
+            f,
+            "{:<24} {:>12.4}",
+            "ll (unrestricted):", self.ll_unrestricted
+        )?;
         let verdict = if self.p_value < 0.05 {
             "Reject H0 — unrestricted model fits significantly better"
         } else {
