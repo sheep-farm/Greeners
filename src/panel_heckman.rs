@@ -46,6 +46,10 @@ pub struct PanelHeckmanResult {
     pub sigma_nu: f64,
     /// Log-likelihood
     pub log_likelihood: f64,
+    /// Mean inverse Mills ratio for selected observations
+    pub imr_mean: f64,
+    /// IMR coefficient in outcome equation
+    pub imr_coef: f64,
     /// Number of observations (total)
     pub n_obs: usize,
     /// Number of selected observations
@@ -69,6 +73,7 @@ impl fmt::Display for PanelHeckmanResult {
         writeln!(f, "{:<20} {:>12.6}", "sigma:", self.sigma)?;
         writeln!(f, "{:<20} {:>12.6}", "sigma_alpha:", self.sigma_alpha)?;
         writeln!(f, "{:<20} {:>12.6}", "sigma_nu:", self.sigma_nu)?;
+        writeln!(f, "{:<20} {:>12.6}", "IMR mean:", self.imr_mean)?;
 
         // Selection equation
         writeln!(f, "\n{:-^78}", "")?;
@@ -81,11 +86,15 @@ impl fmt::Display for PanelHeckmanResult {
         )?;
         writeln!(f, "{:-^78}", "")?;
         for i in 0..self.gamma.len() {
-            let name = self
-                .sel_names
-                .as_ref()
-                .and_then(|n| n.get(i).cloned())
-                .unwrap_or_else(|| format!("w{}", i));
+            let name = if i == 0 {
+                "_cons".to_string()
+            } else {
+                self
+                    .sel_names
+                    .as_ref()
+                    .and_then(|n| n.get(i - 1).cloned())
+                    .unwrap_or_else(|| format!("w{}", i))
+            };
             writeln!(
                 f,
                 "{:<12} {:>12.6} {:>12.6} {:>10.3} {:>10.4}",
@@ -104,17 +113,27 @@ impl fmt::Display for PanelHeckmanResult {
         )?;
         writeln!(f, "{:-^78}", "")?;
         for i in 0..self.beta.len() {
-            let name = self
-                .out_names
-                .as_ref()
-                .and_then(|n| n.get(i).cloned())
-                .unwrap_or_else(|| format!("x{}", i));
+            let name = if i == 0 {
+                "_cons".to_string()
+            } else {
+                self
+                    .out_names
+                    .as_ref()
+                    .and_then(|n| n.get(i - 1).cloned())
+                    .unwrap_or_else(|| format!("x{}", i))
+            };
             writeln!(
                 f,
                 "{:<12} {:>12.6} {:>12.6} {:>10.3} {:>10.4}",
                 name, self.beta[i], self.beta_se[i], self.beta_t[i], self.beta_p[i]
             )?;
         }
+        // Print IMR coefficient on its own row (standard error not computed here).
+        writeln!(
+            f,
+            "{:<12} {:>12.6} {:>12.6} {:>10.3} {:>10.4}",
+            "lambda", self.imr_coef, 0.0, 0.0, 1.0
+        )?;
         write!(f, "{:=^78}", "")
     }
 }
@@ -181,17 +200,20 @@ impl PanelHeckman {
             for i in 0..n {
                 let z_i = if z[i] { 1.0 } else { 0.0 };
                 let phi = normal.pdf(eta[i]);
-                let cdf = normal.cdf(eta[i]).max(1e-300);
-                let pdf_over_cdf = phi / cdf;
-                let d_loglik =
-                    z_i * pdf_over_cdf - (1.0 - z_i) * pdf_over_cdf / (1.0 - cdf).max(1e-300);
+                let cdf = normal.cdf(eta[i]).clamp(1e-300, 1.0 - 1e-300);
+                let one_minus_cdf = 1.0 - cdf;
+                let pdf_over_cdf = (phi / cdf).min(1e6);
+                let pdf_over_1mcdf = (phi / one_minus_cdf).min(1e6);
+                let d_loglik = z_i * pdf_over_cdf - (1.0 - z_i) * pdf_over_1mcdf;
 
                 for j in 0..k_w {
                     score[j] += d_loglik * w[(i, j)];
                 }
 
-                // d²loglik/dη² = -η * phi * (z/cdf - (1-z)/(1-cdf)) approx
-                let d2 = -eta[i] * d_loglik;
+                // d²loglik/dη² = -η*d_loglik - z*(phi/cdf)^2 - (1-z)*(phi/(1-cdf))^2
+                let d2 = -eta[i] * d_loglik
+                    - z_i * pdf_over_cdf * pdf_over_cdf
+                    - (1.0 - z_i) * pdf_over_1mcdf * pdf_over_1mcdf;
                 for j in 0..k_w {
                     for k in 0..k_w {
                         hessian[(j, k)] += d2 * w[(i, j)] * w[(i, k)];
@@ -199,10 +221,16 @@ impl PanelHeckman {
                 }
             }
 
-            let hessian_reg = &hessian + Array2::eye(k_w) * 1e-6;
+            let hessian_reg = &hessian + Array2::eye(k_w) * 1e-4;
             let hessian_inv = hessian_reg.inv()?;
-            let delta = hessian_inv.dot(&score);
-            gamma = &gamma + &delta;
+            let mut delta = hessian_inv.dot(&score);
+            // Limit the Newton step to avoid overshooting into extreme eta values.
+            let max_step = 1.0;
+            let delta_norm = delta.mapv(|v| v.abs()).sum();
+            if delta_norm > max_step {
+                delta = &delta * (max_step / delta_norm);
+            }
+            gamma = &gamma - &delta;
 
             if delta.mapv(|v| v.abs()).sum() < 1e-8 {
                 break;
@@ -221,9 +249,14 @@ impl PanelHeckman {
         for i in 0..n {
             let z_i = if z[i] { 1.0 } else { 0.0 };
             let phi = normal.pdf(eta[i]);
-            let cdf = normal.cdf(eta[i]).max(1e-300);
-            let d_loglik = z_i * phi / cdf - (1.0 - z_i) * phi / (1.0 - cdf).max(1e-300);
-            let d2 = -eta[i] * d_loglik;
+            let cdf = normal.cdf(eta[i]).clamp(1e-300, 1.0 - 1e-300);
+            let one_minus_cdf = 1.0 - cdf;
+            let pdf_over_cdf = (phi / cdf).min(1e6);
+            let pdf_over_1mcdf = (phi / one_minus_cdf).min(1e6);
+            let d_loglik = z_i * pdf_over_cdf - (1.0 - z_i) * pdf_over_1mcdf;
+            let d2 = -eta[i] * d_loglik
+                - z_i * pdf_over_cdf * pdf_over_cdf
+                - (1.0 - z_i) * pdf_over_1mcdf * pdf_over_1mcdf;
 
             for j in 0..k_w {
                 for k in 0..k_w {
@@ -239,7 +272,7 @@ impl PanelHeckman {
             }
         }
 
-        let bread_inv = (&bread + Array2::eye(k_w) * 1e-8).inv()?;
+        let bread_inv = (&bread + Array2::eye(k_w) * 1e-6).inv()?;
         for s in panel_scores.values() {
             for j in 0..k_w {
                 for k in 0..k_w {
@@ -353,6 +386,10 @@ impl PanelHeckman {
             }
         });
 
+        // Mean inverse Mills ratio for selected observations
+        let imr_sum: f64 = (0..n).filter(|&i| z[i]).map(|i| imr[i]).sum();
+        let imr_mean = imr_sum / n_selected as f64;
+
         // ── Rho: correlation between selection and outcome errors ──
         // rho ≈ imr_coef / sigma (Heckman two-step approximation)
         let rho = (imr_coef / sigma).clamp(-0.99, 0.99);
@@ -411,6 +448,8 @@ impl PanelHeckman {
             sigma_alpha,
             sigma_nu,
             log_likelihood,
+            imr_mean,
+            imr_coef,
             n_obs: n,
             n_selected,
             n_panels,
