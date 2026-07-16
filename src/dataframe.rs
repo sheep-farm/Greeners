@@ -1008,17 +1008,31 @@ impl DataFrame {
             return Column::Int(Array1::from(ints));
         }
 
-        // 3. Try parsing all values as f64 (Float)
-        // This catches both pure floats and integers written as "1.0"
-        let float_parse: Result<Vec<f64>, _> =
-            values.iter().map(|s| s.trim().parse::<f64>()).collect();
+        // 3. Try parsing all values as f64 (Float), treating empty cells as NaN.
+        // This catches both pure floats and integers written as "1.0".
+        let mut float_parse_ok = true;
+        let mut floats: Vec<f64> = Vec::with_capacity(values.len());
+        for s in values {
+            let trimmed = s.trim();
+            if trimmed.is_empty() {
+                floats.push(f64::NAN);
+            } else if let Ok(v) = trimmed.parse::<f64>() {
+                floats.push(v);
+            } else {
+                float_parse_ok = false;
+                break;
+            }
+        }
 
-        if let Ok(floats) = float_parse {
-            // Additional check: if all floats have no fractional part, treat as Int
-            let all_integers = floats.iter().all(|&f| f.fract() == 0.0 && f.is_finite());
+        if float_parse_ok {
+            // Additional check: if all non-NaN floats have no fractional part, treat as Int
+            let finite_values: Vec<&f64> = floats.iter().filter(|&&f| f.is_finite()).collect();
+            let all_integers = !finite_values.is_empty()
+                && finite_values.iter().all(|&&f| f.fract() == 0.0);
             if all_integers {
-                // Convert to integers
-                let ints: Vec<i64> = floats.iter().map(|&f| f as i64).collect();
+                // Convert to integers (NaN values become 0, but this should not happen
+                // for a numeric column because an all-NaN column would be all empty).
+                let ints: Vec<i64> = floats.iter().map(|&f| if f.is_nan() { 0 } else { f as i64 }).collect();
                 return Column::Int(Array1::from(ints));
             }
             return Column::Float(Array1::from(floats));
