@@ -95,12 +95,6 @@ impl QuantileReg {
             return Err(GreenersError::OptimizationFailed); // "Tau must be in (0, 1)"
         }
 
-        if n_boot == 0 {
-            return Err(GreenersError::InvalidOperation(
-                "n_boot must be at least 1".into(),
-            ));
-        }
-
         // Check for NaN/Inf in input data
         if y.iter().any(|v| !v.is_finite()) || x.iter().any(|v| !v.is_finite()) {
             return Err(GreenersError::InvalidOperation(
@@ -108,11 +102,17 @@ impl QuantileReg {
             ));
         }
 
+        let k = x.ncols();
+
         // 1. Estimação Pontual (IRLS)
         let (params, iter) = Self::irls_solver(y, x, tau)?;
 
-        // 2. Erros Padrão via Bootstrap (Pairs Bootstrap)
-        let std_errors = Self::bootstrap_se(y, x, tau, n_boot, &params)?;
+        // 2. Erros Padrão via Bootstrap (Pairs Bootstrap), se solicitado
+        let std_errors = if n_boot == 0 {
+            Array1::from_elem(k, f64::NAN)
+        } else {
+            Self::bootstrap_se(y, x, tau, n_boot, &params)?
+        };
 
         // 3. Estatísticas Finais
         let t_values = &params / &std_errors;
