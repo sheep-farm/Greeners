@@ -162,6 +162,16 @@ impl DataFrame {
         })
     }
 
+    /// Create an empty DataFrame with a fixed number of rows.
+    ///
+    /// Useful for pre-dimensioning a DataFrame before adding columns.
+    pub fn empty(n_rows: usize) -> Self {
+        DataFrame {
+            columns: IndexMap::new(),
+            n_rows,
+        }
+    }
+
     /// Get the number of rows in the DataFrame
     pub fn n_rows(&self) -> usize {
         self.n_rows
