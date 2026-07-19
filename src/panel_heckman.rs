@@ -89,8 +89,7 @@ impl fmt::Display for PanelHeckmanResult {
             let name = if i == 0 {
                 "_cons".to_string()
             } else {
-                self
-                    .sel_names
+                self.sel_names
                     .as_ref()
                     .and_then(|n| n.get(i - 1).cloned())
                     .unwrap_or_else(|| format!("w{}", i))
@@ -116,8 +115,7 @@ impl fmt::Display for PanelHeckmanResult {
             let name = if i == 0 {
                 "_cons".to_string()
             } else {
-                self
-                    .out_names
+                self.out_names
                     .as_ref()
                     .and_then(|n| n.get(i - 1).cloned())
                     .unwrap_or_else(|| format!("x{}", i))

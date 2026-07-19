@@ -1037,12 +1037,15 @@ impl DataFrame {
         if float_parse_ok {
             // Additional check: if all non-NaN floats have no fractional part, treat as Int
             let finite_values: Vec<&f64> = floats.iter().filter(|&&f| f.is_finite()).collect();
-            let all_integers = !finite_values.is_empty()
-                && finite_values.iter().all(|&&f| f.fract() == 0.0);
+            let all_integers =
+                !finite_values.is_empty() && finite_values.iter().all(|&&f| f.fract() == 0.0);
             if all_integers {
                 // Convert to integers (NaN values become 0, but this should not happen
                 // for a numeric column because an all-NaN column would be all empty).
-                let ints: Vec<i64> = floats.iter().map(|&f| if f.is_nan() { 0 } else { f as i64 }).collect();
+                let ints: Vec<i64> = floats
+                    .iter()
+                    .map(|&f| if f.is_nan() { 0 } else { f as i64 })
+                    .collect();
                 return Column::Int(Array1::from(ints));
             }
             return Column::Float(Array1::from(floats));
