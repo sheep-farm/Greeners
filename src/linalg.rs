@@ -130,6 +130,47 @@ impl LinalgSVD for Array2<f64> {
     }
 }
 
+pub trait LinalgPinv {
+    fn pinv(&self) -> Result<Array2<f64>, GreenersError>;
+}
+
+impl LinalgPinv for Array2<f64> {
+    fn pinv(&self) -> Result<Array2<f64>, GreenersError> {
+        let (m, n) = (self.nrows(), self.ncols());
+        if m == 0 || n == 0 {
+            return Ok(Array2::zeros((n, m)));
+        }
+        let (u, s, vt) = self.svd(true, true)?;
+        let u = u.unwrap();
+        let vt = vt.unwrap();
+        let s_max = s.iter().copied().fold(0.0, f64::max);
+        let eps = f64::EPSILON * m.max(n) as f64;
+        let tol = s_max * eps;
+        let s_inv: Vec<f64> = s
+            .iter()
+            .map(|&si| if si > tol { 1.0 / si } else { 0.0 })
+            .collect();
+        // V (n x r) times diag(s_inv) times U' (r x m)
+        let v = vt.t();
+        let mut x = Array2::<f64>::zeros((n, m));
+        for (j, &sj) in s_inv.iter().enumerate() {
+            if sj == 0.0 {
+                continue;
+            }
+            let u_col = u.column(j);
+            let v_col = v.column(j);
+            for (i, &vi) in v_col.iter().enumerate() {
+                let sjv = sj * vi;
+                let mut x_row = x.row_mut(i);
+                for (k, &uk) in u_col.iter().enumerate() {
+                    x_row[k] += sjv * uk;
+                }
+            }
+        }
+        Ok(x)
+    }
+}
+
 // ─── Eigh — replaces `ndarray_linalg::Eigh` ──────────────────────────────────
 
 pub trait LinalgEigh {

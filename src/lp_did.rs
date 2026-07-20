@@ -14,6 +14,7 @@
 #![allow(warnings, clippy::all)]
 
 use crate::error::GreenersError;
+use crate::linalg::{LinalgInverse, LinalgPinv};
 use crate::{Column, CovarianceType, DataFrame, OLS};
 use indexmap::IndexMap;
 use ndarray::{Array1, Array2, Axis};
@@ -456,8 +457,8 @@ impl LpDid {
                     None
                 };
 
-                let stats = if self.target_estimand == "ra" {
-                    fit_ra(&local, &controls, &control_matrix)
+                let (estimate, psi) = if self.target_estimand == "ra" {
+                    fit_ra(&local, &controls, &control_matrix, z)
                 } else {
                     fit_linear(
                         &local,
@@ -467,17 +468,18 @@ impl LpDid {
                         pre_rw,
                         z,
                     )
-                };
-                let stats = stats.unwrap_or_else(|_| Estimate::nan());
+                }
+                .unwrap_or_else(|_| (Estimate::nan(), HashMap::new()));
                 Ok(EventRow {
                     horizon: h,
-                    estimate: stats.estimate,
-                    se: stats.se,
-                    t_stat: stats.t_stat,
-                    p_value: stats.p_value,
-                    ci_lower: stats.ci_lower,
-                    ci_upper: stats.ci_upper,
+                    estimate: estimate.estimate,
+                    se: estimate.se,
+                    t_stat: estimate.t_stat,
+                    p_value: estimate.p_value,
+                    ci_lower: estimate.ci_lower,
+                    ci_upper: estimate.ci_upper,
                     n_obs: local.indices.len(),
+                    psi_by_cluster: psi,
                 })
             })
             .collect::<Result<Vec<EventRow>, GreenersError>>()?;
@@ -494,6 +496,7 @@ impl LpDid {
                 ci_lower: 0.0,
                 ci_upper: 0.0,
                 n_obs: 0,
+                psi_by_cluster: HashMap::new(),
             });
         }
 
@@ -501,22 +504,15 @@ impl LpDid {
 
         // Scalar summaries.
         let mut scalar_rows: Vec<ScalarRow> = Vec::new();
-        let post_est: Vec<f64> = rows
+        let post_rows: Vec<&EventRow> = rows
             .iter()
             .filter(|r| r.horizon >= 0 && r.estimate.is_finite())
-            .map(|r| r.estimate)
             .collect();
+        let post_est: Vec<f64> = post_rows.iter().map(|r| r.estimate).collect();
         if !post_est.is_empty() {
             let avg = post_est.iter().sum::<f64>() / post_est.len() as f64;
-            scalar_rows.push(ScalarRow {
-                term: "ATT avg".to_string(),
-                estimate: avg,
-                se: f64::NAN,
-                t_stat: f64::NAN,
-                p_value: f64::NAN,
-                ci_lower: f64::NAN,
-                ci_upper: f64::NAN,
-            });
+            let se = scalar_avg_se(&post_rows);
+            scalar_rows.push(inference_to_scalar("ATT avg".to_string(), avg, se, z));
         }
 
         if let Some(pw) = rows
@@ -536,8 +532,8 @@ impl LpDid {
                 self.switch_in.as_str(),
             ) {
                 if pooled_local.n_treated > 0 && pooled_local.n_controls > 0 {
-                    let stats = if self.target_estimand == "ra" {
-                        fit_ra(&pooled_local, &controls, &control_matrix)
+                    let (estimate, _psi) = if self.target_estimand == "ra" {
+                        fit_ra(&pooled_local, &controls, &control_matrix, z)
                     } else {
                         fit_linear(
                             &pooled_local,
@@ -547,16 +543,16 @@ impl LpDid {
                             None,
                             z,
                         )
-                    };
-                    let stats = stats.unwrap_or_else(|_| Estimate::nan());
+                    }
+                    .unwrap_or_else(|_| (Estimate::nan(), HashMap::new()));
                     scalar_rows.push(ScalarRow {
                         term: "ATT pooled".to_string(),
-                        estimate: stats.estimate,
-                        se: stats.se,
-                        t_stat: stats.t_stat,
-                        p_value: stats.p_value,
-                        ci_lower: stats.ci_lower,
-                        ci_upper: stats.ci_upper,
+                        estimate: estimate.estimate,
+                        se: estimate.se,
+                        t_stat: estimate.t_stat,
+                        p_value: estimate.p_value,
+                        ci_lower: estimate.ci_lower,
+                        ci_upper: estimate.ci_upper,
                     });
                 }
             }
@@ -740,6 +736,7 @@ impl fmt::Display for BasePeriod {
     }
 }
 
+#[derive(Debug, Clone)]
 struct EventRow {
     horizon: i64,
     estimate: f64,
@@ -749,6 +746,7 @@ struct EventRow {
     ci_lower: f64,
     ci_upper: f64,
     n_obs: usize,
+    psi_by_cluster: HashMap<usize, f64>,
 }
 
 struct ScalarRow {
@@ -1726,7 +1724,7 @@ fn fit_linear(
     estimand: &str,
     pre_rw: Option<&HashMap<i64, f64>>,
     z: f64,
-) -> Result<Estimate, GreenersError> {
+) -> Result<(Estimate, HashMap<usize, f64>), GreenersError> {
     // Compute weights.
     let weights: Vec<Option<f64>> = if estimand == "rw" {
         if let Some(tmap) = pre_rw {
@@ -1800,7 +1798,7 @@ fn fit_linear(
     }
 
     if y_vec.is_empty() {
-        return Ok(Estimate::nan());
+        return Ok((Estimate::nan(), HashMap::new()));
     }
 
     let k = y_vec.len();
@@ -1813,23 +1811,80 @@ fn fit_linear(
 
     let d_idx = cr.keep_indices.iter().position(|&i| i == 0);
     if d_idx.is_none() || x_clean.nrows() <= x_clean.ncols() {
-        return Ok(Estimate::nan());
+        return Ok((Estimate::nan(), HashMap::new()));
     }
     let d_idx = d_idx.unwrap();
 
-    let fit = OLS::fit(&y, &x_clean, CovarianceType::Clustered(cluster_ids))
+    let fit = OLS::fit(&y, &x_clean, CovarianceType::Clustered(cluster_ids.clone()))
         .map_err(|_| GreenersError::OptimizationFailed)?;
 
     let est = fit.params[d_idx];
     let se = fit.std_errors[d_idx];
-    inference_stats(est, se, z)
+    let estimate = inference_stats(est, se, z)?;
+
+    // Cluster-level influence for this horizon (used to compute SE of ATT avg).
+    let psi = influence_linear(&x_clean, &y, &fit.params, d_idx, &cluster_ids)?;
+
+    Ok((estimate, psi))
+}
+
+fn influence_linear(
+    x: &Array2<f64>,
+    y: &Array1<f64>,
+    params: &Array1<f64>,
+    d_idx: usize,
+    cluster_ids: &[usize],
+) -> Result<HashMap<usize, f64>, GreenersError> {
+    let n = x.nrows();
+    let p = x.ncols();
+    if n == 0 || p == 0 || cluster_ids.len() != n {
+        return Ok(HashMap::new());
+    }
+
+    let xt_x = x.t().dot(x);
+    let xt_x_inv = xt_x.inv()?;
+    let row_d = xt_x_inv.row(d_idx);
+
+    let predicted = x.dot(params);
+    let residuals = y - &predicted;
+
+    let mut v_map: HashMap<usize, Vec<f64>> = HashMap::new();
+    for i in 0..n {
+        let cid = cluster_ids[i];
+        let entry = v_map.entry(cid).or_default();
+        if entry.is_empty() {
+            entry.resize(p, 0.0);
+        }
+        let r = residuals[i];
+        let xi = x.row(i);
+        for j in 0..p {
+            entry[j] += r * xi[j];
+        }
+    }
+
+    let g = v_map.len();
+    let correction = if g <= 1 {
+        1.0
+    } else {
+        (g as f64 / (g as f64 - 1.0)) * ((n as f64 - 1.0) / ((n - p) as f64).max(1.0))
+    };
+    let sqrt_corr = correction.sqrt();
+
+    let mut psi = HashMap::new();
+    for (cid, v) in v_map {
+        let v_arr = Array1::from(v);
+        let psi_g = sqrt_corr * row_d.dot(&v_arr);
+        psi.insert(cid, psi_g);
+    }
+    Ok(psi)
 }
 
 fn fit_ra(
     local: &LocalSample,
     controls: &[String],
     control_matrix: &[Vec<f64>],
-) -> Result<Estimate, GreenersError> {
+    z: f64,
+) -> Result<(Estimate, HashMap<usize, f64>), GreenersError> {
     // Restrict to time cells with at least one control.
     let mut ctrl_count: HashMap<i64, usize> = HashMap::new();
     for (idx, &t) in local.time.iter().enumerate() {
@@ -1845,7 +1900,7 @@ fn fit_ra(
         }
     }
     if keep_idx.is_empty() {
-        return Ok(Estimate::nan());
+        return Ok((Estimate::nan(), HashMap::new()));
     }
 
     let mut times_set: Vec<i64> = Vec::new();
@@ -1896,7 +1951,7 @@ fn fit_ra(
     }
 
     if y_ctrl.is_empty() || x_ctrl.is_empty() {
-        return Ok(Estimate::nan());
+        return Ok((Estimate::nan(), HashMap::new()));
     }
 
     let k_full = keep_idx.len();
@@ -1912,7 +1967,7 @@ fn fit_ra(
     let keep = cr.keep_indices;
 
     if x_ctrl_clean.nrows() <= x_ctrl_clean.ncols() {
-        return Ok(Estimate::nan());
+        return Ok((Estimate::nan(), HashMap::new()));
     }
 
     let fit = OLS::fit(
@@ -1934,19 +1989,80 @@ fn fit_ra(
         }
     }
     if count == 0 {
-        return Ok(Estimate::nan());
+        return Ok((Estimate::nan(), HashMap::new()));
     }
     let est = sum_resid / count as f64;
-    // RA analytic SE via the stacked influence function is complex; leave NaN
-    // with a TODO and rely on the point estimate.
-    Ok(Estimate {
-        estimate: est,
-        se: f64::NAN,
-        t_stat: f64::NAN,
-        p_value: f64::NAN,
-        ci_lower: f64::NAN,
-        ci_upper: f64::NAN,
-    })
+
+    // RA standard error via stacked GMM influence functions.
+    let p = fit.params.len();
+    let mut theta = Vec::with_capacity(p + 1);
+    theta.extend(fit.params.iter());
+    theta.push(est);
+
+    let cluster_full: Vec<usize> = keep_idx.iter().map(|&k| local.unit_id[k]).collect();
+    let x = x_full_clean.clone();
+    let y = y_full.clone();
+    let d = d_full.clone();
+
+    let moments = move |th: &[f64]| -> Array2<f64> {
+        let mu = th[p];
+        let beta_arr = Array1::from(th[..p].to_vec());
+        let n = x.nrows();
+        let mut m = Array2::<f64>::zeros((n, p + 1));
+        for i in 0..n {
+            let yi = y[i];
+            let zi = x.row(i);
+            let r = yi - zi.dot(&beta_arr);
+            let di = d[i] as f64;
+            let d_complement = 1.0 - di;
+            for j in 0..p {
+                m[[i, j]] = d_complement * zi[j] * r;
+            }
+            m[[i, p]] = di * (r - mu);
+        }
+        m
+    };
+
+    let mut target_grad = vec![0.0; p + 1];
+    target_grad[p] = 1.0;
+    let psi_vec =
+        stacked_influence(&theta, moments, &cluster_full, &target_grad, 1e-6).unwrap_or_default();
+    let se = se_from_influence(&psi_vec.iter().map(|(_, v)| *v).collect::<Vec<_>>());
+    let estimate = inference_stats(est, se, z)?;
+    let psi = psi_vec.into_iter().collect();
+
+    Ok((estimate, psi))
+}
+
+fn scalar_avg_se(post_rows: &[&EventRow]) -> f64 {
+    let h = post_rows.len() as f64;
+    if h == 0.0 {
+        return f64::NAN;
+    }
+    let mut psi_avg: HashMap<usize, f64> = HashMap::new();
+    for row in post_rows {
+        for (&cid, &psi) in &row.psi_by_cluster {
+            *psi_avg.entry(cid).or_insert(0.0) += psi;
+        }
+    }
+    for psi in psi_avg.values_mut() {
+        *psi /= h;
+    }
+    let values: Vec<f64> = psi_avg.values().copied().collect();
+    se_from_influence(&values)
+}
+
+fn inference_to_scalar(term: String, est: f64, se: f64, z: f64) -> ScalarRow {
+    let e = inference_stats(est, se, z).unwrap_or(Estimate::nan());
+    ScalarRow {
+        term,
+        estimate: e.estimate,
+        se: e.se,
+        t_stat: e.t_stat,
+        p_value: e.p_value,
+        ci_lower: e.ci_lower,
+        ci_upper: e.ci_upper,
+    }
 }
 
 fn inference_stats(est: f64, se: f64, z: f64) -> Result<Estimate, GreenersError> {
@@ -1970,6 +2086,116 @@ fn inference_stats(est: f64, se: f64, z: f64) -> Result<Estimate, GreenersError>
         ci_lower: est - z * se,
         ci_upper: est + z * se,
     })
+}
+
+// -----------------------------------------------------------------------------
+// Stacked GMM influence functions (matches pylpdid _inference.py)
+// -----------------------------------------------------------------------------
+
+fn stacked_influence<F>(
+    theta: &[f64],
+    moments: F,
+    cluster_ids: &[usize],
+    target_grad: &[f64],
+    eps: f64,
+) -> Result<Vec<(usize, f64)>, GreenersError>
+where
+    F: Fn(&[f64]) -> Array2<f64>,
+{
+    let n = cluster_ids.len();
+    let p = theta.len();
+    if n == 0 || p == 0 {
+        return Ok(Vec::new());
+    }
+
+    let m0 = moments(theta);
+    let q = m0.ncols();
+    if m0.nrows() != n {
+        return Err(GreenersError::ShapeMismatch(
+            "stacked_influence: moment matrix row count mismatch".into(),
+        ));
+    }
+
+    // Mean moment function for numeric Jacobian.
+    let mean_moment = |th: &[f64]| -> Array1<f64> {
+        let m = moments(th);
+        m.mean_axis(Axis(0))
+            .unwrap_or_else(|| Array1::zeros(m.ncols()))
+    };
+
+    // A = dm / dtheta (q x p) via central differences.
+    let mut a = Array2::<f64>::zeros((q, p));
+    for j in 0..p {
+        let step = eps * theta[j].abs().max(1.0);
+        if step == 0.0 {
+            continue;
+        }
+        let mut tp = theta.to_vec();
+        tp[j] += step;
+        let mut tm = theta.to_vec();
+        tm[j] -= step;
+        let gp = mean_moment(&tp);
+        let gm = mean_moment(&tm);
+        for i in 0..q {
+            a[[i, j]] = (gp[i] - gm[i]) / (2.0 * step);
+        }
+    }
+
+    // S = sum of moments by cluster (G x q).
+    let mut cluster_pos: HashMap<usize, usize> = HashMap::new();
+    let mut cluster_labels: Vec<usize> = Vec::new();
+    let mut s_vec: Vec<f64> = Vec::new();
+    for i in 0..n {
+        let cid = cluster_ids[i];
+        let pos = *cluster_pos.entry(cid).or_insert_with(|| {
+            cluster_labels.push(cid);
+            cluster_labels.len() - 1
+        });
+        if s_vec.len() < (pos + 1) * q {
+            s_vec.resize((pos + 1) * q, 0.0);
+        }
+        for j in 0..q {
+            s_vec[pos * q + j] += m0[[i, j]];
+        }
+    }
+    let g = cluster_labels.len();
+    let s = Array2::from_shape_vec((g, q), s_vec)
+        .map_err(|e| GreenersError::ShapeMismatch(e.to_string()))?;
+
+    // Pseudo-inverse of A (q x p) -> p x q.
+    let ainv = a.pinv()?;
+    let ainv_t = ainv.t();
+
+    // Small-sample correction (Cameron-Miller style).
+    let correction = if g <= 1 {
+        1.0
+    } else {
+        (g as f64 / (g as f64 - 1.0)) * ((n as f64 - 1.0) / ((n - p) as f64).max(1.0))
+    };
+    let sqrt_corr = correction.sqrt();
+
+    // v = Ainv' * target_grad (length q).
+    let grad = Array1::from(target_grad.to_vec());
+    let v = ainv_t.dot(&grad);
+
+    // psi_g = sqrt_corr * S * v / n for each cluster.
+    let mut psi = Vec::with_capacity(g);
+    for r in 0..g {
+        let mut acc = 0.0;
+        for c in 0..q {
+            acc += s[[r, c]] * v[c];
+        }
+        psi.push((cluster_labels[r], sqrt_corr * acc / n as f64));
+    }
+
+    Ok(psi)
+}
+
+fn se_from_influence(psi: &[f64]) -> f64 {
+    if psi.iter().any(|&x| !x.is_finite()) {
+        return f64::NAN;
+    }
+    psi.iter().map(|&x| x * x).sum::<f64>().sqrt()
 }
 
 // -----------------------------------------------------------------------------
