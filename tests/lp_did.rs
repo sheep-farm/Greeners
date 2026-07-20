@@ -181,6 +181,65 @@ fn lp_did_pooled_scalar_present() {
 }
 
 #[test]
+fn lp_did_base_period_all_pre_runs() {
+    let df = make_absorbing_panel(150, 14, 6);
+    let res = LpDid::new()
+        .with_base_period_all_pre()
+        .with_max_pre(Some(4))
+        .with_max_post(Some(6))
+        .fit(&df, "y", "id", "t", Some("g"), None, None)
+        .unwrap();
+
+    assert!(res
+        .estimates
+        .as_slice()
+        .unwrap()
+        .iter()
+        .any(|x| x.is_finite()));
+}
+
+#[test]
+fn lp_did_with_covariate_runs() {
+    let df = make_absorbing_panel(150, 14, 7);
+    // Add a time-invariant covariate by mutating the DataFrame via regenerate.
+    let x: Vec<f64> = (0..150)
+        .flat_map(|i| std::iter::repeat((i % 5) as f64).take(14))
+        .collect();
+    let mut builder = DataFrame::builder();
+    for name in df.column_names() {
+        let col = df.get_column(&name).unwrap();
+        let vals = match col {
+            greeners::Column::Float(arr) => arr.to_vec(),
+            greeners::Column::Int(arr) => arr.iter().map(|&v| v as f64).collect(),
+            _ => panic!("unexpected column type"),
+        };
+        builder = builder.add_column(&name, vals);
+    }
+    let df = builder.add_column("x", x).build().unwrap();
+
+    let res = LpDid::new()
+        .with_max_pre(Some(4))
+        .with_max_post(Some(6))
+        .fit(
+            &df,
+            "y",
+            "id",
+            "t",
+            Some("g"),
+            None,
+            Some(&["x".to_string()]),
+        )
+        .unwrap();
+
+    assert!(res
+        .estimates
+        .as_slice()
+        .unwrap()
+        .iter()
+        .any(|x| x.is_finite()));
+}
+
+#[test]
 fn lp_did_bootstrap_runs_and_produces_finite_se() {
     let df = make_absorbing_panel(80, 12, 3);
     let res = LpDid::new()
