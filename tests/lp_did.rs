@@ -1,3 +1,7 @@
+// Test panel generator inspired by the `pylpdid` quickstart example
+// (<https://github.com/Daniel-Uhr/pylpdid>), used under the MIT License.
+// Original code copyright (c) 2026 Daniel de Abreu Pereira Uhr.
+
 use greeners::{DataFrame, LpDid};
 use rand::rngs::StdRng;
 use rand::Rng;

@@ -4,6 +4,12 @@
 //! (2025, *Journal of Applied Econometrics*). Supports the three target
 //! estimands (`vw`, `rw`, `ra`) and the clean-control conditions for both
 //! absorbing and non-absorbing treatment settings described in the paper.
+//!
+//! This implementation is adapted from `pylpdid`
+//! (<https://github.com/Daniel-Uhr/pylpdid>).
+//! Original code copyright (c) 2026 Daniel de Abreu Pereira Uhr,
+//! used under the MIT License. See the `pylpdid/LICENSE` file or
+//! `Greeners/LICENSE` for the full license text.
 
 #![allow(warnings, clippy::all)]
 
