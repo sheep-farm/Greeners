@@ -1030,35 +1030,24 @@ impl OLS {
                 // Initialize meat matrix (middle part of sandwich)
                 let mut meat = Array2::<f64>::zeros((k_clean, k_clean));
 
-                // For each cluster g: calculate X_g' u_g u_g' X_g
+                // For each cluster g: v_g = X_g' u_g, then meat += v_g v_g'.
+                // This is O(N*k + G*k^2) instead of O(N*c*k^2) with nested loops.
                 for (_cluster_id, obs_indices) in clusters.iter() {
-                    let cluster_size = obs_indices.len();
-
-                    // Extract X_g and u_g for this cluster
-                    let mut x_g = Array2::<f64>::zeros((cluster_size, k_clean));
-                    let mut u_g = Array1::<f64>::zeros(cluster_size);
-
-                    for (i, &obs_idx) in obs_indices.iter().enumerate() {
-                        x_g.row_mut(i).assign(&x_to_use.row(obs_idx));
-                        u_g[i] = residuals[obs_idx];
+                    let mut v = Array1::<f64>::zeros(k_clean);
+                    for &obs_idx in obs_indices.iter() {
+                        let r = residuals[obs_idx];
+                        let x_i = x_to_use.row(obs_idx);
+                        for p in 0..k_clean {
+                            v[p] += r * x_i[p];
+                        }
                     }
 
-                    // Calculate u_g * u_g' (outer product of residuals within cluster)
-                    // Then X_g' * (u_g * u_g') * X_g
-                    // More explicitly: Σ_i Σ_j (u_gi * u_gj * x_gi * x_gj')
-
-                    for i in 0..cluster_size {
-                        for j in 0..cluster_size {
-                            let scale = u_g[i] * u_g[j];
-                            let x_i = x_g.row(i);
-                            let x_j = x_g.row(j);
-
-                            // Add outer product: scale * (x_i ⊗ x_j)
-                            for p in 0..k_clean {
-                                for q in 0..k_clean {
-                                    meat[[p, q]] += scale * x_i[p] * x_j[q];
-                                }
-                            }
+                    // Add outer product v v' to meat.
+                    for p in 0..k_clean {
+                        let vp = v[p];
+                        let mut meat_row = meat.row_mut(p);
+                        for q in 0..k_clean {
+                            meat_row[q] += vp * v[q];
                         }
                     }
                 }

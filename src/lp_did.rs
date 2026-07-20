@@ -17,6 +17,7 @@ use crate::error::GreenersError;
 use crate::{Column, CovarianceType, DataFrame, OLS};
 use indexmap::IndexMap;
 use ndarray::{Array1, Array2, Axis};
+use rayon::prelude::*;
 use statrs::distribution::{ContinuousCDF, Normal};
 use std::collections::HashMap;
 use std::fmt;
@@ -428,50 +429,59 @@ impl LpDid {
             pre_horizons.retain(|&h| h != bp);
         }
         let post_horizons: Vec<i64> = (0..=max_post as i64).collect();
+        let all_horizons: Vec<i64> = pre_horizons
+            .iter()
+            .chain(post_horizons.iter())
+            .copied()
+            .collect();
 
-        for h in pre_horizons.iter().chain(post_horizons.iter()) {
-            let local = build_local_sample(
-                &panel,
-                *h,
-                &self.clean_control,
-                self.effect_stabilization,
-                &controls,
-                &control_matrix,
-                self.control_pool.as_str(),
-                self.switch_in.as_str(),
-                fc_h,
-            )?;
-
-            let pre_rw = if self.target_estimand == "rw" && *h < 0 {
-                rw0_map.as_ref()
-            } else {
-                None
-            };
-
-            let stats = if self.target_estimand == "ra" {
-                fit_ra(&local, &controls, &control_matrix)
-            } else {
-                fit_linear(
-                    &local,
+        let horizon_results: Vec<EventRow> = all_horizons
+            .par_iter()
+            .map(|&h| {
+                let local = build_local_sample(
+                    &panel,
+                    h,
+                    &self.clean_control,
+                    self.effect_stabilization,
                     &controls,
                     &control_matrix,
-                    self.target_estimand.as_str(),
-                    pre_rw,
-                    z,
-                )
-            };
-            let stats = stats.unwrap_or_else(|_| Estimate::nan());
-            rows.push(EventRow {
-                horizon: *h,
-                estimate: stats.estimate,
-                se: stats.se,
-                t_stat: stats.t_stat,
-                p_value: stats.p_value,
-                ci_lower: stats.ci_lower,
-                ci_upper: stats.ci_upper,
-                n_obs: local.indices.len(),
-            });
-        }
+                    self.control_pool.as_str(),
+                    self.switch_in.as_str(),
+                    fc_h,
+                )?;
+
+                let pre_rw = if self.target_estimand == "rw" && h < 0 {
+                    rw0_map.as_ref()
+                } else {
+                    None
+                };
+
+                let stats = if self.target_estimand == "ra" {
+                    fit_ra(&local, &controls, &control_matrix)
+                } else {
+                    fit_linear(
+                        &local,
+                        &controls,
+                        &control_matrix,
+                        self.target_estimand.as_str(),
+                        pre_rw,
+                        z,
+                    )
+                };
+                let stats = stats.unwrap_or_else(|_| Estimate::nan());
+                Ok(EventRow {
+                    horizon: h,
+                    estimate: stats.estimate,
+                    se: stats.se,
+                    t_stat: stats.t_stat,
+                    p_value: stats.p_value,
+                    ci_lower: stats.ci_lower,
+                    ci_upper: stats.ci_upper,
+                    n_obs: local.indices.len(),
+                })
+            })
+            .collect::<Result<Vec<EventRow>, GreenersError>>()?;
+        rows.extend(horizon_results);
 
         // Normalised base-period row for a single integer base period.
         if let BasePeriod::Single(bp) = self.base_period {

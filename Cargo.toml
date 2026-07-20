@@ -44,6 +44,8 @@ chrono = { version = "0.4", features = ["serde"] }
 argmin = "0.11.0"
 argmin-math = { version = "0.5", features = ["vec"] }
 indexmap = { version = "2", features = ["serde"] }
+# Data-parallelism for independent estimator loops
+rayon = "1.10"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json"], optional = true }
@@ -54,6 +56,10 @@ criterion = { version = "0.5", features = ["html_reports"] }
 
 [[bench]]
 name = "micro"
+harness = false
+
+[[bench]]
+name = "lp_did"
 harness = false
 
 [[example]]
