@@ -1962,20 +1962,20 @@ fn fit_linear(
     }
     let d_idx = d_idx.unwrap();
 
-    let fit = OLS::fit(&y, &x_clean, CovarianceType::Clustered(cluster_ids.clone()))
-        .map_err(|_| GreenersError::OptimizationFailed)?;
-
-    let est = fit.params[d_idx];
-    let se = fit.std_errors[d_idx];
-    let estimate = inference_stats(est, se, z)?;
-
-    // Cluster-level influence for this horizon (used to compute SE of ATT avg).
-    let psi = if compute_se {
-        influence_linear(&x_clean, &y, &fit.params, d_idx, &cluster_ids)?
+    let (est, se, psi) = if compute_se {
+        let fit = OLS::fit(&y, &x_clean, CovarianceType::Clustered(cluster_ids.clone()))
+            .map_err(|_| GreenersError::OptimizationFailed)?;
+        let psi = influence_linear(&x_clean, &y, &fit.params, d_idx, &cluster_ids)?;
+        (fit.params[d_idx], fit.std_errors[d_idx], psi)
     } else {
-        HashMap::new()
+        // Point estimate only: skip covariance computation.
+        let xt_x = x_clean.t().dot(&x_clean);
+        let xt_x_inv = xt_x.inv()?;
+        let xt_y = x_clean.t().dot(&y);
+        let params = xt_x_inv.dot(&xt_y);
+        (params[d_idx], f64::NAN, HashMap::new())
     };
-
+    let estimate = inference_stats(est, se, z)?;
     Ok((estimate, psi))
 }
 
@@ -2122,15 +2122,27 @@ fn fit_ra(
         return Ok((Estimate::nan(), HashMap::new()));
     }
 
-    let fit = OLS::fit(
-        &Array1::from(y_ctrl),
-        &x_ctrl_clean,
-        CovarianceType::Clustered(cluster_ctrl),
-    )
-    .map_err(|_| GreenersError::OptimizationFailed)?;
-
     let x_full_clean = x_full_arr.select(Axis(1), &keep);
-    let pred = fit.predict(&x_full_clean);
+
+    // Solve controls-only regression. For analytic SE we also need the
+    // clustered covariance; for bootstrap point estimates the solve is enough.
+    let params = if compute_se {
+        let fit = OLS::fit(
+            &Array1::from(y_ctrl),
+            &x_ctrl_clean,
+            CovarianceType::Clustered(cluster_ctrl),
+        )
+        .map_err(|_| GreenersError::OptimizationFailed)?;
+        fit.params
+    } else {
+        let x_c = x_ctrl_clean.view();
+        let y_c = Array1::from(y_ctrl.clone());
+        let xt_x = x_c.t().dot(&x_c);
+        let xt_x_inv = xt_x.inv()?;
+        xt_x_inv.dot(&x_c.t().dot(&y_c))
+    };
+
+    let pred = x_full_clean.dot(&params);
     let mut sum_resid = 0.0;
     let mut count = 0usize;
     for (idx, &d) in d_full.iter().enumerate() {
@@ -2146,9 +2158,9 @@ fn fit_ra(
     let est = sum_resid / count as f64;
 
     // RA standard error via stacked GMM influence functions.
-    let p = fit.params.len();
+    let p = params.len();
     let mut theta = Vec::with_capacity(p + 1);
-    theta.extend(fit.params.iter());
+    theta.extend(params.iter());
     theta.push(est);
 
     let cluster_full: Vec<usize> = keep_idx.iter().map(|&k| local.unit_id[k]).collect();
