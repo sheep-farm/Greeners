@@ -3,9 +3,7 @@
 // Original code copyright (c) 2026 Daniel de Abreu Pereira Uhr.
 
 use greeners::{DataFrame, LpDid};
-use rand::rngs::StdRng;
-use rand::Rng;
-use rand::SeedableRng;
+use ndarray_rand::rand::{rngs::StdRng, Rng, SeedableRng};
 
 fn make_absorbing_panel(n_units: usize, n_periods: usize, seed: u64) -> DataFrame {
     let mut rng = StdRng::seed_from_u64(seed);
@@ -180,4 +178,35 @@ fn lp_did_pooled_scalar_present() {
         "expected pooled ~2.0, got {}",
         pooled
     );
+}
+
+#[test]
+fn lp_did_bootstrap_runs_and_produces_finite_se() {
+    let df = make_absorbing_panel(80, 12, 3);
+    let res = LpDid::new()
+        .with_max_pre(Some(3))
+        .with_max_post(Some(5))
+        .with_inference("cluster_bootstrap")
+        .with_n_bootstrap(50)
+        .with_seed(42)
+        .fit(&df, "y", "id", "t", Some("g"), None, None)
+        .unwrap();
+
+    for (&h, &se) in res.horizons.iter().zip(res.standard_errors.iter()) {
+        if h != -1 {
+            assert!(
+                se.is_finite() && se >= 0.0,
+                "expected finite SE at h={}, got {}",
+                h,
+                se
+            );
+        }
+    }
+    for se in res.scalar_standard_errors.iter() {
+        assert!(
+            se.is_finite() && *se > 0.0,
+            "expected finite positive scalar SE, got {}",
+            se
+        );
+    }
 }

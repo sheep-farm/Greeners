@@ -18,6 +18,7 @@ use crate::linalg::{LinalgInverse, LinalgPinv};
 use crate::{Column, CovarianceType, DataFrame, OLS};
 use indexmap::IndexMap;
 use ndarray::{Array1, Array2, Axis};
+use rand::{rngs::StdRng, Rng, SeedableRng};
 use rayon::prelude::*;
 use statrs::distribution::{ContinuousCDF, Normal};
 use std::collections::HashMap;
@@ -202,6 +203,9 @@ pub struct LpDid {
     fixed_composition: bool,
     control_pool: String,
     switch_in: String,
+    inference: String,
+    n_bootstrap: usize,
+    seed: u64,
 }
 
 impl Default for LpDid {
@@ -222,6 +226,9 @@ impl Default for LpDid {
             fixed_composition: false,
             control_pool: "stabilized_all".to_string(),
             switch_in: "sustained".to_string(),
+            inference: "cluster".to_string(),
+            n_bootstrap: 999,
+            seed: 0,
         }
     }
 }
@@ -319,6 +326,25 @@ impl LpDid {
         self
     }
 
+    /// Inference method: `"cluster"` (default, influence functions) or
+    /// `"cluster_bootstrap"` (paired cluster bootstrap).
+    pub fn with_inference(mut self, inference: &str) -> Self {
+        self.inference = inference.to_lowercase();
+        self
+    }
+
+    /// Number of bootstrap replications when `inference="cluster_bootstrap"`.
+    pub fn with_n_bootstrap(mut self, n: usize) -> Self {
+        self.n_bootstrap = n;
+        self
+    }
+
+    /// Random seed for bootstrap resampling.
+    pub fn with_seed(mut self, seed: u64) -> Self {
+        self.seed = seed;
+        self
+    }
+
     /// Maximum pre-treatment horizon to include (data-determined if `None`).
     pub fn with_max_pre(mut self, max_pre: Option<usize>) -> Self {
         self.max_pre = max_pre;
@@ -348,6 +374,36 @@ impl LpDid {
         first_treat: Option<&str>,
         treatment: Option<&str>,
         covariates: Option<&[String]>,
+    ) -> Result<LpDidResult, GreenersError> {
+        if self.inference == "cluster_bootstrap" {
+            self.bootstrap_fit(df, outcome, unit, time, first_treat, treatment, covariates)
+        } else {
+            self.fit_core(
+                df,
+                outcome,
+                unit,
+                time,
+                first_treat,
+                treatment,
+                covariates,
+                true,
+            )
+        }
+    }
+
+    /// Internal fitting routine. `compute_se=false` skips influence-function
+    /// standard errors, used by the cluster-bootstrap path.
+    #[allow(clippy::too_many_arguments)]
+    fn fit_core(
+        &self,
+        df: &DataFrame,
+        outcome: &str,
+        unit: &str,
+        time: &str,
+        first_treat: Option<&str>,
+        treatment: Option<&str>,
+        covariates: Option<&[String]>,
+        compute_se: bool,
     ) -> Result<LpDidResult, GreenersError> {
         self.validate_options()?;
 
@@ -458,7 +514,7 @@ impl LpDid {
                 };
 
                 let (estimate, psi) = if self.target_estimand == "ra" {
-                    fit_ra(&local, &controls, &control_matrix, z)
+                    fit_ra(&local, &controls, &control_matrix, z, compute_se)
                 } else {
                     fit_linear(
                         &local,
@@ -467,6 +523,7 @@ impl LpDid {
                         self.target_estimand.as_str(),
                         pre_rw,
                         z,
+                        compute_se,
                     )
                 }
                 .unwrap_or_else(|_| (Estimate::nan(), HashMap::new()));
@@ -533,7 +590,7 @@ impl LpDid {
             ) {
                 if pooled_local.n_treated > 0 && pooled_local.n_controls > 0 {
                     let (estimate, _psi) = if self.target_estimand == "ra" {
-                        fit_ra(&pooled_local, &controls, &control_matrix, z)
+                        fit_ra(&pooled_local, &controls, &control_matrix, z, compute_se)
                     } else {
                         fit_linear(
                             &pooled_local,
@@ -542,6 +599,7 @@ impl LpDid {
                             self.target_estimand.as_str(),
                             None,
                             z,
+                            compute_se,
                         )
                     }
                     .unwrap_or_else(|_| (Estimate::nan(), HashMap::new()));
@@ -638,6 +696,88 @@ impl LpDid {
         })
     }
 
+    /// Cluster-bootstrap inference. Fits the model on the original data (without
+    /// analytic SE) and then on `n_bootstrap` cluster-resampled datasets.
+    #[allow(clippy::too_many_arguments)]
+    fn bootstrap_fit(
+        &self,
+        df: &DataFrame,
+        outcome: &str,
+        unit: &str,
+        time: &str,
+        first_treat: Option<&str>,
+        treatment: Option<&str>,
+        covariates: Option<&[String]>,
+    ) -> Result<LpDidResult, GreenersError> {
+        let orig = self.fit_core(
+            df,
+            outcome,
+            unit,
+            time,
+            first_treat,
+            treatment,
+            covariates,
+            false,
+        )?;
+
+        let mut rng = StdRng::seed_from_u64(self.seed);
+        let mut event_draws: HashMap<i64, Vec<f64>> = HashMap::new();
+        let mut scalar_draws: HashMap<String, Vec<f64>> = HashMap::new();
+
+        for _ in 0..self.n_bootstrap {
+            let boot_df = resample_clusters(df, unit, &mut rng)?;
+            let boot = self.fit_core(
+                &boot_df,
+                outcome,
+                unit,
+                time,
+                first_treat,
+                treatment,
+                covariates,
+                false,
+            )?;
+            for (i, &h) in boot.horizons.iter().enumerate() {
+                if boot.estimates[i].is_finite() {
+                    event_draws.entry(h).or_default().push(boot.estimates[i]);
+                }
+            }
+            for (i, term) in boot.scalar_terms.iter().enumerate() {
+                if boot.scalar_estimates[i].is_finite() {
+                    scalar_draws
+                        .entry(term.clone())
+                        .or_default()
+                        .push(boot.scalar_estimates[i]);
+                }
+            }
+        }
+
+        let z = z_crit(self.alpha);
+        let mut result = orig;
+
+        for (i, &h) in result.horizons.iter().enumerate() {
+            let draws = event_draws.get(&h).map(|v| v.as_slice()).unwrap_or(&[]);
+            let (se, lo, hi, p, t) = bootstrap_stats(result.estimates[i], draws, self.alpha, z);
+            result.standard_errors[i] = se;
+            result.conf_lower[i] = lo;
+            result.conf_upper[i] = hi;
+            result.p_values[i] = p;
+            result.t_values[i] = t;
+        }
+
+        for (i, term) in result.scalar_terms.iter().enumerate() {
+            let draws = scalar_draws.get(term).map(|v| v.as_slice()).unwrap_or(&[]);
+            let est = result.scalar_estimates[i];
+            let (se, lo, hi, p, t) = bootstrap_stats(est, draws, self.alpha, z);
+            result.scalar_standard_errors[i] = se;
+            result.scalar_conf_lower[i] = lo;
+            result.scalar_conf_upper[i] = hi;
+            result.scalar_p_values[i] = p;
+            result.scalar_t_values[i] = t;
+        }
+
+        Ok(result)
+    }
+
     fn validate_options(&self) -> Result<(), GreenersError> {
         if !["vw", "rw", "ra"].contains(&self.target_estimand.as_str()) {
             return Err(GreenersError::InvalidOperation(format!(
@@ -673,6 +813,12 @@ impl LpDid {
             return Err(GreenersError::InvalidOperation(format!(
                 "switch_in must be 'sustained' or 'onset', got '{}'",
                 self.switch_in
+            )));
+        }
+        if !["cluster", "cluster_bootstrap"].contains(&self.inference.as_str()) {
+            return Err(GreenersError::InvalidOperation(format!(
+                "inference must be 'cluster' or 'cluster_bootstrap', got '{}'",
+                self.inference
             )));
         }
         if !(0.0..=1.0).contains(&self.alpha) {
@@ -1724,6 +1870,7 @@ fn fit_linear(
     estimand: &str,
     pre_rw: Option<&HashMap<i64, f64>>,
     z: f64,
+    compute_se: bool,
 ) -> Result<(Estimate, HashMap<usize, f64>), GreenersError> {
     // Compute weights.
     let weights: Vec<Option<f64>> = if estimand == "rw" {
@@ -1823,7 +1970,11 @@ fn fit_linear(
     let estimate = inference_stats(est, se, z)?;
 
     // Cluster-level influence for this horizon (used to compute SE of ATT avg).
-    let psi = influence_linear(&x_clean, &y, &fit.params, d_idx, &cluster_ids)?;
+    let psi = if compute_se {
+        influence_linear(&x_clean, &y, &fit.params, d_idx, &cluster_ids)?
+    } else {
+        HashMap::new()
+    };
 
     Ok((estimate, psi))
 }
@@ -1884,6 +2035,7 @@ fn fit_ra(
     controls: &[String],
     control_matrix: &[Vec<f64>],
     z: f64,
+    compute_se: bool,
 ) -> Result<(Estimate, HashMap<usize, f64>), GreenersError> {
     // Restrict to time cells with at least one control.
     let mut ctrl_count: HashMap<i64, usize> = HashMap::new();
@@ -2023,13 +2175,18 @@ fn fit_ra(
         m
     };
 
-    let mut target_grad = vec![0.0; p + 1];
-    target_grad[p] = 1.0;
-    let psi_vec =
-        stacked_influence(&theta, moments, &cluster_full, &target_grad, 1e-6).unwrap_or_default();
-    let se = se_from_influence(&psi_vec.iter().map(|(_, v)| *v).collect::<Vec<_>>());
+    let (se, psi) = if compute_se {
+        let mut target_grad = vec![0.0; p + 1];
+        target_grad[p] = 1.0;
+        let psi_vec = stacked_influence(&theta, moments, &cluster_full, &target_grad, 1e-6)
+            .unwrap_or_default();
+        let se = se_from_influence(&psi_vec.iter().map(|(_, v)| *v).collect::<Vec<_>>());
+        let psi = psi_vec.into_iter().collect();
+        (se, psi)
+    } else {
+        (f64::NAN, HashMap::new())
+    };
     let estimate = inference_stats(est, se, z)?;
-    let psi = psi_vec.into_iter().collect();
 
     Ok((estimate, psi))
 }
@@ -2196,6 +2353,105 @@ fn se_from_influence(psi: &[f64]) -> f64 {
         return f64::NAN;
     }
     psi.iter().map(|&x| x * x).sum::<f64>().sqrt()
+}
+
+// -----------------------------------------------------------------------------
+// Bootstrap helpers
+// -----------------------------------------------------------------------------
+
+fn resample_clusters(
+    df: &DataFrame,
+    unit: &str,
+    rng: &mut StdRng,
+) -> Result<DataFrame, GreenersError> {
+    let unit_col = df.get_column(unit)?;
+    let unit_f64 = column_to_f64(unit_col, unit)?;
+
+    // Unique unit ids. Unit ids are integers, so f64 to_bits is a perfect key.
+    let unit_bits: Vec<u64> = unit_f64.iter().map(|&x| x.to_bits()).collect();
+    let mut unique_bits: Vec<u64> = unit_bits.clone();
+    unique_bits.sort_unstable();
+    unique_bits.dedup();
+    let g = unique_bits.len();
+    if g == 0 {
+        return Ok(df.clone());
+    }
+
+    // Pre-compute indices belonging to each cluster.
+    let mut cluster_indices: Vec<Vec<usize>> = vec![Vec::new(); g];
+    for (i, &b) in unit_bits.iter().enumerate() {
+        let pos = unique_bits.binary_search(&b).unwrap();
+        cluster_indices[pos].push(i);
+    }
+
+    // Sample clusters with replacement and build selected index list.
+    let mut selected: Vec<usize> = Vec::with_capacity(df.n_rows());
+    let mut new_unit: Vec<f64> = Vec::with_capacity(df.n_rows());
+    for b in 0..g {
+        let sampled = rng.gen_range(0..g);
+        for &idx in &cluster_indices[sampled] {
+            selected.push(idx);
+            new_unit.push(b as f64);
+        }
+    }
+
+    let mut cols: IndexMap<String, Array1<f64>> = IndexMap::new();
+    for name in df.column_names() {
+        let col = df.get_column(&name)?;
+        let vals = column_to_f64(col, &name)?;
+        let new_vals: Vec<f64> = selected.iter().map(|&i| vals[i]).collect();
+        cols.insert(name, Array1::from(new_vals));
+    }
+    // Replace the unit column with the bootstrap unit ids.
+    cols.insert(unit.to_string(), Array1::from(new_unit));
+    DataFrame::new(cols)
+}
+
+fn bootstrap_stats(est: f64, draws: &[f64], alpha: f64, z: f64) -> (f64, f64, f64, f64, f64) {
+    let finite: Vec<f64> = draws.iter().copied().filter(|x| x.is_finite()).collect();
+    if finite.is_empty() {
+        return (f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN);
+    }
+    if finite.len() == 1 {
+        return (f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN);
+    }
+    let n = finite.len() as f64;
+    let mean = finite.iter().sum::<f64>() / n;
+    let var = finite.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1.0);
+    let se = var.sqrt();
+    let (lo, hi) = percentile_ci(&finite, alpha);
+    let p = bootstrap_p_value(est, &finite);
+    let t = if se.is_finite() && se > 0.0 {
+        est / se
+    } else {
+        f64::NAN
+    };
+    (se, lo, hi, p, t)
+}
+
+fn percentile_ci(draws: &[f64], alpha: f64) -> (f64, f64) {
+    if draws.len() < 2 {
+        return (f64::NAN, f64::NAN);
+    }
+    let mut sorted = draws.to_vec();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let n = sorted.len();
+    let lo_idx = ((alpha / 2.0) * (n - 1) as f64).floor() as usize;
+    let hi_idx = ((1.0 - alpha / 2.0) * (n - 1) as f64).ceil() as usize;
+    let lo = sorted[lo_idx.min(n - 1)];
+    let hi = sorted[hi_idx.min(n - 1)];
+    (lo, hi)
+}
+
+fn bootstrap_p_value(est: f64, draws: &[f64]) -> f64 {
+    if !est.is_finite() || draws.len() < 2 {
+        return f64::NAN;
+    }
+    let n = draws.len() as f64;
+    let mean = draws.iter().sum::<f64>() / n;
+    let centered: Vec<f64> = draws.iter().map(|&x| x - mean).collect();
+    let count = centered.iter().filter(|&&x| x.abs() >= est.abs()).count();
+    count as f64 / n
 }
 
 // -----------------------------------------------------------------------------
