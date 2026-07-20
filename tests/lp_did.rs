@@ -240,6 +240,50 @@ fn lp_did_with_covariate_runs() {
 }
 
 #[test]
+fn lp_did_nonabsorbing_runs() {
+    // 80 units, 10 periods, treatment switches off after period 7.
+    let mut rng = StdRng::seed_from_u64(8);
+    let mut id = Vec::new();
+    let mut t = Vec::new();
+    let mut d = Vec::new();
+    let mut y = Vec::new();
+    for i in 0..80 {
+        let ufe = rng.gen::<f64>() * 2.0 - 1.0;
+        for tt in 1..=10 {
+            let treated = if tt >= 5 && tt <= 7 { 1.0 } else { 0.0 };
+            let yy = ufe + 0.2 * (tt as f64) + 1.5 * treated + (rng.gen::<f64>() - 0.5) * 0.8;
+            id.push(i as f64);
+            t.push(tt as f64);
+            d.push(treated);
+            y.push(yy);
+        }
+    }
+    let df = DataFrame::builder()
+        .add_column("id", id)
+        .add_column("t", t)
+        .add_column("d", d)
+        .add_column("y", y)
+        .build()
+        .unwrap();
+
+    let res = LpDid::new()
+        .with_target_estimand("vw")
+        .with_nonabsorbing(true)
+        .with_clean_control("first_entry")
+        .with_max_pre(Some(3))
+        .with_max_post(Some(3))
+        .fit(&df, "y", "id", "t", None, Some("d"), None)
+        .unwrap();
+
+    assert!(res
+        .estimates
+        .as_slice()
+        .unwrap()
+        .iter()
+        .any(|x| x.is_finite()));
+}
+
+#[test]
 fn lp_did_bootstrap_runs_and_produces_finite_se() {
     let df = make_absorbing_panel(80, 12, 3);
     let res = LpDid::new()
