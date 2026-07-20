@@ -323,6 +323,53 @@ fn lp_did_anticipation_excludes_nearest_pre_periods() {
 }
 
 #[test]
+fn lp_did_lagged_covariates_and_outcome_changes_run() {
+    let df = make_absorbing_panel(120, 14, 11);
+    // Create a time-varying covariate equal to the period index.
+    let mut x: Vec<f64> = Vec::new();
+    for _ in 0..120 {
+        for tt in 1..=14 {
+            x.push(tt as f64);
+        }
+    }
+    let mut builder = DataFrame::builder();
+    for name in df.column_names() {
+        let col = df.get_column(&name).unwrap();
+        let vals = match col {
+            greeners::Column::Float(arr) => arr.to_vec(),
+            greeners::Column::Int(arr) => arr.iter().map(|&v| v as f64).collect(),
+            _ => panic!("unexpected column type"),
+        };
+        builder = builder.add_column(&name, vals);
+    }
+    let df = builder.add_column("x", x).build().unwrap();
+
+    let res = LpDid::new()
+        .with_max_pre(Some(3))
+        .with_max_post(Some(5))
+        .with_lag_covariates(true)
+        .with_include_lagged_outcome_change(true)
+        .with_n_lagged_outcome_changes(1)
+        .fit(
+            &df,
+            "y",
+            "id",
+            "t",
+            Some("g"),
+            None,
+            Some(&["x".to_string()]),
+        )
+        .unwrap();
+
+    assert!(res
+        .estimates
+        .as_slice()
+        .unwrap()
+        .iter()
+        .any(|x| x.is_finite()));
+}
+
+#[test]
 fn lp_did_bootstrap_runs_and_produces_finite_se() {
     let df = make_absorbing_panel(80, 12, 3);
     let res = LpDid::new()
