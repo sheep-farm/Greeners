@@ -284,6 +284,45 @@ fn lp_did_nonabsorbing_runs() {
 }
 
 #[test]
+fn lp_did_effect_stabilization_runs() {
+    let df = make_absorbing_panel(120, 14, 9);
+    let res = LpDid::new()
+        .with_clean_control("stabilized")
+        .with_effect_stabilization(Some(2))
+        .with_max_pre(Some(3))
+        .with_max_post(Some(5))
+        .fit(&df, "y", "id", "t", Some("g"), None, None)
+        .unwrap();
+
+    assert!(res
+        .estimates
+        .as_slice()
+        .unwrap()
+        .iter()
+        .any(|x| x.is_finite()));
+}
+
+#[test]
+fn lp_did_anticipation_excludes_nearest_pre_periods() {
+    let df = make_absorbing_panel(120, 14, 10);
+    let res = LpDid::new()
+        .with_anticipation(2)
+        .with_max_pre(Some(4))
+        .with_max_post(Some(5))
+        .fit(&df, "y", "id", "t", Some("g"), None, None)
+        .unwrap();
+
+    // With max_pre=4 and anticipation=2, h=-2 should be omitted (h=-1 is the base period).
+    assert!(!res.horizons.contains(&-2));
+    assert!(res
+        .estimates
+        .as_slice()
+        .unwrap()
+        .iter()
+        .any(|x| x.is_finite()));
+}
+
+#[test]
 fn lp_did_bootstrap_runs_and_produces_finite_se() {
     let df = make_absorbing_panel(80, 12, 3);
     let res = LpDid::new()
