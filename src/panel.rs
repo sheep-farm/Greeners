@@ -125,12 +125,25 @@ impl FixedEffects {
     where
         T: Eq + Hash + Clone,
     {
+        Self::from_formula_with_cov(formula, data, entity_ids, CovarianceType::NonRobust)
+    }
+
+    /// Estimates Fixed Effects model with a specified covariance type.
+    pub fn from_formula_with_cov<T>(
+        formula: &Formula,
+        data: &DataFrame,
+        entity_ids: &[T],
+        cov_type: CovarianceType,
+    ) -> Result<PanelResult, GreenersError>
+    where
+        T: Eq + Hash + Clone,
+    {
         let (y, x) = data.to_design_matrix(formula)?;
 
         // Build variable names from formula (no intercept in FE)
         let var_names: Vec<String> = formula.independents.to_vec();
 
-        Self::fit_with_names(&y, &x, entity_ids, Some(var_names))
+        Self::fit_with_names(&y, &x, entity_ids, Some(var_names), cov_type)
     }
 
     /// Performs the "Within Transformation" (Demeaning) on a matrix/vector.
@@ -194,7 +207,7 @@ impl FixedEffects {
     where
         T: Eq + Hash + Clone,
     {
-        Self::fit_with_names(y, x, groups, None)
+        Self::fit_with_names(y, x, groups, None, CovarianceType::NonRobust)
     }
 
     pub fn fit_with_names<T>(
@@ -202,6 +215,7 @@ impl FixedEffects {
         x: &Array2<f64>,
         groups: &[T],
         variable_names: Option<Vec<String>>,
+        cov_type: CovarianceType,
     ) -> Result<PanelResult, GreenersError>
     where
         T: Eq + Hash + Clone,
@@ -218,8 +232,8 @@ impl FixedEffects {
         // Flatten y back to Array1
         let y_demeaned = y_demeaned_mat.column(0).to_owned();
 
-        // 3. Run OLS on demeaned data
-        let ols_result = OLS::fit(&y_demeaned, &x_demeaned, CovarianceType::NonRobust)?;
+        // 3. Run OLS on demeaned data with requested covariance type
+        let ols_result = OLS::fit(&y_demeaned, &x_demeaned, cov_type.clone())?;
 
         // 4. Degrees of Freedom Correction
         let mut unique_groups: IndexMap<T, bool> = IndexMap::new();
@@ -244,12 +258,16 @@ impl FixedEffects {
         let sigma2 = ssr / (df_resid_correct as f64);
         let sigma = sigma2.sqrt();
 
-        // Adjust Covariance Matrix: Multiply by (OLS_DF / FE_DF) adjustment
-        let adjustment_factor = (ols_result.df_resid as f64) / (df_resid_correct as f64);
-
-        let old_vars = ols_result.std_errors.mapv(|se| se.powi(2));
-        let new_vars = old_vars * adjustment_factor;
-        let std_errors = new_vars.mapv(f64::sqrt);
+        // For NonRobust covariance, scale SEs by the FE degrees-of-freedom
+        // correction. For robust/clustered/Newey-West, use the SEs already
+        // produced by OLS on the demeaned data and only recompute inference.
+        let std_errors = if matches!(cov_type, CovarianceType::NonRobust) {
+            let adjustment_factor = (ols_result.df_resid as f64) / (df_resid_correct as f64);
+            let old_vars = ols_result.std_errors.mapv(|se| se.powi(2));
+            (old_vars * adjustment_factor).mapv(f64::sqrt)
+        } else {
+            ols_result.std_errors.clone()
+        };
 
         let t_values = &ols_result.params / &std_errors;
 
