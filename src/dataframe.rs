@@ -1950,25 +1950,61 @@ impl DataFrame {
     /// df.to_csv("output.csv").unwrap();
     /// ```
     pub fn to_csv<P: AsRef<Path>>(&self, path: P) -> Result<(), GreenersError> {
-        use csv::Writer;
-        use std::fs::File;
+        self.to_csv_with_append(path, false)
+    }
 
-        let file = File::create(path).map_err(|e| {
-            GreenersError::FormulaError(format!("Failed to create CSV file: {}", e))
-        })?;
+    /// Write DataFrame to a CSV file with optional append mode.
+    ///
+    /// When append is true, data is appended to an existing file without writing headers.
+    /// When append is false, the file is created/overwritten with headers.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use greeners::DataFrame;
+    ///
+    /// let df = DataFrame::builder()
+    ///     .add_column("x", vec![1.0, 2.0, 3.0])
+    ///     .add_column("y", vec![4.0, 5.0, 6.0])
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// // Create/overwrite file
+    /// df.to_csv_with_append("output.csv", false).unwrap();
+    ///
+    /// // Append to existing file
+    /// df.to_csv_with_append("output.csv", true).unwrap();
+    /// ```
+    pub fn to_csv_with_append<P: AsRef<Path>>(&self, path: P, append: bool) -> Result<(), GreenersError> {
+        use csv::Writer;
+        use std::fs::{File, OpenOptions};
+
+        let file = if append {
+            OpenOptions::new()
+                .append(true)
+                .open(path)
+                .map_err(|e| {
+                    GreenersError::FormulaError(format!("Failed to open CSV file for append: {}", e))
+                })?
+        } else {
+            File::create(path).map_err(|e| {
+                GreenersError::FormulaError(format!("Failed to create CSV file: {}", e))
+            })?
+        };
 
         let mut writer = Writer::from_writer(file);
 
-        // Write headers — preserve insertion order (IndexMap)
-        let column_names: Vec<String> = self.columns.keys().cloned().collect();
-        writer
-            .write_record(&column_names)
-            .map_err(|e| GreenersError::FormulaError(format!("Failed to write headers: {}", e)))?;
+        // Write headers only if not appending
+        if !append {
+            let column_names: Vec<String> = self.columns.keys().cloned().collect();
+            writer
+                .write_record(&column_names)
+                .map_err(|e| GreenersError::FormulaError(format!("Failed to write headers: {}", e)))?;
+        }
 
         // Write data rows
         for i in 0..self.n_rows {
-            let row: Vec<String> = column_names
-                .iter()
+            let row: Vec<String> = self.columns
+                .keys()
                 .map(|name| {
                     let col = &self.columns[name];
                     match col.as_ref() {
