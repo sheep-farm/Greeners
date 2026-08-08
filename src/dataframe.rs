@@ -1974,17 +1974,18 @@ impl DataFrame {
     /// // Append to existing file
     /// df.to_csv_with_append("output.csv", true).unwrap();
     /// ```
-    pub fn to_csv_with_append<P: AsRef<Path>>(&self, path: P, append: bool) -> Result<(), GreenersError> {
+    pub fn to_csv_with_append<P: AsRef<Path>>(
+        &self,
+        path: P,
+        append: bool,
+    ) -> Result<(), GreenersError> {
         use csv::Writer;
         use std::fs::{File, OpenOptions};
 
         let file = if append {
-            OpenOptions::new()
-                .append(true)
-                .open(path)
-                .map_err(|e| {
-                    GreenersError::FormulaError(format!("Failed to open CSV file for append: {}", e))
-                })?
+            OpenOptions::new().append(true).open(path).map_err(|e| {
+                GreenersError::FormulaError(format!("Failed to open CSV file for append: {}", e))
+            })?
         } else {
             File::create(path).map_err(|e| {
                 GreenersError::FormulaError(format!("Failed to create CSV file: {}", e))
@@ -1996,14 +1997,15 @@ impl DataFrame {
         // Write headers only if not appending
         if !append {
             let column_names: Vec<String> = self.columns.keys().cloned().collect();
-            writer
-                .write_record(&column_names)
-                .map_err(|e| GreenersError::FormulaError(format!("Failed to write headers: {}", e)))?;
+            writer.write_record(&column_names).map_err(|e| {
+                GreenersError::FormulaError(format!("Failed to write headers: {}", e))
+            })?;
         }
 
         // Write data rows
         for i in 0..self.n_rows {
-            let row: Vec<String> = self.columns
+            let row: Vec<String> = self
+                .columns
                 .keys()
                 .map(|name| {
                     let col = &self.columns[name];
@@ -4593,58 +4595,39 @@ impl std::fmt::Display for DataFrame {
         }
 
         // Write header
-        write!(f, "│ ")?;
-        for (i, name) in column_names.iter().enumerate() {
-            if i > 0 {
-                write!(f, " │ ")?;
-            }
-            write!(f, "{:>width$}", name, width = widths[name])?;
+        write!(f, "│")?;
+        for name in &column_names {
+            write!(f, "{:>width$}│", name, width = widths[name])?;
         }
-        writeln!(f, " │")?;
+        writeln!(f)?;
 
         // Write separator
         write!(f, "├")?;
         for (i, name) in column_names.iter().enumerate() {
             if i > 0 {
-                write!(f, "─┼")?;
+                write!(f, "┼")?;
             }
-            write!(f, "─{:─<width$}─", "", width = widths[name])?;
+            write!(f, "{:─<width$}", "", width = widths[name])?;
         }
         writeln!(f, "┤")?;
 
         // Write rows (limit to 10 for display)
         let display_rows = self.n_rows.min(10);
         for row_idx in 0..display_rows {
-            write!(f, "│ ")?;
-            for (i, name) in column_names.iter().enumerate() {
-                if i > 0 {
-                    write!(f, " │ ")?;
-                }
+            write!(f, "│")?;
+            for name in &column_names {
                 let col = &self.columns[name];
-                match col.as_ref() {
-                    Column::Float(arr) => {
-                        write!(f, "{:>width$.2}", arr[row_idx], width = widths[name])?;
-                    }
-                    Column::Categorical(cat) => {
-                        let value_str = cat.get_string(row_idx).unwrap_or("NA");
-                        write!(f, "{:>width$}", value_str, width = widths[name])?;
-                    }
-                    Column::Bool(arr) => {
-                        write!(f, "{:>width$}", arr[row_idx], width = widths[name])?;
-                    }
-                    Column::Int(arr) => {
-                        write!(f, "{:>width$}", arr[row_idx], width = widths[name])?;
-                    }
-                    Column::DateTime(arr) => {
-                        let dt_str = arr[row_idx].format("%Y-%m-%d %H:%M:%S").to_string();
-                        write!(f, "{:>width$}", dt_str, width = widths[name])?;
-                    }
-                    Column::String(arr) => {
-                        write!(f, "{:>width$}", &arr[row_idx], width = widths[name])?;
-                    }
-                }
+                let value = match col.as_ref() {
+                    Column::Float(arr) => format!("{:.2}", arr[row_idx]),
+                    Column::Categorical(cat) => cat.get_string(row_idx).unwrap_or("NA").into(),
+                    Column::Bool(arr) => arr[row_idx].to_string(),
+                    Column::Int(arr) => arr[row_idx].to_string(),
+                    Column::DateTime(arr) => arr[row_idx].format("%Y-%m-%d %H:%M:%S").to_string(),
+                    Column::String(arr) => arr[row_idx].clone(),
+                };
+                write!(f, "{:>width$}│", value, width = widths[name])?;
             }
-            writeln!(f, " │")?;
+            writeln!(f)?;
         }
 
         // Show ellipsis if there are more rows
