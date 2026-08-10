@@ -147,7 +147,7 @@ impl FunctionalCoef {
 
         // Evaluation points: evenly spaced percentiles of z
         let mut z_sorted: Vec<f64> = z.iter().copied().collect();
-        z_sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        z_sorted.sort_by(|a, b| a.total_cmp(b));
         let z_points: Array1<f64> = (0..n_points)
             .map(|i| {
                 let frac = i as f64 / (n_points - 1).max(1) as f64;
@@ -253,7 +253,7 @@ impl FunctionalCoef {
         let std_val = z.std(0.0).max(1e-10);
         let iqr = {
             let mut sorted: Vec<f64> = z.iter().copied().collect();
-            sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            sorted.sort_by(|a, b| a.total_cmp(b));
             let q1 = sorted[sorted.len() / 4];
             let q3 = sorted[3 * sorted.len() / 4];
             (q3 - q1).abs().max(1e-10)

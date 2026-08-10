@@ -18,7 +18,7 @@ impl BetaLink {
         match self {
             BetaLink::Logit => (mu / (1.0 - mu)).ln(),
             BetaLink::Probit => {
-                let n = Normal::new(0.0, 1.0).unwrap();
+                let n = Normal::standard();
                 n.inverse_cdf(mu)
             }
             BetaLink::CLogLog => (-(-mu).ln_1p()).ln(),
@@ -29,7 +29,7 @@ impl BetaLink {
         match self {
             BetaLink::Logit => 1.0 / (1.0 + (-eta).exp()),
             BetaLink::Probit => {
-                let n = Normal::new(0.0, 1.0).unwrap();
+                let n = Normal::standard();
                 n.cdf(eta)
             }
             BetaLink::CLogLog => 1.0 - (-eta.exp()).exp(),
@@ -43,7 +43,7 @@ impl BetaLink {
                 p * (1.0 - p)
             }
             BetaLink::Probit => {
-                let n = Normal::new(0.0, 1.0).unwrap();
+                let n = Normal::standard();
                 use statrs::distribution::Continuous;
                 n.pdf(eta)
             }

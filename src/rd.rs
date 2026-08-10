@@ -116,7 +116,7 @@ impl fmt::Display for RdResult {
             if let (Some(fs_tau), Some(fs_se)) = (self.first_stage_tau, self.first_stage_se) {
                 let trt_label = self.treatment_name.as_deref().unwrap_or("D");
                 let fs_z = fs_tau / fs_se;
-                let fs_p = 2.0 * (1.0 - Normal::new(0.0, 1.0).unwrap().cdf(fs_z.abs()));
+                let fs_p = 2.0 * (1.0 - Normal::standard().cdf(fs_z.abs()));
                 writeln!(f, " Primeira Etapa ({}):", trt_label)?;
                 writeln!(
                     f,
@@ -197,7 +197,7 @@ impl RD {
         let var_tau = (vcov_l[[0, 0]] + vcov_r[[0, 0]]).max(0.0);
         let se = var_tau.sqrt();
         let z = tau / se;
-        let norm = Normal::new(0.0, 1.0).unwrap();
+        let norm = Normal::standard();
         let p_value = 2.0 * (1.0 - norm.cdf(z.abs()));
         let z95 = 1.959_963_985;
         let (outcome_name, running_name) = variable_names
@@ -293,7 +293,7 @@ impl RD {
         let se_fs = var_fs.max(0.0).sqrt();
 
         let z = tau / se;
-        let norm = Normal::new(0.0, 1.0).unwrap();
+        let norm = Normal::standard();
         let p_value = 2.0 * (1.0 - norm.cdf(z.abs()));
         let z95 = 1.959_963_985;
 

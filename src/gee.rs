@@ -818,7 +818,7 @@ fn apply_inv_link(link: &Link, eta: f64) -> f64 {
         Link::Log => eta.exp(),
         Link::Logit => 1.0 / (1.0 + (-eta).exp()),
         Link::Probit => {
-            let n = Normal::new(0.0, 1.0).unwrap();
+            let n = Normal::standard();
             n.cdf(eta)
         }
         Link::InversePower => 1.0 / eta.max(1e-10),
@@ -843,7 +843,7 @@ fn apply_dinv_link(link: &Link, eta: f64) -> f64 {
         }
         Link::Probit => {
             use statrs::distribution::Continuous;
-            let n = Normal::new(0.0, 1.0).unwrap();
+            let n = Normal::standard();
             n.pdf(eta)
         }
         Link::InversePower => -1.0 / (eta * eta).max(1e-10),

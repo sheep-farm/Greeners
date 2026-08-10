@@ -192,7 +192,7 @@ impl PSTR {
         // Grid search over (gamma, c)
         // c: percentiles of q_dm (15th to 85th)
         let mut q_sorted: Vec<f64> = q_dm.iter().copied().collect();
-        q_sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        q_sorted.sort_by(|a, b| a.total_cmp(b));
         let n_c_grid = 9;
         let c_grid: Vec<f64> = (0..n_c_grid)
             .map(|i| {

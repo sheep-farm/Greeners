@@ -369,7 +369,9 @@ impl OlsResult {
     where
         F: Fn(&[f64]) -> f64,
     {
-        let params = self.params.as_slice().unwrap();
+        let params = self.params.as_slice().ok_or_else(|| {
+            GreenersError::InvalidOperation("Non-contiguous parameter array".to_string())
+        })?;
         let k = params.len();
         let g_hat = g(params);
 

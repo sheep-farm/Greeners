@@ -18,7 +18,7 @@ impl Transforms {
             (true, true) => std::cmp::Ordering::Equal,
             (true, false) => std::cmp::Ordering::Greater,
             (false, true) => std::cmp::Ordering::Less,
-            (false, false) => vals[a].partial_cmp(&vals[b]).unwrap(),
+            (false, false) => vals[a].total_cmp(&vals[b]),
         });
         let mut ranks = vec![0.0f64; n];
         let mut i = 0;
@@ -82,7 +82,7 @@ impl Transforms {
         if sorted.is_empty() {
             return f64::NAN;
         }
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.sort_by(|a, b| a.total_cmp(b));
         let n = sorted.len();
         let q25 = sorted[(0.25 * (n - 1) as f64).round() as usize];
         let q75 = sorted[(0.75 * (n - 1) as f64).round() as usize];
@@ -101,9 +101,8 @@ impl Transforms {
         if unique.iter().all(|s| s.parse::<f64>().is_ok()) {
             unique.sort_by(|a, b| {
                 a.parse::<f64>()
-                    .unwrap()
-                    .partial_cmp(&b.parse::<f64>().unwrap())
-                    .unwrap()
+                    .unwrap_or(f64::NAN)
+                    .total_cmp(&b.parse::<f64>().unwrap_or(f64::NAN))
             });
         } else {
             unique.sort();

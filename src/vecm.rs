@@ -363,7 +363,7 @@ impl VECM {
             })
             .collect();
 
-        pairs.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+        pairs.sort_by(|a, b| b.0.total_cmp(&a.0));
 
         let sorted_eigenvalues: Array1<f64> = Array1::from_vec(pairs.iter().map(|p| p.0).collect());
 
@@ -378,13 +378,10 @@ impl VECM {
 
         let cointegration_term = r1.dot(&beta_est);
 
-        let alpha_est = r0.t().dot(&cointegration_term).dot(
-            &cointegration_term
-                .t()
-                .dot(&cointegration_term)
-                .inv()
-                .unwrap(),
-        );
+        let alpha_est = r0
+            .t()
+            .dot(&cointegration_term)
+            .dot(&cointegration_term.t().dot(&cointegration_term).inv()?);
 
         let error_correction = y_lag_level.dot(&beta_est).dot(&alpha_est.t());
         let dy_clean = &dy_target - &error_correction;

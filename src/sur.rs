@@ -150,7 +150,7 @@ impl SUR {
         // 5. Empacotar Resultados
         let mut final_results = Vec::new();
         let mut cursor = 0;
-        let normal = statrs::distribution::Normal::new(0.0, 1.0).unwrap();
+        let normal = statrs::distribution::Normal::standard();
         use statrs::distribution::ContinuousCDF;
 
         for (i, eq) in equations.iter().enumerate() {
@@ -169,7 +169,12 @@ impl SUR {
             // R2
             let pred = eq.x.dot(&params);
             let res = &eq.y - &pred;
-            let sst = (&eq.y - eq.y.mean().unwrap()).mapv(|v| v.powi(2)).sum();
+            let sst = (&eq.y
+                - eq.y.mean().ok_or_else(|| {
+                    GreenersError::InvalidOperation("Empty dependent variable".to_string())
+                })?)
+            .mapv(|v| v.powi(2))
+            .sum();
             let ssr = res.mapv(|v| v.powi(2)).sum();
             let r2 = 1.0 - (ssr / sst);
 

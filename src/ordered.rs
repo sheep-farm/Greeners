@@ -108,7 +108,7 @@ impl OrderedResult {
                     if is_logit {
                         1.0 / (1.0 + (-z).exp())
                     } else {
-                        let normal = Normal::new(0.0, 1.0).unwrap();
+                        let normal = Normal::standard();
                         normal.cdf(z)
                     }
                 } else {
@@ -120,7 +120,7 @@ impl OrderedResult {
                     if is_logit {
                         1.0 / (1.0 + (-z).exp())
                     } else {
-                        let normal = Normal::new(0.0, 1.0).unwrap();
+                        let normal = Normal::standard();
                         normal.cdf(z)
                     }
                 } else {
@@ -171,12 +171,12 @@ fn logistic_pdf(z: f64) -> f64 {
 }
 
 fn normal_cdf(z: f64) -> f64 {
-    let normal = Normal::new(0.0, 1.0).unwrap();
+    let normal = Normal::standard();
     normal.cdf(z)
 }
 
 fn normal_pdf(z: f64) -> f64 {
-    let normal = Normal::new(0.0, 1.0).unwrap();
+    let normal = Normal::standard();
     normal.pdf(z)
 }
 
@@ -274,7 +274,7 @@ fn fit_ordered(
 
     // Sort categories
     let mut categories: Vec<f64> = y.iter().copied().collect();
-    categories.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    categories.sort_by(|a, b| a.total_cmp(b));
     categories.dedup();
     let j = categories.len();
 
@@ -590,7 +590,7 @@ fn fit_ordered(
 
     // Extract SEs
     let std_errors: Array1<f64> = (0..k).map(|i| cov_matrix[[i, i]].max(0.0).sqrt()).collect();
-    let normal_dist = Normal::new(0.0, 1.0).unwrap();
+    let normal_dist = Normal::standard();
     let z_values = &beta / &std_errors.mapv(|se| if se > 1e-15 { se } else { 1.0 });
     let p_values = z_values.mapv(|z| 2.0 * (1.0 - normal_dist.cdf(z.abs())));
 

@@ -295,7 +295,7 @@ impl TvCopula {
         let mut u = Array1::zeros(t);
 
         let mut sorted: Vec<(usize, f64)> = (0..t).map(|i| (i, col[i])).collect();
-        sorted.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        sorted.sort_by(|a, b| a.1.total_cmp(&b.1));
 
         for (rank, &(orig_idx, _)) in sorted.iter().enumerate() {
             u[orig_idx] = (rank + 1) as f64 / (t + 1) as f64;
@@ -305,7 +305,7 @@ impl TvCopula {
     }
 
     fn inv_normal_cdf(p: f64) -> f64 {
-        let normal = Normal::new(0.0, 1.0).unwrap();
+        let normal = Normal::standard();
         normal.inverse_cdf(p)
     }
 }

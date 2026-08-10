@@ -113,7 +113,7 @@ impl IsotonicRegression {
 
         // Sort by x
         let mut indices: Vec<usize> = (0..n).collect();
-        indices.sort_by(|&a, &b| x[a].partial_cmp(&x[b]).unwrap());
+        indices.sort_by(|&a, &b| x[a].total_cmp(&x[b]));
 
         let x_sorted: Array1<f64> = indices.iter().map(|&i| x[i]).collect();
         let y_sorted: Array1<f64> = indices.iter().map(|&i| y[i]).collect();
@@ -250,8 +250,8 @@ impl IsotonicRegression {
             // Find the step that x falls into
             if x <= result.x_steps[0] {
                 pred[i] = result.y_steps[0];
-            } else if x >= *result.x_steps.last().unwrap() {
-                pred[i] = *result.y_steps.last().unwrap();
+            } else if x >= result.x_steps.last().copied().unwrap_or(f64::INFINITY) {
+                pred[i] = result.y_steps.last().copied().unwrap_or(f64::NAN);
             } else {
                 // Find the interval
                 let mut found = false;
@@ -265,7 +265,7 @@ impl IsotonicRegression {
                     }
                 }
                 if !found {
-                    pred[i] = *result.y_steps.last().unwrap();
+                    pred[i] = result.y_steps.last().copied().unwrap_or(f64::NAN);
                 }
             }
         }

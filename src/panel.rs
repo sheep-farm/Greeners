@@ -558,7 +558,9 @@ impl RandomEffects {
 
         // R2 Overall (Correlação entre Y predito e Y real original)
         let pred_original = x.dot(&final_model.params);
-        let y_mean_total = y.mean().unwrap();
+        let y_mean_total = y.mean().ok_or_else(|| {
+            GreenersError::InvalidOperation("Empty dependent variable".to_string())
+        })?;
         let sst = (y - y_mean_total).mapv(|v| v.powi(2)).sum();
         let ssr = (y - &pred_original).mapv(|v| v.powi(2)).sum();
         let r2_overall = 1.0 - (ssr / sst);

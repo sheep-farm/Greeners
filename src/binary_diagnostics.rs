@@ -290,7 +290,7 @@ impl BinaryDiagnostics {
         // Rank probabilities (ascending), average ranks for ties
         let mut indexed: Vec<(usize, f64)> =
             probs.iter().enumerate().map(|(i, &p)| (i, p)).collect();
-        indexed.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        indexed.sort_by(|a, b| a.1.total_cmp(&b.1));
 
         // Assign average ranks (1-based)
         let mut ranks = vec![0.0_f64; n];
@@ -329,7 +329,7 @@ impl BinaryDiagnostics {
 
         // Compute ROC curve points (FPR, TPR) at sorted unique thresholds
         let mut sorted_probs: Vec<f64> = probs.to_vec();
-        sorted_probs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        sorted_probs.sort_by(|a, b| a.total_cmp(b));
         sorted_probs.dedup_by(|a, b| a == b);
 
         let mut fpr = Vec::new();
@@ -413,7 +413,7 @@ impl BinaryDiagnostics {
             .zip(probs.iter())
             .map(|(&yi, &pi)| (yi, pi))
             .collect();
-        indexed.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        indexed.sort_by(|a, b| a.1.total_cmp(&b.1));
 
         // Divide into groups of approximately equal size
         let group_size = n as f64 / n_groups as f64;
@@ -497,7 +497,7 @@ impl BinaryDiagnostics {
 
         // Re-estimate logit
         let result = Logit::fit(y, &x_new)?;
-        let normal = Normal::new(0.0, 1.0).unwrap();
+        let normal = Normal::standard();
 
         // Coefficient on ŷ² is at index 2
         let hatsq_coef = result.params[2];

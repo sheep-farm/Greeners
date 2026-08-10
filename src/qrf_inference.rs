@@ -110,7 +110,7 @@ impl fmt::Display for QrfInferenceResult {
             .zip(self.feature_importance.iter())
             .map(|(name, &imp)| (name.clone(), imp))
             .collect();
-        imp_vec.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        imp_vec.sort_by(|a, b| b.1.total_cmp(&a.1));
         writeln!(f, "  {:<14} {:>12}", "Feature", "Importance")?;
         writeln!(f, "{:-^78}", "")?;
         for (name, imp) in imp_vec {
@@ -178,7 +178,8 @@ impl QrfInference {
                         data.push(x[(i, j)]);
                     }
                 }
-                Array2::from_shape_vec((n, k), data).unwrap()
+                Array2::from_shape_vec((n, k), data)
+                    .map_err(|e| GreenersError::ShapeMismatch(format!("{}", e)))?
             };
 
             // Fit QRF on bootstrap sample, predict on original x
@@ -235,7 +236,7 @@ impl QrfInference {
                     lower[(i, j)] = point_estimates[(i, j)];
                     upper[(i, j)] = point_estimates[(i, j)];
                 } else {
-                    boot_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                    boot_vals.sort_by(|a, b| a.total_cmp(b));
                     let n_b = boot_vals.len();
                     let lo_idx = lower_pct.min(n_b - 1);
                     let hi_idx = upper_pct.min(n_b - 1);

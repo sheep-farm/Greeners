@@ -37,13 +37,11 @@ fn test_tobit_no_censoring_equals_ols() {
 }
 
 /// A model with all observations censored must not return a normal result.
-/// (The current implementation panics on empty uncensored subsample.)
 #[test]
-#[should_panic]
 fn test_tobit_all_censored_fails() {
     let y = Array1::from(vec![0.0; 10]);
     let x = Array2::from_shape_vec((10, 1), (0..10).map(|i| i as f64).collect()).unwrap();
-    let _ = Tobit::fit(&y, &x, 0.0, None).is_ok();
+    assert!(Tobit::fit(&y, &x, 0.0, None).is_err());
 }
 
 /// Tobit recovers the true latent coefficients when censoring is present.

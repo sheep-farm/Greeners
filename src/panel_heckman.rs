@@ -414,10 +414,11 @@ impl PanelHeckman {
         idx = 0;
         for i in 0..n {
             if z[i] {
-                let panel_mean = panel_resid_sums.get(&panel_ids[i]).unwrap().0
-                    / panel_resid_sums.get(&panel_ids[i]).unwrap().1 as f64;
-                within_var += (residuals[idx] - panel_mean).powi(2);
-                idx += 1;
+                if let Some(&(sum, count)) = panel_resid_sums.get(&panel_ids[i]) {
+                    let panel_mean = sum / count as f64;
+                    within_var += (residuals[idx] - panel_mean).powi(2);
+                    idx += 1;
+                }
             }
         }
         let n_sel_panels = panel_resid_sums.len();

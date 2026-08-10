@@ -290,9 +290,9 @@ fn loess_smooth(y: &[f64], span: f64) -> Vec<f64> {
 
         // Find the h nearest neighbors
         let mut dists: Vec<(usize, f64)> = (0..n).map(|j| (j, (j as f64 - x_i).abs())).collect();
-        dists.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        dists.sort_by(|a, b| a.1.total_cmp(&b.1));
         let neighbors = &dists[..h];
-        let max_dist = neighbors.last().unwrap().1.max(1e-10);
+        let max_dist = neighbors.last().map(|(_, d)| d.max(1e-10)).unwrap_or(1e-10);
 
         // Tricube weights
         let mut sum_w = 0.0;

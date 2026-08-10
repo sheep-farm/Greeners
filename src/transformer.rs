@@ -202,7 +202,12 @@ impl Transformer {
                 }
 
                 // Output: ff_hidden * W_out
-                let y_hat = Self::dot(&ff_hidden, w_out.as_slice().unwrap());
+                let y_hat = Self::dot(
+                    &ff_hidden,
+                    w_out.as_slice().ok_or_else(|| {
+                        GreenersError::InvalidOperation("Non-contiguous weights".to_string())
+                    })?,
+                );
                 let y_true = y_norm[sample + seq];
 
                 let error = y_hat - y_true;
@@ -366,7 +371,7 @@ impl Transformer {
             ff_hidden[j] = s.max(0.0);
         }
 
-        Self::dot(&ff_hidden, w_out.as_slice().unwrap())
+        Self::dot(&ff_hidden, crate::array1_slice(w_out))
     }
 
     fn init_matrix(m: &mut Array2<f64>, rows: usize, cols: usize) {

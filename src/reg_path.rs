@@ -155,7 +155,8 @@ impl RegPath {
                     data.push((x[(i, j)] - x_mean[j]) / x_std[j]);
                 }
             }
-            Array2::from_shape_vec((n, p), data).unwrap()
+            Array2::from_shape_vec((n, p), data)
+                .map_err(|e| GreenersError::ShapeMismatch(format!("{}", e)))?
         };
         let y_norm: Array1<f64> = y.mapv(|v| (v - y_mean) / y_std);
 

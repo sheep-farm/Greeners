@@ -142,7 +142,7 @@ impl UMAP {
                 .filter(|&j| j != i)
                 .map(|j| (j, dists[(i, j)]))
                 .collect();
-            neighbors.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+            neighbors.sort_by(|a, b| a.1.total_cmp(&b.1));
 
             // Compute sigma_i (local connectivity)
             let rho_i = neighbors.first().map(|(_, d)| *d).unwrap_or(0.0);

@@ -84,7 +84,7 @@ impl fmt::Display for GrfResult {
             .zip(self.feature_importance.iter())
             .map(|(name, &imp)| (name.clone(), imp, imp / total * 100.0))
             .collect();
-        imp_vec.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        imp_vec.sort_by(|a, b| b.1.total_cmp(&a.1));
         writeln!(
             f,
             "  {:<14} {:>12} {:>10}",
@@ -98,7 +98,7 @@ impl fmt::Display for GrfResult {
         // CATE distribution
         writeln!(f, "\n  CATE distribution:")?;
         let mut sorted = self.cate.to_vec();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.sort_by(|a, b| a.total_cmp(b));
         let n = sorted.len();
         writeln!(
             f,
@@ -424,7 +424,7 @@ impl GRF {
 
         for &feat in features {
             let mut values: Vec<f64> = indices.iter().map(|&i| x[(i, feat)]).collect();
-            values.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            values.sort_by(|a, b| a.total_cmp(b));
             if values.len() < 4 {
                 continue;
             }
@@ -531,5 +531,5 @@ struct RegNode {
 // Use Normal for CI (already imported)
 #[allow(dead_code)]
 fn _ensure_normal_used() {
-    let _ = Normal::new(0.0, 1.0).unwrap().cdf(0.5);
+    let _ = Normal::standard().cdf(0.5);
 }

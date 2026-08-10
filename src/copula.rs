@@ -212,7 +212,7 @@ impl Copula {
             // Get ranks
             let col: Vec<(usize, f64)> = (0..t).map(|i| (i, x[(i, j)])).collect();
             let mut sorted = col.clone();
-            sorted.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+            sorted.sort_by(|a, b| a.1.total_cmp(&b.1));
 
             let mut ranks = vec![0usize; t];
             for (rank, &(orig_idx, _)) in sorted.iter().enumerate() {
@@ -269,7 +269,7 @@ impl Copula {
         for j in 0..k {
             let col: Vec<(usize, f64)> = (0..t).map(|i| (i, x[(i, j)])).collect();
             let mut sorted = col.clone();
-            sorted.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+            sorted.sort_by(|a, b| a.1.total_cmp(&b.1));
             for (rank, &(orig_idx, _)) in sorted.iter().enumerate() {
                 ranks[(orig_idx, j)] = (rank + 1) as f64;
             }
@@ -475,7 +475,7 @@ impl Copula {
     /// Convert uniform back to x (for Kendall's tau computation).
     fn u_to_x(u: &Array2<f64>) -> Array2<f64> {
         // Use quantile function of standard normal
-        let normal = Normal::new(0.0, 1.0).unwrap();
+        let normal = Normal::standard();
         u.mapv(|p| normal.inverse_cdf(p.clamp(1e-10, 1.0 - 1e-10)))
     }
 }

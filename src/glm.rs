@@ -201,7 +201,7 @@ impl Link {
             }
             Link::Probit => {
                 let mu_c = mu.clamp(1e-10, 1.0 - 1e-10);
-                let normal = Normal::new(0.0, 1.0).unwrap();
+                let normal = Normal::standard();
                 normal.inverse_cdf(mu_c)
             }
             Link::InversePower => 1.0 / mu.max(1e-10),
@@ -238,7 +238,7 @@ impl Link {
                 1.0 / (1.0 + (-e).exp())
             }
             Link::Probit => {
-                let normal = Normal::new(0.0, 1.0).unwrap();
+                let normal = Normal::standard();
                 normal.cdf(eta)
             }
             Link::InversePower => 1.0 / eta.max(1e-10),
@@ -279,7 +279,7 @@ impl Link {
             }
             Link::Probit => {
                 let mu_c = mu.clamp(1e-10, 1.0 - 1e-10);
-                let normal = Normal::new(0.0, 1.0).unwrap();
+                let normal = Normal::standard();
                 let eta = normal.inverse_cdf(mu_c);
                 use statrs::distribution::Continuous;
                 1.0 / normal.pdf(eta).max(1e-10)
@@ -415,7 +415,7 @@ impl GlmResult {
 
     /// Compute confidence intervals at a custom significance level.
     pub fn conf_int(&self, alpha: f64) -> Vec<(f64, f64)> {
-        let normal_dist = Normal::new(0.0, 1.0).unwrap();
+        let normal_dist = Normal::standard();
         let z_crit = normal_dist.inverse_cdf(1.0 - alpha / 2.0);
 
         (0..self.params.len())
@@ -468,7 +468,7 @@ impl GlmResult {
             })
             .collect();
 
-        let normal_dist = Normal::new(0.0, 1.0).unwrap();
+        let normal_dist = Normal::standard();
         let z_crit = normal_dist.inverse_cdf(1.0 - alpha / 2.0);
         let margin = &se_mu * z_crit;
         let ci_lower = &mu - &margin;
@@ -948,7 +948,7 @@ impl GLM {
         let df_model = k.saturating_sub(1); // excluding intercept
 
         // Inference
-        let normal_dist = Normal::new(0.0, 1.0).unwrap();
+        let normal_dist = Normal::standard();
         let p_values = z_values.mapv(|z| 2.0 * (1.0 - normal_dist.cdf(z.abs())));
         let z_crit = normal_dist.inverse_cdf(0.975);
         let margin = &std_errors * z_crit;

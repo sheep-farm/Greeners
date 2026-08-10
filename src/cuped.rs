@@ -94,9 +94,7 @@ impl fmt::Display for CupedResult {
             },
             if self.unadjusted_se > 1e-10 {
                 2.0 * (1.0
-                    - Normal::new(0.0, 1.0)
-                        .unwrap()
-                        .cdf((self.unadjusted_effect / self.unadjusted_se).abs()))
+                    - Normal::standard().cdf((self.unadjusted_effect / self.unadjusted_se).abs()))
             } else {
                 0.0
             }

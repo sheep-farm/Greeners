@@ -75,7 +75,7 @@ impl fmt::Display for RandomForestResult {
             .zip(self.feature_importance.iter())
             .map(|(name, &imp)| (name.clone(), imp, imp / total * 100.0))
             .collect();
-        imp_vec.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        imp_vec.sort_by(|a, b| b.1.total_cmp(&a.1));
         writeln!(
             f,
             "  {:<14} {:>12} {:>10}",
@@ -361,7 +361,7 @@ impl RandomForest {
         for &feat in features {
             // Candidate thresholds: percentiles of x[:, feat]
             let mut values: Vec<f64> = indices.iter().map(|&i| x[(i, feat)]).collect();
-            values.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            values.sort_by(|a, b| a.total_cmp(b));
 
             if values.len() < 2 {
                 continue;

@@ -164,7 +164,7 @@ impl NegBinResult {
 
     /// Confidence intervals.
     pub fn conf_int(&self, alpha: f64) -> Vec<(f64, f64)> {
-        let normal = Normal::new(0.0, 1.0).unwrap();
+        let normal = Normal::standard();
         let z = normal.inverse_cdf(1.0 - alpha / 2.0);
         (0..self.params.len())
             .map(|i| {
@@ -180,7 +180,7 @@ impl NegBinResult {
     pub fn get_prediction(&self, x_new: &Array2<f64>, alpha: f64) -> PredictionResult {
         let eta = x_new.dot(&self.params);
         let mu = eta.mapv(f64::exp);
-        let normal = Normal::new(0.0, 1.0).unwrap();
+        let normal = Normal::standard();
         let z = normal.inverse_cdf(1.0 - alpha / 2.0);
 
         let n = x_new.nrows();
@@ -215,7 +215,9 @@ impl NegBinResult {
         let lr_stat = 2.0 * (self.log_likelihood - poisson_ll);
         // Under H0 (boundary), the mixture gives p = 0.5 * P(chi2(1) > LR)
         let p_value = if lr_stat > 0.0 {
-            let chi2 = statrs::distribution::ChiSquared::new(1.0).unwrap();
+            let Ok(chi2) = statrs::distribution::ChiSquared::new(1.0) else {
+                return (lr_stat, f64::NAN);
+            };
             0.5 * (1.0 - chi2.cdf(lr_stat))
         } else {
             1.0
@@ -691,7 +693,7 @@ impl NegBinP {
         let cov = fisher.inv().unwrap_or(Array2::eye(k) * 1e-4);
         let std_errors: Array1<f64> = (0..k).map(|i| cov[[i, i]].max(0.0).sqrt()).collect();
 
-        let normal = Normal::new(0.0, 1.0).unwrap();
+        let normal = Normal::standard();
         let z_values = &beta / std_errors.mapv(|s| if s > 1e-15 { s } else { 1.0 });
         let p_values = z_values.mapv(|z| 2.0 * (1.0 - normal.cdf(z.abs())));
         let z_crit = normal.inverse_cdf(0.975);
@@ -852,7 +854,7 @@ impl GenPoisson {
         let cov = fisher.inv().unwrap_or(Array2::eye(k) * 1e-4);
         let std_errors: Array1<f64> = (0..k).map(|i| cov[[i, i]].max(0.0).sqrt()).collect();
 
-        let normal = Normal::new(0.0, 1.0).unwrap();
+        let normal = Normal::standard();
         let z_values = &beta / std_errors.mapv(|s| if s > 1e-15 { s } else { 1.0 });
         let p_values = z_values.mapv(|z| 2.0 * (1.0 - normal.cdf(z.abs())));
         let z_crit = normal.inverse_cdf(0.975);

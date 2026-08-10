@@ -111,7 +111,7 @@ impl KDEUnivariate {
 
             // IQR-based estimate
             let mut sorted: Vec<f64> = data.iter().cloned().collect();
-            sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            sorted.sort_by(|a, b| a.total_cmp(b));
             let q1 = sorted[n / 4];
             let q3 = sorted[3 * n / 4];
             let iqr = q3 - q1;
@@ -199,7 +199,7 @@ impl Lowess {
 
         // Sort by x
         let mut indices: Vec<usize> = (0..n).collect();
-        indices.sort_by(|&a, &b| x[a].partial_cmp(&x[b]).unwrap());
+        indices.sort_by(|&a, &b| x[a].total_cmp(&x[b]));
 
         let x_sorted: Vec<f64> = indices.iter().map(|&i| x[i]).collect();
         let y_sorted: Vec<f64> = indices.iter().map(|&i| y[i]).collect();
@@ -216,7 +216,7 @@ impl Lowess {
                     .map(|i| (y_sorted[i] - smoothed_sorted[i]).abs())
                     .collect();
                 let mut sorted_resid = resid.clone();
-                sorted_resid.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                sorted_resid.sort_by(|a, b| a.total_cmp(b));
                 let median_resid = sorted_resid[n / 2];
                 let u_scale = 6.0 * median_resid;
 
@@ -260,7 +260,7 @@ fn loess_smooth(x: &[f64], y: &[f64], w: &[f64], span: usize) -> Vec<f64> {
             let xp = x[idx];
 
             let mut dists: Vec<(usize, f64)> = (0..n).map(|i| (i, (x[i] - xp).abs())).collect();
-            dists.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+            dists.sort_by(|a, b| a.1.total_cmp(&b.1));
 
             let max_dist = dists[h - 1].1.max(1e-15);
 

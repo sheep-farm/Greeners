@@ -67,7 +67,7 @@ impl DataFrame {
         }
 
         // Check that all columns have the same length
-        let first_len = columns.values().next().unwrap().len();
+        let first_len = columns.values().next().map_or(0, |c| c.len());
         for (name, col) in &columns {
             if col.len() != first_len {
                 return Err(GreenersError::ShapeMismatch(format!(
@@ -115,7 +115,7 @@ impl DataFrame {
         }
 
         // Check that all columns have the same length
-        let first_len = columns.values().next().unwrap().len();
+        let first_len = columns.values().next().map_or(0, |c| c.len());
         for (name, col) in &columns {
             if col.len() != first_len {
                 return Err(GreenersError::ShapeMismatch(format!(
@@ -145,7 +145,7 @@ impl DataFrame {
                 n_rows: 0,
             });
         }
-        let first_len = columns.values().next().unwrap().len();
+        let first_len = columns.values().next().map_or(0, |c| c.len());
         for (name, col) in &columns {
             if col.len() != first_len {
                 return Err(GreenersError::ShapeMismatch(format!(
@@ -1134,7 +1134,10 @@ impl DataFrame {
 
             for (i, field) in record.iter().enumerate() {
                 let header = &headers[i];
-                raw_columns.get_mut(header).unwrap().push(field.to_string());
+                raw_columns
+                    .entry(header.to_string())
+                    .or_default()
+                    .push(field.to_string());
             }
         }
 
@@ -1211,7 +1214,10 @@ impl DataFrame {
 
             for (i, field) in record.iter().enumerate() {
                 let header = &headers[i];
-                raw_columns.get_mut(header).unwrap().push(field.to_string());
+                raw_columns
+                    .entry(header.to_string())
+                    .or_default()
+                    .push(field.to_string());
             }
         }
 
@@ -1689,7 +1695,7 @@ impl DataFrame {
                 let arr = col.to_float();
                 let mut sorted = arr.to_vec();
                 // Handle NaN values by treating them as greater than all other values
-                sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                sorted.sort_by(|a, b| a.total_cmp(b));
                 let mid = sorted.len() / 2;
                 let median = if sorted.len() % 2 == 0 {
                     (sorted[mid - 1] + sorted[mid]) / 2.0
@@ -1869,7 +1875,7 @@ impl DataFrame {
         // Create index vector and sort it based on the column values
         let mut indices: Vec<usize> = (0..self.n_rows).collect();
         indices.sort_by(|&a, &b| {
-            let cmp = sort_col[a].partial_cmp(&sort_col[b]).unwrap();
+            let cmp = sort_col[a].total_cmp(&sort_col[b]);
             if ascending {
                 cmp
             } else {
@@ -2059,18 +2065,32 @@ impl DataFrame {
         let mut data: IndexMap<String, serde_json::Value> = IndexMap::new();
         for (name, col) in &self.columns {
             let value = match col.as_ref() {
-                Column::Float(arr) => serde_json::to_value(arr.to_vec()).unwrap(),
-                Column::Categorical(cat) => serde_json::to_value(cat.to_strings()).unwrap(),
-                Column::Bool(arr) => serde_json::to_value(arr.to_vec()).unwrap(),
-                Column::Int(arr) => serde_json::to_value(arr.to_vec()).unwrap(),
+                Column::Float(arr) => serde_json::to_value(arr.to_vec()).map_err(|e| {
+                    GreenersError::FormulaError(format!("JSON serialization failed: {}", e))
+                })?,
+                Column::Categorical(cat) => {
+                    serde_json::to_value(cat.to_strings()).map_err(|e| {
+                        GreenersError::FormulaError(format!("JSON serialization failed: {}", e))
+                    })?
+                }
+                Column::Bool(arr) => serde_json::to_value(arr.to_vec()).map_err(|e| {
+                    GreenersError::FormulaError(format!("JSON serialization failed: {}", e))
+                })?,
+                Column::Int(arr) => serde_json::to_value(arr.to_vec()).map_err(|e| {
+                    GreenersError::FormulaError(format!("JSON serialization failed: {}", e))
+                })?,
                 Column::DateTime(arr) => {
                     let strings: Vec<String> = arr
                         .iter()
                         .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
                         .collect();
-                    serde_json::to_value(strings).unwrap()
+                    serde_json::to_value(strings).map_err(|e| {
+                        GreenersError::FormulaError(format!("JSON serialization failed: {}", e))
+                    })?
                 }
-                Column::String(arr) => serde_json::to_value(arr.to_vec()).unwrap(),
+                Column::String(arr) => serde_json::to_value(arr.to_vec()).map_err(|e| {
+                    GreenersError::FormulaError(format!("JSON serialization failed: {}", e))
+                })?,
             };
             data.insert(name.clone(), value);
         }
@@ -2288,7 +2308,11 @@ impl DataFrame {
                 (Column::Float(arr1), Column::Float(arr2)) => {
                     // Concatenate Float columns
                     let mut combined_vec = arr1.to_vec();
-                    combined_vec.extend_from_slice(arr2.as_slice().unwrap());
+                    combined_vec.extend_from_slice(arr2.as_slice().ok_or_else(|| {
+                        GreenersError::InvalidOperation(
+                            "Non-contiguous array in concat".to_string(),
+                        )
+                    })?);
                     Column::Float(Array1::from(combined_vec))
                 }
                 (Column::Categorical(cat1), Column::Categorical(cat2)) => {
@@ -2301,25 +2325,41 @@ impl DataFrame {
                 (Column::Bool(arr1), Column::Bool(arr2)) => {
                     // Concatenate Bool columns
                     let mut combined_vec = arr1.to_vec();
-                    combined_vec.extend_from_slice(arr2.as_slice().unwrap());
+                    combined_vec.extend_from_slice(arr2.as_slice().ok_or_else(|| {
+                        GreenersError::InvalidOperation(
+                            "Non-contiguous array in concat".to_string(),
+                        )
+                    })?);
                     Column::Bool(Array1::from(combined_vec))
                 }
                 (Column::Int(arr1), Column::Int(arr2)) => {
                     // Concatenate Int columns
                     let mut combined_vec = arr1.to_vec();
-                    combined_vec.extend_from_slice(arr2.as_slice().unwrap());
+                    combined_vec.extend_from_slice(arr2.as_slice().ok_or_else(|| {
+                        GreenersError::InvalidOperation(
+                            "Non-contiguous array in concat".to_string(),
+                        )
+                    })?);
                     Column::Int(Array1::from(combined_vec))
                 }
                 (Column::DateTime(arr1), Column::DateTime(arr2)) => {
                     // Concatenate DateTime columns
                     let mut combined_vec = arr1.to_vec();
-                    combined_vec.extend_from_slice(arr2.as_slice().unwrap());
+                    combined_vec.extend_from_slice(arr2.as_slice().ok_or_else(|| {
+                        GreenersError::InvalidOperation(
+                            "Non-contiguous array in concat".to_string(),
+                        )
+                    })?);
                     Column::DateTime(Array1::from(combined_vec))
                 }
                 (Column::String(arr1), Column::String(arr2)) => {
                     // Concatenate String columns
                     let mut combined_vec = arr1.to_vec();
-                    combined_vec.extend_from_slice(arr2.as_slice().unwrap());
+                    combined_vec.extend_from_slice(arr2.as_slice().ok_or_else(|| {
+                        GreenersError::InvalidOperation(
+                            "Non-contiguous array in concat".to_string(),
+                        )
+                    })?);
                     Column::String(Array1::from(combined_vec))
                 }
                 _ => {
@@ -2886,7 +2926,7 @@ impl DataFrame {
                     if valid_values.is_empty() {
                         col_data.clone()
                     } else {
-                        valid_values.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                        valid_values.sort_by(|a, b| a.total_cmp(b));
                         let mid = valid_values.len() / 2;
                         let median = if valid_values.len() % 2 == 0 {
                             (valid_values[mid - 1] + valid_values[mid]) / 2.0
@@ -3316,11 +3356,17 @@ impl DataFrame {
                         if (left_val - right_key[j]).abs() < 1e-10 {
                             // Match found
                             for (col_name, col_data) in &left_arrays {
-                                result_data.get_mut(col_name).unwrap().push(col_data[i]);
+                                result_data
+                                    .entry(col_name.to_string())
+                                    .or_default()
+                                    .push(col_data[i]);
                             }
                             for (col_name, col_data) in &right_arrays {
                                 if col_name != on {
-                                    result_data.get_mut(col_name).unwrap().push(col_data[j]);
+                                    result_data
+                                        .entry(col_name.to_string())
+                                        .or_default()
+                                        .push(col_data[j]);
                                 }
                             }
                         }
@@ -3337,11 +3383,17 @@ impl DataFrame {
                         if (left_val - right_key[j]).abs() < 1e-10 {
                             found = true;
                             for (col_name, col_data) in &left_arrays {
-                                result_data.get_mut(col_name).unwrap().push(col_data[i]);
+                                result_data
+                                    .entry(col_name.to_string())
+                                    .or_default()
+                                    .push(col_data[i]);
                             }
                             for (col_name, col_data) in &right_arrays {
                                 if col_name != on {
-                                    result_data.get_mut(col_name).unwrap().push(col_data[j]);
+                                    result_data
+                                        .entry(col_name.to_string())
+                                        .or_default()
+                                        .push(col_data[j]);
                                 }
                             }
                         }
@@ -3350,11 +3402,17 @@ impl DataFrame {
                     if !found {
                         // No match: include left row with NaN for right columns
                         for (col_name, col_data) in &left_arrays {
-                            result_data.get_mut(col_name).unwrap().push(col_data[i]);
+                            result_data
+                                .entry(col_name.to_string())
+                                .or_default()
+                                .push(col_data[i]);
                         }
                         for col_name in other.columns.keys() {
                             if col_name != on {
-                                result_data.get_mut(col_name).unwrap().push(f64::NAN);
+                                result_data
+                                    .entry(col_name.to_string())
+                                    .or_default()
+                                    .push(f64::NAN);
                             }
                         }
                     }
@@ -3370,11 +3428,17 @@ impl DataFrame {
                         if (left_key[i] - right_val).abs() < 1e-10 {
                             found = true;
                             for (col_name, col_data) in &left_arrays {
-                                result_data.get_mut(col_name).unwrap().push(col_data[i]);
+                                result_data
+                                    .entry(col_name.to_string())
+                                    .or_default()
+                                    .push(col_data[i]);
                             }
                             for (col_name, col_data) in &right_arrays {
                                 if col_name != on {
-                                    result_data.get_mut(col_name).unwrap().push(col_data[j]);
+                                    result_data
+                                        .entry(col_name.to_string())
+                                        .or_default()
+                                        .push(col_data[j]);
                                 }
                             }
                         }
@@ -3384,14 +3448,23 @@ impl DataFrame {
                         // No match: include right row with NaN for left columns
                         for col_name in self.columns.keys() {
                             if col_name != on {
-                                result_data.get_mut(col_name).unwrap().push(f64::NAN);
+                                result_data
+                                    .entry(col_name.to_string())
+                                    .or_default()
+                                    .push(f64::NAN);
                             } else {
-                                result_data.get_mut(col_name).unwrap().push(right_val);
+                                result_data
+                                    .entry(col_name.to_string())
+                                    .or_default()
+                                    .push(right_val);
                             }
                         }
                         for (col_name, col_data) in &right_arrays {
                             if col_name != on {
-                                result_data.get_mut(col_name).unwrap().push(col_data[j]);
+                                result_data
+                                    .entry(col_name.to_string())
+                                    .or_default()
+                                    .push(col_data[j]);
                             }
                         }
                     }
@@ -3413,11 +3486,17 @@ impl DataFrame {
                             processed_right.insert(j);
 
                             for (col_name, col_data) in &left_arrays {
-                                result_data.get_mut(col_name).unwrap().push(col_data[i]);
+                                result_data
+                                    .entry(col_name.to_string())
+                                    .or_default()
+                                    .push(col_data[i]);
                             }
                             for (col_name, col_data) in &right_arrays {
                                 if col_name != on {
-                                    result_data.get_mut(col_name).unwrap().push(col_data[j]);
+                                    result_data
+                                        .entry(col_name.to_string())
+                                        .or_default()
+                                        .push(col_data[j]);
                                 }
                             }
                         }
@@ -3425,11 +3504,17 @@ impl DataFrame {
 
                     if !found {
                         for (col_name, col_data) in &left_arrays {
-                            result_data.get_mut(col_name).unwrap().push(col_data[i]);
+                            result_data
+                                .entry(col_name.to_string())
+                                .or_default()
+                                .push(col_data[i]);
                         }
                         for col_name in other.columns.keys() {
                             if col_name != on {
-                                result_data.get_mut(col_name).unwrap().push(f64::NAN);
+                                result_data
+                                    .entry(col_name.to_string())
+                                    .or_default()
+                                    .push(f64::NAN);
                             }
                         }
                     }
@@ -3440,14 +3525,23 @@ impl DataFrame {
                     if !processed_right.contains(&j) {
                         for col_name in self.columns.keys() {
                             if col_name != on {
-                                result_data.get_mut(col_name).unwrap().push(f64::NAN);
+                                result_data
+                                    .entry(col_name.to_string())
+                                    .or_default()
+                                    .push(f64::NAN);
                             } else {
-                                result_data.get_mut(col_name).unwrap().push(right_key[j]);
+                                result_data
+                                    .entry(col_name.to_string())
+                                    .or_default()
+                                    .push(right_key[j]);
                             }
                         }
                         for (col_name, col_data) in &right_arrays {
                             if col_name != on {
-                                result_data.get_mut(col_name).unwrap().push(col_data[j]);
+                                result_data
+                                    .entry(col_name.to_string())
+                                    .or_default()
+                                    .push(col_data[j]);
                             }
                         }
                     }
@@ -3510,8 +3604,8 @@ impl DataFrame {
         // Convert grouping columns to float for key building
         let group_cols: Vec<Array1<f64>> = by
             .iter()
-            .map(|col_name| self.get_column(col_name).unwrap().to_float())
-            .collect();
+            .map(|col_name| Ok::<_, GreenersError>(self.get_column(col_name)?.to_float()))
+            .collect::<Result<Vec<_>, _>>()?;
 
         for i in 0..self.n_rows {
             let mut key = Vec::new();
@@ -3546,7 +3640,7 @@ impl DataFrame {
                     .fold(f64::NEG_INFINITY, |a, &b| if b > a { b } else { a }),
                 "median" => {
                     let mut sorted = group_values.clone();
-                    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                    sorted.sort_by(|a, b| a.total_cmp(b));
                     let mid = sorted.len() / 2;
                     if sorted.len() % 2 == 0 {
                         (sorted[mid - 1] + sorted[mid]) / 2.0
@@ -3665,7 +3759,7 @@ impl DataFrame {
                 "max" => vals.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b)),
                 "median" => {
                     let mut sorted = vals.to_vec();
-                    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                    sorted.sort_by(|a, b| a.total_cmp(b));
                     let mid = sorted.len() / 2;
                     if sorted.len() % 2 == 0 {
                         (sorted[mid - 1] + sorted[mid]) / 2.0
@@ -4185,7 +4279,7 @@ impl DataFrame {
             return Ok(f64::NAN);
         }
 
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.sort_by(|a, b| a.total_cmp(b));
 
         let index = q * (sorted.len() - 1) as f64;
         let lower = index.floor() as usize;
@@ -4229,9 +4323,9 @@ impl DataFrame {
         let mut indexed: Vec<(usize, f64)> = col_data.iter().copied().enumerate().collect();
 
         if ascending {
-            indexed.sort_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap());
+            indexed.sort_by(|(_, a), (_, b)| a.total_cmp(b));
         } else {
-            indexed.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
+            indexed.sort_by(|(_, a), (_, b)| b.total_cmp(a));
         }
 
         let mut ranks = vec![0.0; col_data.len()];
@@ -4315,12 +4409,11 @@ impl DataFrame {
             }
         }
 
-        if last_valid_idx.is_none() {
+        let mut last_valid_idx = match last_valid_idx {
+            Some(idx) => idx,
             // All NaN
-            return Ok(self.clone());
-        }
-
-        let mut last_valid_idx = last_valid_idx.unwrap();
+            None => return Ok(self.clone()),
+        };
         let mut last_valid_val = result[last_valid_idx];
 
         for i in (last_valid_idx + 1)..result.len() {
@@ -4446,17 +4539,31 @@ impl DataFrame {
                 // Add id variable values
                 for &id_var in id_vars {
                     let val = self.get(id_var)?[i];
-                    result_data.get_mut(id_var).unwrap().push(val);
+                    result_data.entry(id_var.to_string()).or_default().push(val);
                 }
 
                 // Add variable name (encoded as number for simplicity)
                 // In a real implementation, you might want to support string columns
-                let var_idx = cols_to_melt.iter().position(|n| n == col_name).unwrap() as f64;
-                result_data.get_mut(var_name).unwrap().push(var_idx);
+                let var_idx = cols_to_melt
+                    .iter()
+                    .position(|n| n == col_name)
+                    .ok_or_else(|| {
+                        GreenersError::VariableNotFound(format!(
+                            "Column {} not in melt list",
+                            col_name
+                        ))
+                    })? as f64;
+                result_data
+                    .entry(var_name.to_string())
+                    .or_default()
+                    .push(var_idx);
 
                 // Add value
                 let val = self.get(col_name)?[i];
-                result_data.get_mut(value_name).unwrap().push(val);
+                result_data
+                    .entry(value_name.to_string())
+                    .or_default()
+                    .push(val);
             }
         }
 
@@ -4473,7 +4580,7 @@ impl DataFrame {
     pub fn winsorize(&self, column: &str, p: f64) -> Result<Array1<f64>, GreenersError> {
         let col = self.get(column)?;
         let mut sorted: Vec<f64> = col.iter().filter(|v| v.is_finite()).copied().collect();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.sort_by(|a, b| a.total_cmp(b));
         let n = sorted.len();
         if n == 0 {
             return Ok(col.clone());

@@ -1585,7 +1585,7 @@ fn build_local_sample(
                     ));
                 }
                 let col_h = if fixed_comp {
-                    fixed_composition_h.unwrap() as i64
+                    fixed_composition_h.map_or(0, |h| h as i64)
                 } else if h >= 0 {
                     h
                 } else if h == -1 {
@@ -1960,7 +1960,10 @@ fn fit_linear(
     if d_idx.is_none() || x_clean.nrows() <= x_clean.ncols() {
         return Ok((Estimate::nan(), HashMap::new()));
     }
-    let d_idx = d_idx.unwrap();
+    let d_idx = match d_idx {
+        Some(idx) if x_clean.nrows() > x_clean.ncols() => idx,
+        _ => return Ok((Estimate::nan(), HashMap::new())),
+    };
 
     let (est, se, psi) = if compute_se {
         let fit = OLS::fit(&y, &x_clean, CovarianceType::Clustered(cluster_ids.clone()))
@@ -2392,7 +2395,9 @@ fn resample_clusters(
     // Pre-compute indices belonging to each cluster.
     let mut cluster_indices: Vec<Vec<usize>> = vec![Vec::new(); g];
     for (i, &b) in unit_bits.iter().enumerate() {
-        let pos = unique_bits.binary_search(&b).unwrap();
+        let pos = unique_bits
+            .binary_search(&b)
+            .map_err(|_| GreenersError::InvalidOperation("Unit bit not found".to_string()))?;
         cluster_indices[pos].push(i);
     }
 
@@ -2446,7 +2451,7 @@ fn percentile_ci(draws: &[f64], alpha: f64) -> (f64, f64) {
         return (f64::NAN, f64::NAN);
     }
     let mut sorted = draws.to_vec();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    sorted.sort_by(|a, b| a.total_cmp(b));
     let n = sorted.len();
     let lo_idx = ((alpha / 2.0) * (n - 1) as f64).floor() as usize;
     let hi_idx = ((1.0 - alpha / 2.0) * (n - 1) as f64).ceil() as usize;
@@ -2471,7 +2476,7 @@ fn bootstrap_p_value(est: f64, draws: &[f64]) -> f64 {
 // -----------------------------------------------------------------------------
 
 fn z_crit(alpha: f64) -> f64 {
-    let normal = Normal::new(0.0, 1.0).expect("standard normal");
+    let normal = Normal::standard();
     normal.inverse_cdf(1.0 - alpha / 2.0)
 }
 
@@ -2479,7 +2484,7 @@ fn p_value_two_sided(t: f64) -> f64 {
     if !t.is_finite() {
         return f64::NAN;
     }
-    let normal = Normal::new(0.0, 1.0).expect("standard normal");
+    let normal = Normal::standard();
     2.0 * (1.0 - normal.cdf(t.abs()))
 }
 

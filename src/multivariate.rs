@@ -396,7 +396,9 @@ impl MANOVA {
         }
 
         // Grand mean
-        let grand_mean: Array1<f64> = y_matrix.mean_axis(Axis(0)).unwrap();
+        let grand_mean: Array1<f64> = y_matrix.mean_axis(Axis(0)).ok_or_else(|| {
+            GreenersError::InvalidOperation("Cannot compute grand mean".to_string())
+        })?;
 
         // Between-groups (H) and within-groups (E) matrices
         let mut h_matrix = Array2::<f64>::zeros((p, p));
@@ -443,7 +445,7 @@ impl MANOVA {
         let m_sym = (&m + &m.t()) * 0.5;
         let (eig_vals, _) = m_sym.eigh(UPLO::Upper)?;
         let mut lambdas: Vec<f64> = eig_vals.iter().cloned().collect();
-        lambdas.sort_by(|a, b| b.partial_cmp(a).unwrap());
+        lambdas.sort_by(|a, b| b.total_cmp(a));
         let s = p.min(g - 1);
 
         // Statistics
@@ -578,8 +580,12 @@ impl CanCorr {
         let s = p.min(q);
 
         // Center
-        let x_mean = x.mean_axis(Axis(0)).unwrap();
-        let y_mean = y.mean_axis(Axis(0)).unwrap();
+        let x_mean = x
+            .mean_axis(Axis(0))
+            .ok_or_else(|| GreenersError::InvalidOperation("Cannot compute X mean".to_string()))?;
+        let y_mean = y
+            .mean_axis(Axis(0))
+            .ok_or_else(|| GreenersError::InvalidOperation("Cannot compute Y mean".to_string()))?;
         let mut xc = x.clone();
         let mut yc = y.clone();
         for (j, mut col) in xc.axis_iter_mut(Axis(1)).enumerate() {
@@ -605,7 +611,7 @@ impl CanCorr {
 
         // Sort descending
         let mut idx: Vec<usize> = (0..p).collect();
-        idx.sort_by(|&a, &b| eig_vals[b].partial_cmp(&eig_vals[a]).unwrap());
+        idx.sort_by(|&a, &b| eig_vals[b].total_cmp(&eig_vals[a]));
 
         let cancorr: Array1<f64> = idx
             .iter()

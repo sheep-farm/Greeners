@@ -314,6 +314,6 @@ fn chi2_cdf(x: f64, df: f64) -> f64 {
     // Wilson-Hilferty approximation
     let h = 2.0 / (9.0 * df);
     let z = ((x / df).powf(1.0 / 3.0) - (1.0 - h)) / h.sqrt();
-    let normal = statrs::distribution::Normal::new(0.0, 1.0).unwrap();
+    let normal = statrs::distribution::Normal::standard();
     normal.cdf(z)
 }

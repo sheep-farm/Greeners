@@ -161,7 +161,7 @@ impl PoissonResult {
 
     /// Confidence intervals at arbitrary alpha.
     pub fn conf_int(&self, alpha: f64) -> Vec<(f64, f64)> {
-        let normal = Normal::new(0.0, 1.0).unwrap();
+        let normal = Normal::standard();
         let z = normal.inverse_cdf(1.0 - alpha / 2.0);
         (0..self.params.len())
             .map(|i| {
@@ -177,7 +177,7 @@ impl PoissonResult {
     pub fn get_prediction(&self, x_new: &Array2<f64>, alpha: f64) -> PredictionResult {
         let eta = x_new.dot(&self.params);
         let mu = eta.mapv(f64::exp);
-        let normal = Normal::new(0.0, 1.0).unwrap();
+        let normal = Normal::standard();
         let z = normal.inverse_cdf(1.0 - alpha / 2.0);
 
         // SE via delta method: SE(mu) = mu * SE(eta)
@@ -250,7 +250,7 @@ impl PoissonResult {
 
         let t_stat = alpha_hat / se_alpha;
         // Two-sided test using normal approximation
-        let normal = Normal::new(0.0, 1.0).unwrap();
+        let normal = Normal::standard();
         let p_value = 2.0 * (1.0 - normal.cdf(t_stat.abs()));
 
         Ok((t_stat, p_value))

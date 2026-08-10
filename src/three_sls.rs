@@ -234,17 +234,18 @@ impl ThreeSLS {
 
             // Estatísticas T e P
             let t_values = &params / &std_errors;
-            let p_values = t_values.mapv(|t| {
-                2.0 * (1.0
-                    - statrs::distribution::Normal::new(0.0, 1.0)
-                        .unwrap()
-                        .cdf(t.abs()))
-            });
+            let p_values = t_values
+                .mapv(|t| 2.0 * (1.0 - statrs::distribution::Normal::standard().cdf(t.abs())));
 
             // R2 (Usando resíduos finais do 3SLS)
             let pred = eq.x.dot(&params);
             let res = &eq.y - &pred;
-            let sst = (&eq.y - eq.y.mean().unwrap()).mapv(|v| v.powi(2)).sum();
+            let sst = (&eq.y
+                - eq.y.mean().ok_or_else(|| {
+                    GreenersError::InvalidOperation("Empty dependent variable".to_string())
+                })?)
+            .mapv(|v| v.powi(2))
+            .sum();
             let ssr = res.mapv(|v| v.powi(2)).sum();
             let r2 = 1.0 - (ssr / sst);
 

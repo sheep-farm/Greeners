@@ -174,7 +174,7 @@ impl SETAR {
 
         // Grid search over threshold (percentiles of thresh_var)
         let mut sorted_thresh: Vec<f64> = thresh_var.iter().copied().collect();
-        sorted_thresh.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted_thresh.sort_by(|a, b| a.total_cmp(b));
 
         // Trim 15% from each end to ensure enough obs in each regime
         let trim = (n_eff * 15 / 100).max(ar_order + 2);

@@ -91,7 +91,7 @@ impl MultipleTests {
         let n = pvalues.len();
         // Create index-sorted order (ascending by p-value)
         let mut order: Vec<usize> = (0..n).collect();
-        order.sort_by(|&a, &b| pvalues[a].partial_cmp(&pvalues[b]).unwrap());
+        order.sort_by(|&a, &b| pvalues[a].total_cmp(&pvalues[b]));
 
         let mut corrected = vec![0.0_f64; n];
 
@@ -109,7 +109,7 @@ impl MultipleTests {
     fn benjamini_hochberg(pvalues: &[f64]) -> Vec<f64> {
         let n = pvalues.len();
         let mut order: Vec<usize> = (0..n).collect();
-        order.sort_by(|&a, &b| pvalues[a].partial_cmp(&pvalues[b]).unwrap());
+        order.sort_by(|&a, &b| pvalues[a].total_cmp(&pvalues[b]));
 
         let mut corrected = vec![0.0_f64; n];
 
@@ -131,7 +131,7 @@ impl MultipleTests {
         let c_n: f64 = (1..=n).map(|k| 1.0 / k as f64).sum();
 
         let mut order: Vec<usize> = (0..n).collect();
-        order.sort_by(|&a, &b| pvalues[a].partial_cmp(&pvalues[b]).unwrap());
+        order.sort_by(|&a, &b| pvalues[a].total_cmp(&pvalues[b]));
 
         let mut corrected = vec![0.0_f64; n];
 

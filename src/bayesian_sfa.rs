@@ -242,7 +242,7 @@ impl BayesianSFA {
         let mut beta_ci_high = Array1::zeros(k);
         for j in 0..k {
             let mut col: Vec<f64> = beta_draws.iter().map(|d| d[j]).collect();
-            col.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            col.sort_by(|a, b| a.total_cmp(b));
             let lo_idx = (0.025 * n_stored as f64) as usize;
             let hi_idx = (0.975 * n_stored as f64).min((n_stored - 1) as f64) as usize;
             beta_ci_low[j] = col[lo_idx];

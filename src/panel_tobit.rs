@@ -230,9 +230,10 @@ impl PanelTobit {
             between_var += mean * mean;
         }
         for i in 0..n {
-            let panel_mean = panel_resid_sums.get(&panel_ids[i]).unwrap().0
-                / panel_resid_sums.get(&panel_ids[i]).unwrap().1 as f64;
-            within_var += (full_residuals[i] - panel_mean).powi(2);
+            if let Some(&(sum, count)) = panel_resid_sums.get(&panel_ids[i]) {
+                let panel_mean = sum / count as f64;
+                within_var += (full_residuals[i] - panel_mean).powi(2);
+            }
         }
         between_var /= n_panels as f64;
         within_var /= (n - n_panels) as f64;

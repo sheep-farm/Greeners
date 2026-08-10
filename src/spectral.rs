@@ -118,7 +118,7 @@ impl SpectralClustering {
                     all_dists.push(dists[(i, j)].sqrt());
                 }
             }
-            all_dists.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            all_dists.sort_by(|a, b| a.total_cmp(b));
             if all_dists.is_empty() {
                 1.0
             } else {
@@ -276,7 +276,7 @@ impl SpectralClustering {
 
         // Extract eigenvalues (diagonal) and sort
         let mut eig_pairs: Vec<(f64, usize)> = (0..n).map(|i| (work[(i, i)], i)).collect();
-        eig_pairs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        eig_pairs.sort_by(|a, b| a.0.total_cmp(&b.0));
 
         let eigenvalues = Array1::from_vec(eig_pairs.iter().take(k).map(|(v, _)| *v).collect());
         let mut eigenvectors = Array2::zeros((n, k));

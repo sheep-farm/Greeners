@@ -62,7 +62,7 @@ impl fmt::Display for SynthResult {
         writeln!(f, " Pesos dos doadores (w > 0.001):")?;
         let mut nonzero: Vec<&(String, f64)> =
             self.weights.iter().filter(|(_, w)| *w > 0.001).collect();
-        nonzero.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        nonzero.sort_by(|a, b| b.1.total_cmp(&a.1));
         if nonzero.is_empty() {
             writeln!(f, "   (nenhum peso > 0.001)")?;
         } else {
@@ -136,7 +136,7 @@ impl SyntheticControl {
 
         // ── 2. Períodos e unidades únicas ordenadas ────────────────────────
         let mut times: Vec<f64> = t_col.to_vec();
-        times.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        times.sort_by(|a, b| a.total_cmp(b));
         times.dedup_by(|a, b| (*a - *b).abs() < 1e-9);
         let n_t = times.len();
 
@@ -404,7 +404,7 @@ fn simplex_qp(q: &Array2<f64>, c: &Array1<f64>) -> Array1<f64> {
 /// Algoritmo: Duchi et al. (2008), O(n log n).
 fn project_simplex(v: &mut [f64]) {
     let mut u = v.to_vec();
-    u.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
+    u.sort_by(|a, b| b.total_cmp(a));
 
     let mut cssv = 0.0_f64;
     let mut rho = 0usize;

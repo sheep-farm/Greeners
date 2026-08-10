@@ -116,7 +116,7 @@ impl QuantileReg {
 
         // 3. Estatísticas Finais
         let t_values = &params / &std_errors;
-        let normal = statrs::distribution::Normal::new(0.0, 1.0).unwrap();
+        let normal = statrs::distribution::Normal::standard();
         use statrs::distribution::ContinuousCDF;
         let p_values = t_values.mapv(|t| 2.0 * (1.0 - normal.cdf(t.abs())));
 

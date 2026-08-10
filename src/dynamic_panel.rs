@@ -386,7 +386,7 @@ impl ArellanoBond {
         };
 
         // 10. Estatísticas t e p (assintoticamente normais)
-        let normal = Normal::new(0.0, 1.0).unwrap();
+        let normal = Normal::standard();
         let t_values = &params / &std_errors;
         let p_values = t_values.mapv(|t| 2.0 * (1.0 - normal.cdf(t.abs())));
 
@@ -931,7 +931,7 @@ impl SystemGmm {
         };
 
         // 10. Estatísticas z e p
-        let normal = Normal::new(0.0, 1.0).unwrap();
+        let normal = Normal::standard();
         let t_values = &params / &std_errors;
         let p_values = t_values.mapv(|t| 2.0 * (1.0 - normal.cdf(t.abs())));
 

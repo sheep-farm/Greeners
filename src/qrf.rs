@@ -73,7 +73,7 @@ impl fmt::Display for QrfResult {
             .zip(self.feature_importance.iter())
             .map(|(name, &imp)| (name.clone(), imp, imp / total * 100.0))
             .collect();
-        imp_vec.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        imp_vec.sort_by(|a, b| b.1.total_cmp(&a.1));
         writeln!(
             f,
             "  {:<14} {:>12} {:>10}",
@@ -205,7 +205,7 @@ impl QRF {
             }
 
             // Sort and extract quantiles
-            all_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            all_vals.sort_by(|a, b| a.total_cmp(b));
 
             for (j, &q) in quantiles.iter().enumerate() {
                 quantile_predictions[(i, j)] = Self::weighted_quantile(&all_vals, q);
@@ -220,7 +220,7 @@ impl QRF {
                 oob_median_preds[i] = y_median;
             } else {
                 let mut sorted = oob_preds[i].clone();
-                sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                sorted.sort_by(|a, b| a.total_cmp(b));
                 oob_median_preds[i] = Self::weighted_quantile(&sorted, 0.5);
             }
         }
@@ -364,7 +364,7 @@ impl QRF {
 
         for &feat in features {
             let mut values: Vec<f64> = indices.iter().map(|&i| x[(i, feat)]).collect();
-            values.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            values.sort_by(|a, b| a.total_cmp(b));
             if values.len() < 2 {
                 continue;
             }

@@ -2,6 +2,12 @@
 #[cfg(feature = "odre-ffi")]
 pub mod odre_ffi;
 
+// Internal helpers
+#[inline]
+pub(crate) fn array1_slice(arr: &ndarray::Array1<f64>) -> &[f64] {
+    arr.as_slice().unwrap_or(&[])
+}
+
 pub mod arima;
 pub mod autoreg;
 pub mod bart;

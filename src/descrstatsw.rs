@@ -71,7 +71,7 @@ impl DescrStatsW {
 
         // Quantiles (unweighted for simplicity — use sorted data)
         let mut sorted: Vec<f64> = data.to_vec();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.sort_by(|a, b| a.total_cmp(b));
         let min = sorted[0];
         let max = sorted[n - 1];
         let q25 = percentile(&sorted, 25.0);

@@ -141,8 +141,10 @@ impl LinalgPinv for Array2<f64> {
             return Ok(Array2::zeros((n, m)));
         }
         let (u, s, vt) = self.svd(true, true)?;
-        let u = u.unwrap();
-        let vt = vt.unwrap();
+        let u =
+            u.ok_or_else(|| GreenersError::InvalidOperation("SVD did not compute U".to_string()))?;
+        let vt = vt
+            .ok_or_else(|| GreenersError::InvalidOperation("SVD did not compute Vt".to_string()))?;
         let s_max = s.iter().copied().fold(0.0, f64::max);
         let eps = f64::EPSILON * m.max(n) as f64;
         let tol = s_max * eps;

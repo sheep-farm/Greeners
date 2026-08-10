@@ -85,7 +85,7 @@ impl fmt::Display for DrLearnerResult {
         // CATE distribution
         writeln!(f, "\n  CATE distribution:")?;
         let mut sorted = self.cate.to_vec();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.sort_by(|a, b| a.total_cmp(b));
         let n = sorted.len();
         writeln!(
             f,

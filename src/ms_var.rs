@@ -167,7 +167,7 @@ impl MSVAR {
         let mut norms: Vec<(usize, f64)> = (0..n_eff)
             .map(|i| (i, residuals.row(i).mapv(|v| v * v).sum().sqrt()))
             .collect();
-        norms.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        norms.sort_by(|a, b| a.1.total_cmp(&b.1));
         for (idx, &(orig_i, _)) in norms.iter().enumerate() {
             assignments[orig_i] = idx * n_regimes / n_eff;
         }
