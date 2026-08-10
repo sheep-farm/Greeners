@@ -309,9 +309,8 @@ impl HierarchicalClustering {
     fn cut_dendrogram(merges: &[Merge], n: usize, cut: f64) -> Vec<usize> {
         // Start with each point in its own cluster
         let mut cluster_id: Vec<i64> = (0..n as i64).collect();
-        let mut next_id = n as i64;
 
-        for m in merges {
+        for (next_id, m) in (n as i64..).zip(merges.iter()) {
             if m.distance > cut {
                 break;
             }
@@ -323,7 +322,6 @@ impl HierarchicalClustering {
                     *label = next_id;
                 }
             }
-            next_id += 1;
         }
 
         // Relabel to 0..k-1

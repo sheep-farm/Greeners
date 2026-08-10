@@ -186,7 +186,7 @@ impl NLS {
             }
 
             let delta = match a.inv() {
-                Ok(a_inv) => a_inv.dot(&jtr),
+                Ok(a_inv) => -a_inv.dot(&jtr),
                 Err(_) => {
                     // Increase lambda and retry
                     lambda *= 10.0;
@@ -208,7 +208,7 @@ impl NLS {
             let mut fitted_trial = vec![0.0_f64; n];
             let rss_trial = compute_rss(&params_trial, &mut residuals_trial, &mut fitted_trial);
 
-            if rss_trial < rss {
+            if rss_trial <= rss {
                 // Accept step
                 params = params_trial;
                 residuals = residuals_trial;

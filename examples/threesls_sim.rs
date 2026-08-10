@@ -56,6 +56,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         name: "Demand Curve".to_string(),
         y: q_demanda.clone(),
         x: x1,
+        var_names: vec!["const".into(), "P".into(), "income".into()],
     };
 
     // Equação 2: Oferta (Q ~ P + Cost)
@@ -73,6 +74,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         name: "Supply Curve".to_string(),
         y: q_demanda.clone(), // Q observado
         x: x2,
+        var_names: vec!["const".into(), "P".into(), "cost".into()],
     };
 
     // Instrumentos Globais (Z) = [Intercept, Income, Cost]

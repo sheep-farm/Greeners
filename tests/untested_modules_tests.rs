@@ -240,11 +240,13 @@ fn test_three_sls_two_equations() {
             y: Array1::from(y1),
             x: x1,
             name: "supply".to_string(),
+            var_names: vec!["const".into(), "endog".into(), "exog".into()],
         },
         Equation {
             y: Array1::from(y2),
             x: x2,
             name: "demand".to_string(),
+            var_names: vec!["const".into(), "endog".into(), "exog".into()],
         },
     ];
 
@@ -929,11 +931,13 @@ fn test_three_sls_overidentified() {
             y: Array1::from(y1),
             x: x1,
             name: "eq1".to_string(),
+            var_names: vec!["const".into(), "endog".into(), "exog".into()],
         },
         Equation {
             y: Array1::from(y2),
             x: x2,
             name: "eq2".to_string(),
+            var_names: vec!["const".into(), "endog".into(), "exog".into()],
         },
     ];
 
@@ -991,11 +995,13 @@ fn test_three_sls_vs_equation_by_equation() {
             y: Array1::from(y1),
             x: x1,
             name: "supply".to_string(),
+            var_names: vec!["const".into(), "endog".into(), "exog".into()],
         },
         Equation {
             y: Array1::from(y2),
             x: x2,
             name: "demand".to_string(),
+            var_names: vec!["const".into(), "endog".into(), "exog".into()],
         },
     ];
 
