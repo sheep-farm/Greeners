@@ -1,9 +1,9 @@
 use greeners::{Column, DataFrame, SyntheticControl};
 use indexmap::IndexMap;
 use ndarray::Array1;
-use ndarray_rand::rand_distr::Normal;
 use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};
+use rand_distr::Normal;
 
 fn make_sc_data(seed: u64, n_units: usize, t: usize) -> DataFrame {
     let n = n_units * t;

@@ -4,7 +4,7 @@
 //! A/B tests by adjusting the outcome using a pre-treatment
 //! covariate:
 //!
-//!   Y_adjusted = Y - theta * (X - E[X])
+//!   Y_adjusted = Y - theta * (X - E\[X\])
 //!
 //! where theta = Cov(Y, X) / Var(X), and X is a pre-treatment
 //! outcome (or any covariate correlated with Y).

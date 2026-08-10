@@ -1,8 +1,8 @@
 use greeners::{ZINB, ZIP};
 use ndarray::{Array1, Array2};
-use ndarray_rand::rand_distr::Poisson;
 use rand::distributions::{Distribution, Uniform};
 use rand::{rngs::StdRng, SeedableRng};
+use rand_distr::Poisson;
 
 fn approx_zero(v: f64, tol: f64) {
     assert!(v.abs() < tol, "expected ~0, got {}", v);

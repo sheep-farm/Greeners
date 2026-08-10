@@ -15,7 +15,7 @@ use std::sync::Arc;
 /// - Categorical: String categories with efficient integer encoding
 #[derive(Debug, Clone)]
 pub struct DataFrame {
-    /// Column data stored as Arc<Column> for zero-copy COW semantics
+    /// Column data stored as `Arc<Column>` for zero-copy COW semantics
     /// IndexMap preserves insertion order (fixes CSV export column ordering)
     columns: IndexMap<String, Arc<Column>>,
     /// Number of rows (all columns must have the same length)
@@ -182,7 +182,7 @@ impl DataFrame {
         self.columns.len()
     }
 
-    /// Get a column by name, returning a reference to the Array1<f64>.
+    /// Get a column by name, returning a reference to the `Array1<f64>`.
     ///
     /// # Backward Compatibility
     /// This method only works for Float columns. For categorical columns,
@@ -1691,7 +1691,7 @@ impl DataFrame {
                 // Handle NaN values by treating them as greater than all other values
                 sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
                 let mid = sorted.len() / 2;
-                let median = if sorted.len().is_multiple_of(2) {
+                let median = if sorted.len() % 2 == 0 {
                     (sorted[mid - 1] + sorted[mid]) / 2.0
                 } else {
                     sorted[mid]
@@ -2888,7 +2888,7 @@ impl DataFrame {
                     } else {
                         valid_values.sort_by(|a, b| a.partial_cmp(b).unwrap());
                         let mid = valid_values.len() / 2;
-                        let median = if valid_values.len().is_multiple_of(2) {
+                        let median = if valid_values.len() % 2 == 0 {
                             (valid_values[mid - 1] + valid_values[mid]) / 2.0
                         } else {
                             valid_values[mid]
@@ -3548,7 +3548,7 @@ impl DataFrame {
                     let mut sorted = group_values.clone();
                     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
                     let mid = sorted.len() / 2;
-                    if sorted.len().is_multiple_of(2) {
+                    if sorted.len() % 2 == 0 {
                         (sorted[mid - 1] + sorted[mid]) / 2.0
                     } else {
                         sorted[mid]
@@ -3667,7 +3667,7 @@ impl DataFrame {
                     let mut sorted = vals.to_vec();
                     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
                     let mid = sorted.len() / 2;
-                    if sorted.len().is_multiple_of(2) {
+                    if sorted.len() % 2 == 0 {
                         (sorted[mid - 1] + sorted[mid]) / 2.0
                     } else {
                         sorted[mid]
@@ -4652,7 +4652,7 @@ impl DataFrameBuilder {
         }
     }
 
-    /// Add a Float column from a Vec<f64>
+    /// Add a Float column from a `Vec<f64>`
     ///
     /// # Examples
     /// ```
@@ -4671,7 +4671,7 @@ impl DataFrameBuilder {
         self
     }
 
-    /// Add a Float column from an Array1<f64>
+    /// Add a Float column from an `Array1<f64>`
     pub fn add_column_array(mut self, name: &str, data: Array1<f64>) -> Self {
         self.columns
             .insert(name.to_string(), Arc::new(Column::Float(data)));

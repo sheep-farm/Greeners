@@ -31,7 +31,7 @@ pub struct PsmResult {
     pub n_control: usize,
     /// Unidades tratadas com ao menos um match (descartadas se caliper viola).
     pub n_matched_treated: usize,
-    /// Pares/grupos de matching: (idx_tratado, [idxs_controle]).
+    /// Pares/grupos de matching: (idx_tratado, \[idxs_controle\]).
     pub matched_pairs: Vec<(usize, Vec<usize>)>,
     /// Propensity scores estimados (todos os obs, na ordem original).
     pub propensity_scores: Array1<f64>,
@@ -348,7 +348,7 @@ fn nearest_neighbor_match(
             .iter()
             .filter(|&&ci| {
                 let dist = (ps_t - ps[ci]).abs();
-                caliper.is_none_or(|cap| dist <= cap)
+                caliper.map_or(true, |cap| dist <= cap)
             })
             .filter(|&&ci| with_replacement || !used.contains(&ci))
             .map(|&ci| (ci, (ps_t - ps[ci]).abs()))

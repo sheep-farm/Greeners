@@ -108,7 +108,7 @@ impl fmt::Display for ZeroInflatedResult {
 }
 
 impl ZeroInflatedResult {
-    /// Predicted expected counts: E[y] = (1 - π) * μ.
+    /// Predicted expected counts: E\[y\] = (1 - π) * μ.
     pub fn predict_count(&self, x_count: &Array2<f64>, x_inflate: &Array2<f64>) -> Array1<f64> {
         let mu = x_count.dot(&self.count_params).mapv(f64::exp);
         let pi = x_inflate

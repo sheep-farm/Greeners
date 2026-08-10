@@ -1,8 +1,8 @@
 use greeners::{FixedEffects, HausmanTest, RandomEffects};
 use ndarray::{Array1, Array2};
-use ndarray_rand::rand_distr::Normal;
 use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};
+use rand_distr::Normal;
 
 /// Hausman test rejects Random Effects when the entity effects are correlated
 /// with the regressor.

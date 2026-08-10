@@ -1,6 +1,7 @@
 [package]
 name = "greeners"
-version = "1.5.5-dev"
+version = "1.6.0"
+rust-version = "1.71"
 edition = "2021"
 authors = ["Flávio de Vasconcellos Corrêa <contact@greeners.io>"]
 description = "High-performance econometrics with R/Python formulas. Two-Way Clustering, Marginal Effects (AME/MEM), HC1-4, IV Predictions, Categorical C(var), Polynomial I(x^2), Interactions, Diagnostics. OLS, IV/2SLS, DiD, Logit/Probit, Panel (FE/RE), Time Series (VAR/VECM), Quantile!"
@@ -37,7 +38,7 @@ regex = "1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 rand = "0.8"
-ndarray-rand = "0.14"
+rand_distr = "0.4"
 num-complex = "0.4.6"
 chrono = { version = "0.4", features = ["serde"] }
 # Pure-Rust numerical optimisation (L-BFGS, Nelder-Mead, etc.)
@@ -51,7 +52,6 @@ rayon = "1.10"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json"], optional = true }
 
 [dev-dependencies]
-ndarray-rand = "0.14" # Para gerar matrizes aleatórias nos exemplos
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [[bench]]

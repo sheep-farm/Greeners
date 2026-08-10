@@ -1,8 +1,8 @@
 use greeners::{BetaLink, BetaModel};
 use ndarray::{Array1, Array2};
-use ndarray_rand::rand_distr::Beta;
 use rand::distributions::Distribution;
 use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand_distr::Beta;
 use statrs::distribution::ContinuousCDF;
 
 fn approx_zero(v: f64, tol: f64) {

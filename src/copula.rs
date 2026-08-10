@@ -14,7 +14,7 @@
 //!
 //! Estimation: two-step (inference functions for margins, IFM):
 //!   1. Fit marginal distributions (empirical CDF or parametric)
-//!   2. Fit copula parameter via maximum likelihood on uniform[0,1]
+//!   2. Fit copula parameter via maximum likelihood on uniform\[0,1\]
 //!      transformed data
 
 use crate::linalg::LinalgDeterminant as _;

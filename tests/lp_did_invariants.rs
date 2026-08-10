@@ -1,9 +1,9 @@
 use greeners::{Column, DataFrame, LpDid};
 use indexmap::IndexMap;
 use ndarray::Array1;
-use ndarray_rand::rand_distr::Normal;
 use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};
+use rand_distr::Normal;
 
 fn make_lp_did_data(seed: u64, n: usize, t: usize, treat_at: i64) -> DataFrame {
     let mut rng = StdRng::seed_from_u64(seed);

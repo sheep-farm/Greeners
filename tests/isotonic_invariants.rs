@@ -1,8 +1,8 @@
 use greeners::IsotonicRegression;
 use ndarray::Array1;
-use ndarray_rand::rand_distr::Normal;
 use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};
+use rand_distr::Normal;
 
 /// Isotonic regression preserves monotonicity and fits increasing data.
 #[test]

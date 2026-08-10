@@ -1,8 +1,8 @@
 use greeners::{ConditionalLogit, ConditionalMNLogit, ConditionalPoisson};
 use ndarray::{Array1, Array2};
-use ndarray_rand::rand_distr::{Normal, Poisson};
 use rand::distributions::{Distribution, WeightedIndex};
 use rand::{rngs::StdRng, SeedableRng};
+use rand_distr::{Normal, Poisson};
 
 /// Conditional logit returns finite coefficients and group diagnostics.
 #[test]

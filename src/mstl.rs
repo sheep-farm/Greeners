@@ -258,7 +258,7 @@ fn moving_average_trend(y: &Array1<f64>, window: usize) -> Array1<f64> {
     }
 
     // Apply a second pass for even-period smoothing (2x moving average)
-    if window.is_multiple_of(2) {
+    if window % 2 == 0 {
         let first = trend.clone();
         for i in 0..n {
             let start = i.saturating_sub(1);

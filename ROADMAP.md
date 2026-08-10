@@ -66,10 +66,10 @@ Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 | VARMAX | `VARMAX` | `VARMA` | 🔶 | Falta exog (o X do VARMAX) |
 | VECM | `VECM` | `VECM` | ✅ | |
 | SVAR | `SVAR` | `SVAR` | ✅ | VAR Estrutural |
-| DynamicFactor | `DynamicFactor` | — | ❌ | |
-| UnobservedComponents | `UnobservedComponents` | — | ❌ | Local level, tendencia, sazonalidade |
+| DynamicFactor | `DynamicFactor` | `DynamicFactorModel` | ✅ | DFM / dynamic factor |
+| UnobservedComponents | `UnobservedComponents` | `UnobservedComponents` | ✅ | Local level, trend, seasonal |
 | MarkovRegression | `MarkovRegression` | `MarkovSwitching` | ✅ | Regime switching |
-| MarkovAutoregression | `MarkovAutoregression` | — | ❌ | Markov com componente AR |
+| MarkovAutoregression | `MarkovAutoregression` | `MarkovAutoregression` | ✅ | Markov com componente AR |
 
 ### 4.2 Volatility Models (arch package)
 
@@ -112,7 +112,7 @@ Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 | PACF | `pacf` | `TimeSeries::pacf` | ✅ | |
 | seasonal_decompose | `seasonal_decompose` | `Decomposition` | ✅ | Additive + multiplicative |
 | STL | `STL` | `TimeSeries::stl` | ✅ | LOESS-based decomposition |
-| MSTL | `MSTL` | — | ❌ | Multi-seasonal STL |
+| MSTL | `MSTL` | `MSTL` | ✅ | Multi-seasonal STL |
 | HP filter | `hpfilter` | `TimeSeries::hp_filter` | ✅ | Hodrick-Prescott |
 | BK filter | `bkfilter` | `TimeSeries::bk_filter` | ✅ | Baxter-King |
 | CF filter | `cffilter` | `TimeSeries::cf_filter` | ✅ | Christiano-Fitzgerald |
@@ -228,9 +228,9 @@ Legenda: ✅ Implementado | 🔶 Parcial | ❌ Ausente
 | `DescrStatsW` | descriptive stats com pesos | `DescrStatsW` | ✅ | Weighted mean, var, std, CI, t-test |
 | `CompareMeans` | testes de medias | `Stats::compare_means` | ✅ | Welch t-test, Cohen's d, CI |
 | `anova_lm` | ANOVA | `Stats::anova_oneway` | ✅ | One-way ANOVA + regression ANOVA |
-| `multipletests` | correcao de multiplos testes | — | ❌ |
+| `multipletests` | correcao de multiplos testes | `MultipleTests` | ✅ | Bonferroni, FDR, Holm |
 | `diagnostic` (varios) | Anderson-Darling, Lilliefors, etc. | `Diagnostics` | ✅ | Anderson-Darling, Lilliefors |
-| `proportion` | testes de proporcao | — | ❌ |
+| `proportion` | testes de proporcao | `Proportion` | ✅ | One-sample and two-sample tests |
 | `weightstats` | estatisticas ponderadas | `DescrStatsW` | ✅ | Via descrstatsw module |
 | `moment_helpers` | skew, kurtosis | — | ❌ |
 | `sandwich_covariance` | HAC, kernel covariance | parcial | 🔶 | NeweyWest existe em CovarianceType |
@@ -276,13 +276,13 @@ Estas sao vantagens competitivas do Greeners (via linearmodels ou proprias):
 4. **Formulas avancadas** — `x1:x2`, `poly()`, `bs()`, `log()`
 
 ### Media prioridade
-5. **ETSModel** — Error-Trend-Seasonality framework
-6. **DynamicFactor** — Dynamic Factor models
-7. **UnobservedComponents** — Local level, trend, seasonal
-8. **MarkovAutoregression** — Markov com AR
-9. **MSTL** — Multi-seasonal STL
-10. **multipletests** — Bonferroni, FDR, Holm
-11. **proportion** — testes de proporcao
+5. **ETSModel** — Error-Trend-Seasonality framework (nota: `ExponentialSmoothing` já cobre SES, Holt e Holt-Winters)
+6. ~~**DynamicFactor** — Dynamic Factor models~~ ✅
+7. ~~**UnobservedComponents** — Local level, trend, seasonal~~ ✅
+8. ~~**MarkovAutoregression** — Markov com AR~~ ✅
+9. ~~**MSTL** — Multi-seasonal STL~~ ✅
+10. ~~**multipletests** — Bonferroni, FDR, Holm~~ ✅
+11. ~~**proportion** — testes de proporcao~~ ✅
 
 ### Baixa prioridade (nice-to-have)
 12. **MLEModel generico** — Framework state space unificado

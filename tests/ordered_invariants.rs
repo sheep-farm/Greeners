@@ -1,8 +1,8 @@
 use greeners::{OrderedLogit, OrderedProbit};
 use ndarray::{Array1, Array2};
-use ndarray_rand::rand_distr::Normal;
 use rand::distributions::{Distribution, Uniform};
 use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand_distr::Normal;
 
 fn approx_zero(v: f64, tol: f64) {
     assert!(v.abs() < tol, "expected ~0, got {}", v);

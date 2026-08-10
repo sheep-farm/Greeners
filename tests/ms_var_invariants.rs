@@ -1,8 +1,8 @@
 use greeners::MSVAR;
 use ndarray::{Array1, Array2};
-use ndarray_rand::rand_distr::Normal;
 use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};
+use rand_distr::Normal;
 
 fn generate_msvar_data(t: usize, n_vars: usize, seed: u64) -> Array2<f64> {
     let mut rng = StdRng::seed_from_u64(seed);

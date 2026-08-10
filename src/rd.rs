@@ -229,7 +229,7 @@ impl RD {
 
     /// Fuzzy RD — estimador de Wald local (LATE no cutoff).
     ///
-    /// * `d` — tratamento real recebido (binário ou contínuo em [0,1])
+    /// * `d` — tratamento real recebido (binário ou contínuo em \[0,1\])
     ///
     /// τ̂_FRD = salto(Y) / salto(D)  (razão de dois RD sharps)
     #[allow(clippy::too_many_arguments)]

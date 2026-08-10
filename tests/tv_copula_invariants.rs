@@ -1,8 +1,8 @@
 use greeners::{TvCopula, TvCopulaType};
 use ndarray::Array2;
-use ndarray_rand::rand_distr::{Distribution, Uniform};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
+use rand_distr::{Distribution, Uniform};
 
 fn make_rng(seed: u64) -> StdRng {
     StdRng::seed_from_u64(seed)

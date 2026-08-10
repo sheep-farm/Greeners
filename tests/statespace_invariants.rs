@@ -1,8 +1,8 @@
 use greeners::{state_space_estimate, KalmanFilter, KalmanSmoother, LocalLevel, StateSpaceModel};
 use ndarray::{Array1, Array2};
-use ndarray_rand::rand_distr::Normal;
 use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};
+use rand_distr::Normal;
 
 fn make_local_level_series(seed: u64, n: usize) -> Vec<f64> {
     let mut rng = StdRng::seed_from_u64(seed);

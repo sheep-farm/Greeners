@@ -325,7 +325,7 @@ fn moving_average(series: &Array1<f64>, window: usize) -> Array1<f64> {
     let mut result = Array1::from_elem(n, f64::NAN);
     let half = window / 2;
 
-    for i in half..n.saturating_sub(half + if window.is_multiple_of(2) { 1 } else { 0 }) {
+    for i in half..n.saturating_sub(half + if window % 2 == 0 { 1 } else { 0 }) {
         let start = i.saturating_sub(half);
         let end = (i + half + 1).min(n);
         let vals: Vec<f64> = (start..end)

@@ -1,7 +1,7 @@
 use crate::{CovarianceType, DataFrame, Formula, GreenersError, OLS};
 use ndarray::{Array1, Array2, Axis};
-use ndarray_rand::rand_distr::Uniform;
 use rand::distributions::Distribution;
+use rand_distr::Uniform;
 use std::fmt;
 
 #[derive(Debug)]

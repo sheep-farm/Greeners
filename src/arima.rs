@@ -741,7 +741,8 @@ impl ARIMA {
         let std_errors = Array1::<f64>::zeros(n_se);
         let t_values = Array1::<f64>::zeros(n_se);
         let p_values = Array1::<f64>::ones(n_se);
-        let conf_lower = Array1::from_vec(std::iter::repeat_n(f64::NAN, n_se).collect::<Vec<_>>());
+        let conf_lower =
+            Array1::from_vec(std::iter::repeat(f64::NAN).take(n_se).collect::<Vec<_>>());
         let conf_upper = conf_lower.clone();
 
         Ok(ArimaResult {

@@ -1,7 +1,7 @@
 use greeners::{ArellanoBond, FixedEffects};
 use ndarray::{Array1, Array2};
-use ndarray_rand::rand_distr::Normal;
 use rand::prelude::*;
+use rand_distr::Normal;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let n_entities = 500;

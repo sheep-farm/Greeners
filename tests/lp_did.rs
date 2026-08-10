@@ -3,7 +3,7 @@
 // Original code copyright (c) 2026 Daniel de Abreu Pereira Uhr.
 
 use greeners::{DataFrame, LpDid};
-use ndarray_rand::rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{rngs::StdRng, Rng, SeedableRng};
 
 fn make_absorbing_panel(n_units: usize, n_periods: usize, seed: u64) -> DataFrame {
     let mut rng = StdRng::seed_from_u64(seed);

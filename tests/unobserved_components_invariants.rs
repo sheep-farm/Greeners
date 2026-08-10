@@ -1,8 +1,8 @@
 use greeners::{UCLevel, UCSeasonal, UnobservedComponents};
 use ndarray::Array1;
-use ndarray_rand::rand_distr::Normal;
 use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};
+use rand_distr::Normal;
 
 #[test]
 fn test_uc_local_level_runs_and_produces_finite_output() {

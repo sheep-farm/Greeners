@@ -18,7 +18,7 @@ pub struct MarkovAutoregResult {
     pub ar_params: Array2<f64>,
     /// Regime-specific standard deviations (k).
     pub regime_sigmas: Array1<f64>,
-    /// Transition probability matrix (k x k). Element [i,j] = P(s_t=j | s_{t-1}=i).
+    /// Transition probability matrix (k x k). Element \[i,j\] = P(s_t=j | s_{t-1}=i).
     pub transition_matrix: Array2<f64>,
     /// Smoothed regime probabilities (T x k).
     pub smoothed_probs: Array2<f64>,

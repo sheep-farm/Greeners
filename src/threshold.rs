@@ -126,10 +126,10 @@ impl PanelThreshold {
                 if q_val <= gamma {
                     // Regime 1 Ativo: [x, 0]
                     x_expanded_vec.extend(x_row);
-                    x_expanded_vec.extend(std::iter::repeat_n(0.0, k));
+                    x_expanded_vec.extend(std::iter::repeat(0.0).take(k));
                 } else {
                     // Regime 2 Ativo: [0, x]
-                    x_expanded_vec.extend(std::iter::repeat_n(0.0, k));
+                    x_expanded_vec.extend(std::iter::repeat(0.0).take(k));
                     x_expanded_vec.extend(x_row);
                 }
             }

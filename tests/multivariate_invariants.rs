@@ -1,8 +1,8 @@
 use greeners::{CanCorr, FactorAnalysis, Rotation, MANOVA};
 use ndarray::{Array1, Array2};
-use ndarray_rand::rand_distr::Normal;
 use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};
+use rand_distr::Normal;
 
 fn make_factor_data(seed: u64, n: usize, p: usize) -> Array2<f64> {
     let mut rng = StdRng::seed_from_u64(seed);

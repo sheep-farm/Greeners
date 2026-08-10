@@ -1,8 +1,8 @@
 use greeners::{CupedResult, CUPED};
 use ndarray::{Array1, Array2};
-use ndarray_rand::rand_distr::Normal;
 use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};
+use rand_distr::Normal;
 
 fn make_cuped_data(seed: u64, n: usize) -> (Array1<f64>, Array1<f64>, Vec<bool>) {
     let mut rng = StdRng::seed_from_u64(seed);

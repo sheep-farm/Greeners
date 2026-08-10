@@ -1,8 +1,8 @@
 use greeners::JohansenBreak;
 use ndarray::Array2;
-use ndarray_rand::rand_distr::{Distribution, StandardNormal};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
+use rand_distr::{Distribution, StandardNormal};
 
 fn make_rng(seed: u64) -> StdRng {
     StdRng::seed_from_u64(seed)

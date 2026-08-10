@@ -1,9 +1,9 @@
 use greeners::{CovarianceType, GenPoisson, NegBin, NegBinP, Poisson};
 use ndarray::{Array1, Array2};
-use ndarray_rand::rand_distr::Poisson as PoissonDist;
 use rand::distributions::Distribution;
 use rand::Rng;
 use rand::{rngs::StdRng, SeedableRng};
+use rand_distr::Poisson as PoissonDist;
 
 fn approx_zero(v: f64, tol: f64) {
     assert!(v.abs() < tol, "expected ~0, got {}", v);
@@ -225,7 +225,7 @@ fn gamma_sample(shape: f64, scale: f64, rng: &mut StdRng) -> f64 {
     let d = shape - 1.0 / 3.0;
     let c = 1.0 / (3.0 * d.sqrt());
     loop {
-        let z: f64 = ndarray_rand::rand_distr::StandardNormal.sample(rng);
+        let z: f64 = rand_distr::StandardNormal.sample(rng);
         if z <= -1.0 / c {
             continue;
         }

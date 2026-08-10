@@ -19,6 +19,15 @@ cargo test
 
 # Run a single integration test file
 cargo test --test <file_stem>
+
+# Documentation build (must be warning-free)
+cargo doc
+
+# Dependency / license / advisory audit
+cargo deny check
+
+# Release build sanity check
+cargo build --release
 ```
 
 ## Test layout

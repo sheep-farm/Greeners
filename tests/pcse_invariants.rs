@@ -1,8 +1,8 @@
 use greeners::{OLS, PCSE};
 use ndarray::{Array1, Array2};
-use ndarray_rand::rand_distr::Normal;
 use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};
+use rand_distr::Normal;
 
 fn make_balanced_panel(
     seed: u64,

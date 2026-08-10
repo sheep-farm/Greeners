@@ -1,8 +1,8 @@
 use greeners::{FixedEffects, RandomEffects, RobustHausman};
 use ndarray::{Array1, Array2};
-use ndarray_rand::rand_distr::Normal;
 use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};
+use rand_distr::Normal;
 
 fn make_panel(seed: u64, n_entities: usize, t: usize) -> (Array1<f64>, Array2<f64>, Vec<i64>) {
     let n = n_entities * t;

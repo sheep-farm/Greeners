@@ -1,8 +1,8 @@
 use greeners::{CoxPH, KaplanMeier};
 use ndarray::{Array1, Array2};
-use ndarray_rand::rand_distr::Exp;
 use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};
+use rand_distr::Exp;
 
 fn approx_zero(v: f64, tol: f64) {
     assert!(v.abs() < tol, "expected ~0, got {}", v);

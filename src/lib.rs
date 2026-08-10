@@ -351,7 +351,7 @@ pub enum CovarianceType {
     NeweyWest(usize),
     /// Clustered Standard Errors (One-Way)
     /// Critical for panel data, experiments, and grouped observations
-    /// The Vec<usize> contains cluster IDs for each observation
+    /// The `Vec<usize>` contains cluster IDs for each observation
     Clustered(Vec<usize>),
     /// Two-Way Clustered Standard Errors (Cameron-Gelbach-Miller, 2011)
     /// For panel data with clustering along two dimensions (e.g., firm + time)

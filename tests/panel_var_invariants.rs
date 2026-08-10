@@ -1,8 +1,8 @@
 use greeners::PanelVAR;
 use ndarray::{Array1, Array2};
-use ndarray_rand::rand_distr::Normal;
 use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};
+use rand_distr::Normal;
 
 fn generate_panel_var(
     a: &Array2<f64>,

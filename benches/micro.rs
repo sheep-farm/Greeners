@@ -5,8 +5,8 @@ use std::path::PathBuf;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use indexmap::IndexMap;
 use ndarray::{Array1, Array2, Axis};
-use ndarray_rand::rand::{distributions::Distribution, rngs::StdRng, SeedableRng};
-use ndarray_rand::rand_distr::Normal;
+use rand::{distributions::Distribution, rngs::StdRng, SeedableRng};
+use rand_distr::Normal;
 
 use greeners::linalg::{LinalgCholesky, LinalgInverse, UPLO};
 use greeners::{CovarianceType, DataFrame, Formula, Logit, Probit, QuantileReg, IV, OLS, VAR};
