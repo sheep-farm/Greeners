@@ -51,7 +51,7 @@ exercise the same estimators through the `hay` language.
 
 ## Freeze mode (from 1.6.0)
 
-Greeners is in **long-term freeze** after the `v1.6.0` release. The goal is
+Greeners is in **multi-year freeze** after the `v1.6.0` release. The goal is
 for the numerical engine to remain stable while Hayashi matures on its side.
 
 ### What the freeze means
@@ -60,7 +60,7 @@ for the numerical engine to remain stable while Hayashi matures on its side.
   updates may be merged through short-lived `hotfix/*` branches and released
   as `1.6.x` patch versions.
 - No new estimators, no breaking API changes, and no MSRV changes on the
-  `1.6.x` line.
+  `1.6.x` line. This freeze is expected to last for years.
 - Work that would require new mathematics in Greeners should be deferred to
   a future `2.0` release, not squeezed into `1.6.x`.
 
