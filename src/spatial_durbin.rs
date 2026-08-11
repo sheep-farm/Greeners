@@ -112,6 +112,18 @@ impl SpatialDurbin {
             ));
         }
 
+        // Ensure variable names match x columns; the design matrix includes an intercept.
+        let variable_names = variable_names.map(|mut names| {
+            if names.len() == k - 1 && k >= 1 {
+                names.insert(0, "_cons".to_string());
+            }
+            while names.len() < k {
+                names.push(format!("x{}", names.len()));
+            }
+            names.truncate(k);
+            names
+        });
+
         // Identify entities
         let mut unique_ids: Vec<i64> = entity_ids
             .iter()
