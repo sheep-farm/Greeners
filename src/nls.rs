@@ -336,12 +336,12 @@ pub fn predict_cobb_douglas(params: &[f64], x: &[f64]) -> f64 {
     result
 }
 
-/// CES (constant elasticity of substitution): y = a * (b1*x1^rho + b2*x2^rho)^(1/rho)
+/// CES (constant elasticity of substitution): y = a * (b1*x1^rho + (1-b1)*x2^rho)^(1/rho)
 pub fn predict_ces(params: &[f64], x: &[f64]) -> f64 {
     let a = params[0];
-    let b1 = params[1];
-    let b2 = params[2];
-    let rho = params[3];
+    let b1 = params[1].clamp(1e-10, 1.0 - 1e-10);
+    let rho = params[2];
+    let b2 = 1.0 - b1;
     let inner = b1 * x[0].max(1e-10).powf(rho) + b2 * x[1].max(1e-10).powf(rho);
     a * inner.max(1e-10).powf(1.0 / rho)
 }

@@ -121,7 +121,8 @@ impl SpatialDurbin {
             .collect();
         unique_ids.sort();
         let n_entities = unique_ids.len();
-        let n_periods = n / n_entities;
+        let n_periods = if n_entities > 0 { n / n_entities } else { 1 };
+        let is_panel = n_periods > 1;
 
         // Build full n×n W matrix (block diagonal)
         let w_full = if w.nrows() == n {
@@ -147,47 +148,51 @@ impl SpatialDurbin {
         // Compute W*X (spatially lagged regressors)
         let wx = w_full.dot(x);
 
-        // Within transformation (demean by entity)
-        let mut entity_sums: std::collections::HashMap<i64, (f64, usize)> =
-            std::collections::HashMap::new();
-        for i in 0..n {
-            let entry = entity_sums.entry(entity_ids[i]).or_insert((0.0, 0));
-            entry.0 += y[i];
-            entry.1 += 1;
-        }
-        let entity_means: std::collections::HashMap<i64, f64> = entity_sums
-            .iter()
-            .map(|(&k, &(s, c))| (k, s / c as f64))
-            .collect();
-
-        let mut y_dm = Array1::zeros(n);
-        for i in 0..n {
-            y_dm[i] = y[i] - entity_means[&entity_ids[i]];
-        }
-
-        // Demean x and wx
-        let mut x_dm = Array2::zeros((n, k));
-        let mut wx_dm = Array2::zeros((n, k));
-        for j in 0..k {
-            let mut x_sums: std::collections::HashMap<i64, (f64, usize)> =
-                std::collections::HashMap::new();
-            let mut wx_sums: std::collections::HashMap<i64, (f64, usize)> =
+        // Within transformation (demean by entity) only for panel data
+        let (y_dm, x_dm, wx_dm) = if is_panel {
+            let mut entity_sums: std::collections::HashMap<i64, (f64, usize)> =
                 std::collections::HashMap::new();
             for i in 0..n {
-                let xe = x_sums.entry(entity_ids[i]).or_insert((0.0, 0));
-                xe.0 += x[(i, j)];
-                xe.1 += 1;
-                let we = wx_sums.entry(entity_ids[i]).or_insert((0.0, 0));
-                we.0 += wx[(i, j)];
-                we.1 += 1;
+                let entry = entity_sums.entry(entity_ids[i]).or_insert((0.0, 0));
+                entry.0 += y[i];
+                entry.1 += 1;
             }
+            let entity_means: std::collections::HashMap<i64, f64> = entity_sums
+                .iter()
+                .map(|(&k, &(s, c))| (k, s / c as f64))
+                .collect();
+
+            let mut y_dm = Array1::zeros(n);
             for i in 0..n {
-                let xm = x_sums[&entity_ids[i]].0 / x_sums[&entity_ids[i]].1 as f64;
-                let wm = wx_sums[&entity_ids[i]].0 / wx_sums[&entity_ids[i]].1 as f64;
-                x_dm[(i, j)] = x[(i, j)] - xm;
-                wx_dm[(i, j)] = wx[(i, j)] - wm;
+                y_dm[i] = y[i] - entity_means[&entity_ids[i]];
             }
-        }
+
+            let mut x_dm = Array2::zeros((n, k));
+            let mut wx_dm = Array2::zeros((n, k));
+            for j in 0..k {
+                let mut x_sums: std::collections::HashMap<i64, (f64, usize)> =
+                    std::collections::HashMap::new();
+                let mut wx_sums: std::collections::HashMap<i64, (f64, usize)> =
+                    std::collections::HashMap::new();
+                for i in 0..n {
+                    let xe = x_sums.entry(entity_ids[i]).or_insert((0.0, 0));
+                    xe.0 += x[(i, j)];
+                    xe.1 += 1;
+                    let we = wx_sums.entry(entity_ids[i]).or_insert((0.0, 0));
+                    we.0 += wx[(i, j)];
+                    we.1 += 1;
+                }
+                for i in 0..n {
+                    let xm = x_sums[&entity_ids[i]].0 / x_sums[&entity_ids[i]].1 as f64;
+                    let wm = wx_sums[&entity_ids[i]].0 / wx_sums[&entity_ids[i]].1 as f64;
+                    x_dm[(i, j)] = x[(i, j)] - xm;
+                    wx_dm[(i, j)] = wx[(i, j)] - wm;
+                }
+            }
+            (y_dm, x_dm, wx_dm)
+        } else {
+            (y.to_owned(), x.to_owned(), wx)
+        };
 
         // Combined design matrix: [X_dm, WX_dm] (n x 2k)
         let mut x_combined = Array2::zeros((n, 2 * k));
@@ -260,7 +265,17 @@ impl SpatialDurbin {
 
         let residuals = &y_star - x_combined.dot(&best_beta);
         let sse = residuals.dot(&residuals);
-        let sigma2 = sse / (n - n_entities - 2 * k) as f64;
+        let df_resid = if is_panel {
+            n.saturating_sub(n_entities).saturating_sub(2 * k)
+        } else {
+            n.saturating_sub(2 * k)
+        };
+        if df_resid == 0 {
+            return Err(GreenersError::InvalidOperation(
+                "SpatialDurbin: zero residual degrees of freedom".into(),
+            ));
+        }
+        let sigma2 = sse / df_resid as f64;
 
         // SE
         let cov = &xtx_inv * sigma2;
