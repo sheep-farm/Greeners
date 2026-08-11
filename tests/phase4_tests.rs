@@ -287,6 +287,52 @@ fn test_beta_model() {
     println!("{}", result);
 }
 
+#[test]
+fn test_beta_model_converges_and_recovers_coefficients() {
+    let n = 500;
+    let x = Array2::from_shape_fn((n, 3), |(i, j)| {
+        if j == 0 {
+            1.0
+        } else {
+            // reproducible pseudo-random values in [-1, 1]
+            (((i * 7 + j * 13) as f64 % 100.0) / 100.0) * 2.0 - 1.0
+        }
+    });
+
+    let true_beta = [-0.5, 0.8, -0.3];
+    let y = Array1::from_vec(
+        (0..n)
+            .map(|i| {
+                let eta: f64 = (0..3).map(|j| true_beta[j] * x[[i, j]]).sum();
+                let p = 1.0 / (1.0 + (-eta).exp());
+                // Add a small amount of dispersion noise by jittering around p.
+                let jitter = (((i * 17) as f64 % 100.0) / 100.0 - 0.5) * 0.05;
+                (p + jitter).clamp(0.01, 0.99)
+            })
+            .collect(),
+    );
+
+    let result = BetaModel::fit(&y, &x, &BetaLink::Logit).unwrap();
+    assert!(result.converged);
+    assert!(result.precision_param > 0.0);
+
+    // Coefficient signs should match the true parameters.
+    for j in 0..3 {
+        assert!(
+            result.params[j].signum() == true_beta[j].signum() || result.params[j].abs() < 0.01,
+            "coef {} sign mismatch: {} vs {}",
+            j,
+            result.params[j],
+            true_beta[j]
+        );
+    }
+
+    // Standard errors should all be positive and finite.
+    for j in 0..3 {
+        assert!(result.std_errors[j].is_finite() && result.std_errors[j] > 0.0);
+    }
+}
+
 // ─── MixedLM Tests ─────────────────────────────────────────────────────────────
 
 #[test]

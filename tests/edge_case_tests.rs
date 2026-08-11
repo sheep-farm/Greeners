@@ -338,7 +338,7 @@ fn test_quantile_n_less_than_k() {
 }
 
 #[test]
-fn test_quantile_nboot_zero_returns_error() {
+fn test_quantile_nboot_zero_allowed() {
     let y = Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
     let x = Array2::from_shape_vec(
         (5, 2),
@@ -346,11 +346,10 @@ fn test_quantile_nboot_zero_returns_error() {
     )
     .unwrap();
 
-    let result = QuantileReg::fit(&y, &x, 0.5, 0);
-    assert!(
-        result.is_err(),
-        "QuantileReg with n_boot=0 should return Err"
-    );
+    let result = QuantileReg::fit(&y, &x, 0.5, 0).expect("n_boot=0 should be allowed");
+    assert!(result.std_errors.iter().all(|v| v.is_nan()));
+    assert!(result.t_values.iter().all(|v| v.is_nan()));
+    assert!(result.p_values.iter().all(|v| v.is_nan()));
 }
 
 #[test]

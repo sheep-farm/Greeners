@@ -334,7 +334,7 @@ impl ConditionalLogit {
         let cov_matrix = (-&final_hessian).inv().unwrap_or(Array2::eye(k) * 1e-4);
         let std_errors: Array1<f64> = (0..k).map(|i| cov_matrix[[i, i]].max(0.0).sqrt()).collect();
 
-        let normal_dist = Normal::new(0.0, 1.0).unwrap();
+        let normal_dist = Normal::standard();
         let z_values = &beta / std_errors.mapv(|s| if s > 1e-15 { s } else { 1.0 });
         let p_values = z_values.mapv(|z| 2.0 * (1.0 - normal_dist.cdf(z.abs())));
 
@@ -529,7 +529,7 @@ impl ConditionalPoisson {
         let cov_matrix = (-&final_hessian).inv().unwrap_or(Array2::eye(k) * 1e-4);
         let std_errors: Array1<f64> = (0..k).map(|i| cov_matrix[[i, i]].max(0.0).sqrt()).collect();
 
-        let normal_dist = Normal::new(0.0, 1.0).unwrap();
+        let normal_dist = Normal::standard();
         let z_values = &beta / std_errors.mapv(|s| if s > 1e-15 { s } else { 1.0 });
         let p_values = z_values.mapv(|z| 2.0 * (1.0 - normal_dist.cdf(z.abs())));
 
@@ -724,7 +724,7 @@ impl ConditionalMNLogit {
         let cov_matrix = (-&final_hessian).inv().unwrap_or(Array2::eye(k) * 1e-4);
         let std_errors: Array1<f64> = (0..k).map(|i| cov_matrix[[i, i]].max(0.0).sqrt()).collect();
 
-        let normal_dist = Normal::new(0.0, 1.0).unwrap();
+        let normal_dist = Normal::standard();
         let z_values = &beta / std_errors.mapv(|s| if s > 1e-15 { s } else { 1.0 });
         let p_values = z_values.mapv(|z| 2.0 * (1.0 - normal_dist.cdf(z.abs())));
 

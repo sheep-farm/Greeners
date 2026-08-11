@@ -491,7 +491,7 @@ impl Diagnostics {
 
         // Standardize and sort
         let mut z: Vec<f64> = data.iter().map(|&x| (x - mean) / std).collect();
-        z.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        z.sort_by(|a, b| a.total_cmp(b));
 
         let normal = statrs::distribution::Normal::new(0.0, 1.0)
             .map_err(|_| GreenersError::OptimizationFailed)?;
@@ -542,7 +542,7 @@ impl Diagnostics {
 
         // Sort data
         let mut sorted: Vec<f64> = data.iter().cloned().collect();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.sort_by(|a, b| a.total_cmp(b));
 
         let normal = statrs::distribution::Normal::new(0.0, 1.0)
             .map_err(|_| GreenersError::OptimizationFailed)?;
@@ -738,7 +738,7 @@ impl Diagnostics {
     /// Expected normal order statistics via Blom's approximation.
     /// m_i = Φ⁻¹((i - 3/8) / (n + 1/4))
     fn normal_order_statistics(n: usize) -> Vec<f64> {
-        let norm = Normal::new(0.0, 1.0).unwrap();
+        let norm = Normal::standard();
         (1..=n)
             .map(|i| {
                 let p = (i as f64 - 0.375) / (n as f64 + 0.25);
@@ -766,7 +766,7 @@ impl Diagnostics {
         }
 
         let mut sorted = clean.clone();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.sort_by(|a, b| a.total_cmp(b));
 
         let mean = sorted.iter().sum::<f64>() / n as f64;
         let ss: f64 = sorted.iter().map(|x| (x - mean).powi(2)).sum();
@@ -810,7 +810,7 @@ impl Diagnostics {
             } else {
                 5.0
             };
-            let norm = Normal::new(0.0, 1.0).unwrap();
+            let norm = Normal::standard();
             1.0 - norm.cdf(z)
         } else {
             // Large sample: Royston (1995) transformation
@@ -821,7 +821,7 @@ impl Diagnostics {
                 - 1.5861;
             let sigma = (0.0030302 * nf.ln().powi(2) - 0.082676 * nf.ln() - 0.4803).exp();
             let z = (ln_1mw - mu) / sigma;
-            let norm = Normal::new(0.0, 1.0).unwrap();
+            let norm = Normal::standard();
             1.0 - norm.cdf(z)
         };
 
@@ -852,7 +852,7 @@ impl Diagnostics {
         }
 
         let mut sorted = clean.clone();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.sort_by(|a, b| a.total_cmp(b));
 
         let mean_x = sorted.iter().sum::<f64>() / n as f64;
         let ss_x: f64 = sorted.iter().map(|x| (x - mean_x).powi(2)).sum();
@@ -880,7 +880,7 @@ impl Diagnostics {
         let mu = -1.2725 + 1.0521 * ln_n;
         let sigma = (1.0308 - 0.26758 * ln_n).exp();
         let z = (ln_1mw - mu) / sigma;
-        let norm = Normal::new(0.0, 1.0).unwrap();
+        let norm = Normal::standard();
         let p_value = 1.0 - norm.cdf(z);
 
         Ok(ShapiroFranciaResult {

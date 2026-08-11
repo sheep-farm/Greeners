@@ -402,3 +402,54 @@ fn test_model_stats() {
     assert!(ll.is_finite());
     assert!(pr2.is_finite());
 }
+
+// ============================================================
+// 17. Binomial with complementary log-log link
+// ============================================================
+#[test]
+fn test_binomial_cloglog_converges() {
+    // Simulate data where the true model has a small positive intercept and
+    // a positive effect of x.  The response is binary (0/1) with probability
+    // 1 - exp(-exp(eta)), where eta = -0.5 + 0.7 * x.
+    let n = 400;
+    let x_raw = Array2::from_shape_fn((n, 1), |(i, _)| {
+        (((i * 7) as f64 % 100.0) / 100.0) * 4.0 - 2.0
+    });
+    let x = with_intercept(&x_raw);
+
+    let y = Array1::from_vec(
+        (0..n)
+            .map(|i| {
+                let eta = -0.5 + 0.7 * x_raw[[i, 0]];
+                let p = 1.0 - (-eta.exp()).exp();
+                let u = ((i * 13) as f64 % 100.0) / 100.0;
+                if u < p {
+                    1.0
+                } else {
+                    0.0
+                }
+            })
+            .collect(),
+    );
+
+    let res = GLM::fit_with_link(
+        &y,
+        &x,
+        Family::Binomial,
+        Link::CLogLog,
+        CovarianceType::NonRobust,
+    )
+    .unwrap();
+
+    assert!(res.converged, "cloglog GLM did not converge");
+    assert!(res.params[0].is_finite());
+    // Slope should be positive and reasonably close to 0.7.
+    assert!(
+        res.params[1] > 0.0 && res.params[1] < 2.0,
+        "unexpected slope estimate: {}",
+        res.params[1]
+    );
+    for j in 0..res.params.len() {
+        assert!(res.std_errors[j].is_finite() && res.std_errors[j] > 0.0);
+    }
+}

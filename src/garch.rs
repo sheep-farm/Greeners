@@ -361,7 +361,7 @@ fn compute_inference(
     params: &Array1<f64>,
     std_errors: &Array1<f64>,
 ) -> (Array1<f64>, Array1<f64>, Array1<f64>, Array1<f64>) {
-    let normal = NormalDist::new(0.0, 1.0).unwrap();
+    let normal = NormalDist::standard();
     let n = params.len();
     let mut z_values = Array1::zeros(n);
     let mut p_values = Array1::zeros(n);

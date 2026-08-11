@@ -1,8 +1,8 @@
 use greeners::{CovarianceType, SurEquation, OLS, SUR};
 use ndarray::{Array1, Array2};
-use ndarray_rand::rand_distr::Normal;
 use rand::distributions::Distribution;
 use rand::thread_rng;
+use rand_distr::Normal;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let n = 500;

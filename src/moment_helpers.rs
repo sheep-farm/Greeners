@@ -46,7 +46,9 @@ impl MomentHelpers {
         let s = Self::skewness(data);
         let k = Self::kurtosis(data);
         let jb = (n / 6.0) * (s.powi(2) + k.powi(2) / 4.0);
-        let chi2 = ChiSquared::new(2.0).unwrap();
+        let Ok(chi2) = ChiSquared::new(2.0) else {
+            return (f64::NAN, f64::NAN);
+        };
         let p = 1.0 - chi2.cdf(jb);
         (jb, p)
     }
@@ -88,7 +90,9 @@ impl MomentHelpers {
             / (2.0 / (9.0 * a)).sqrt();
 
         let k2 = z1.powi(2) + z2.powi(2);
-        let chi2 = ChiSquared::new(2.0).unwrap();
+        let Ok(chi2) = ChiSquared::new(2.0) else {
+            return (f64::NAN, f64::NAN);
+        };
         let p = 1.0 - chi2.cdf(k2);
         (k2, p)
     }

@@ -1,8 +1,8 @@
 use greeners::{Equation, ThreeSLS};
 use ndarray::{Array1, Array2};
-use ndarray_rand::rand_distr::Normal;
 use rand::distributions::Distribution;
 use rand::thread_rng;
+use rand_distr::Normal;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let n = 1000;
@@ -56,6 +56,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         name: "Demand Curve".to_string(),
         y: q_demanda.clone(),
         x: x1,
+        var_names: vec!["const".into(), "P".into(), "income".into()],
     };
 
     // Equação 2: Oferta (Q ~ P + Cost)
@@ -73,6 +74,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         name: "Supply Curve".to_string(),
         y: q_demanda.clone(), // Q observado
         x: x2,
+        var_names: vec!["const".into(), "P".into(), "cost".into()],
     };
 
     // Instrumentos Globais (Z) = [Intercept, Income, Cost]

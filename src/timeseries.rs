@@ -631,7 +631,7 @@ impl TimeSeries {
 
         // Sort eigenvalues descending
         let mut idx: Vec<usize> = (0..k).collect();
-        idx.sort_by(|&a, &b| eigenvalues_raw[b].partial_cmp(&eigenvalues_raw[a]).unwrap());
+        idx.sort_by(|&a, &b| eigenvalues_raw[b].total_cmp(&eigenvalues_raw[a]));
 
         let eigenvalues = Array1::from_vec(
             idx.iter()
@@ -1157,7 +1157,7 @@ fn johansen_trace_critical_values(n_vars: usize) -> Array2<f64> {
                 2.71, 3.76, 6.65, // r=1
             ],
         )
-        .unwrap(),
+        .unwrap_or_else(|_| Array2::zeros((2, 3))),
         3 => Array2::from_shape_vec(
             (3, 3),
             vec![
@@ -1166,7 +1166,7 @@ fn johansen_trace_critical_values(n_vars: usize) -> Array2<f64> {
                 2.71, 3.76, 6.65, // r=2
             ],
         )
-        .unwrap(),
+        .unwrap_or_else(|_| Array2::zeros((3, 3))),
         4 => Array2::from_shape_vec(
             (4, 3),
             vec![
@@ -1176,7 +1176,7 @@ fn johansen_trace_critical_values(n_vars: usize) -> Array2<f64> {
                 2.71, 3.76, 6.65, // r=3
             ],
         )
-        .unwrap(),
+        .unwrap_or_else(|_| Array2::zeros((4, 3))),
         5 => Array2::from_shape_vec(
             (5, 3),
             vec![
@@ -1187,7 +1187,7 @@ fn johansen_trace_critical_values(n_vars: usize) -> Array2<f64> {
                 2.71, 3.76, 6.65, // r=4
             ],
         )
-        .unwrap(),
+        .unwrap_or_else(|_| Array2::zeros((5, 3))),
         _ => {
             // For k > 5 or k < 2, return dummy values
             let mut cv = Array2::<f64>::zeros((n_vars, 3));
@@ -1213,7 +1213,7 @@ fn johansen_max_eigen_critical_values(n_vars: usize) -> Array2<f64> {
                 2.71, 3.76, 6.65, // r=1
             ],
         )
-        .unwrap(),
+        .unwrap_or_else(|_| Array2::zeros((2, 3))),
         3 => Array2::from_shape_vec(
             (3, 3),
             vec![
@@ -1222,7 +1222,7 @@ fn johansen_max_eigen_critical_values(n_vars: usize) -> Array2<f64> {
                 2.71, 3.76, 6.65, // r=2
             ],
         )
-        .unwrap(),
+        .unwrap_or_else(|_| Array2::zeros((3, 3))),
         4 => Array2::from_shape_vec(
             (4, 3),
             vec![
@@ -1232,7 +1232,7 @@ fn johansen_max_eigen_critical_values(n_vars: usize) -> Array2<f64> {
                 2.71, 3.76, 6.65, // r=3
             ],
         )
-        .unwrap(),
+        .unwrap_or_else(|_| Array2::zeros((4, 3))),
         5 => Array2::from_shape_vec(
             (5, 3),
             vec![
@@ -1243,7 +1243,7 @@ fn johansen_max_eigen_critical_values(n_vars: usize) -> Array2<f64> {
                 2.71, 3.76, 6.65, // r=4
             ],
         )
-        .unwrap(),
+        .unwrap_or_else(|_| Array2::zeros((5, 3))),
         _ => {
             let mut cv = Array2::<f64>::zeros((n_vars, 3));
             for r in 0..n_vars {

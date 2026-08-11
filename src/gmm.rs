@@ -156,7 +156,7 @@ impl GMM {
         let t_values = &beta_final / &std_errors;
 
         // P-values (Standard Normal for asymptotic)
-        let dist = statrs::distribution::Normal::new(0.0, 1.0).unwrap();
+        let dist = statrs::distribution::Normal::standard();
         let p_values = t_values.mapv(|z| 2.0 * (1.0 - dist.cdf(z.abs())));
 
         // --- J-TEST (Overidentifying Restrictions) ---

@@ -1,0 +1,57 @@
+# cargo-deny configuration for Greeners.
+# See https://embarkstudios.github.io/cargo-deny/checks/index.html
+
+[graph]
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "x86_64-apple-darwin" },
+    { triple = "x86_64-pc-windows-msvc" },
+    { triple = "aarch64-unknown-linux-gnu" },
+    { triple = "wasm32-unknown-unknown" },
+]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+# `paste` is archived by its author and has no maintained replacement that
+# argmin / gemm / simba have adopted. It is still feature-complete and not a
+# security/soundness issue, so we ignore the unmaintained advisory.
+# `instant` is unmaintained and only used by argmin 0.10 for timing; upgrading
+# to argmin 0.11 replaces it with web-time but reintroduces rand 0.9 duplicates.
+ignore = [
+    { id = "RUSTSEC-2024-0436", reason = "transitive via argmin, faer-gemm and simba; author archived the crate as feature-complete and no safe upgrade exists" },
+    { id = "RUSTSEC-2024-0384", reason = "transitive via argmin 0.10; timing-only dependency, no safe upgrade exists without reintroducing rand 0.9 duplicates" },
+]
+
+[licenses]
+version = 1
+unused-allowed-license = "allow"
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unlicense",
+    "Zlib",
+    "MPL-2.0",
+    "CC0-1.0",
+    "OpenSSL",
+    "Unicode-3.0",
+]
+confidence-threshold = 0.8
+
+[bans]
+# Some transitive dependencies have unavoidable duplicate major versions in the
+# current dependency graph (faer pulls equator via nano-gemm and spindle; pest
+# and serde use different syn major versions, etc.). We skip those from
+# duplicate detection so `cargo deny check` stays clean.
+multiple-versions = "warn"
+skip = [
+    { name = "equator" },
+    { name = "equator-macro" },
+    { name = "syn" },
+    { name = "windows-sys" },
+]

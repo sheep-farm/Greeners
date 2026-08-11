@@ -1,12 +1,107 @@
 use ndarray::{Array1, Array2};
+use statrs::distribution::{ChiSquared, ContinuousCDF};
 
 type ModelStats = (f64, f64, f64, f64, f64, f64, f64, usize);
 type MundlakResult = (f64, f64, usize, Vec<f64>, Vec<f64>);
+
+/// Result of a likelihood-ratio test.
+#[derive(Debug)]
+pub struct LrTestResult {
+    /// LR statistic: -2 * (ln L_restricted - ln L_unrestricted)
+    pub lr_stat: f64,
+    /// p-value from chi-squared distribution with `df` degrees of freedom
+    pub p_value: f64,
+    /// Degrees of freedom (difference in number of parameters)
+    pub df: usize,
+    /// Log-likelihood of the restricted model
+    pub ll_restricted: f64,
+    /// Log-likelihood of the unrestricted model
+    pub ll_unrestricted: f64,
+}
+
+impl std::fmt::Display for LrTestResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "\n{:=^60}", " Likelihood-Ratio Test ")?;
+        writeln!(f, "H0: restricted model is adequate")?;
+        writeln!(f, "{:-^60}", "")?;
+        writeln!(f, "{:<24} {:>12.4}", "LR statistic:", self.lr_stat)?;
+        writeln!(f, "{:<24} {:>12}", "df:", self.df)?;
+        writeln!(f, "{:<24} {:>12.4}", "p-value:", self.p_value)?;
+        writeln!(f, "{:<24} {:>12.4}", "ll (restricted):", self.ll_restricted)?;
+        writeln!(
+            f,
+            "{:<24} {:>12.4}",
+            "ll (unrestricted):", self.ll_unrestricted
+        )?;
+        let verdict = if self.p_value < 0.05 {
+            "Reject H0 — unrestricted model fits significantly better"
+        } else {
+            "Fail to reject H0 — restricted model is adequate"
+        };
+        writeln!(f, "{:-^60}", "")?;
+        writeln!(f, "Conclusion: {verdict}")?;
+        write!(f, "{:=^60}", "")
+    }
+}
 
 /// Model selection and comparison utilities
 pub struct ModelSelection;
 
 impl ModelSelection {
+    /// Likelihood-ratio test for nested models.
+    ///
+    /// Tests H0: the restricted model is adequate (the additional
+    /// parameters in the unrestricted model are zero).
+    ///
+    /// The LR statistic is:
+    ///   LR = -2 * (ln L_restricted - ln L_unrestricted) ~ chi²(df)
+    ///
+    /// where df = k_unrestricted - k_restricted.
+    ///
+    /// # Arguments
+    /// * `ll_restricted` - Log-likelihood of the restricted (smaller) model
+    /// * `ll_unrestricted` - Log-likelihood of the unrestricted (larger) model
+    /// * `k_restricted` - Number of parameters in the restricted model
+    /// * `k_unrestricted` - Number of parameters in the unrestricted model
+    ///
+    /// # Returns
+    /// `LrTestResult` with the LR statistic, p-value, and degrees of freedom.
+    ///
+    /// # Panics
+    /// Does not panic; returns an error if `k_unrestricted <= k_restricted`
+    /// (models are not nested in the expected direction) or if the chi-squared
+    /// distribution cannot be constructed.
+    pub fn lr_test(
+        ll_restricted: f64,
+        ll_unrestricted: f64,
+        k_restricted: usize,
+        k_unrestricted: usize,
+    ) -> Result<LrTestResult, String> {
+        if k_unrestricted <= k_restricted {
+            return Err(format!(
+                "lr_test: unrestricted model must have more parameters than restricted \
+                 (got k_restricted={k_restricted}, k_unrestricted={k_unrestricted})"
+            ));
+        }
+
+        let df = k_unrestricted - k_restricted;
+        let lr_stat = -2.0 * (ll_restricted - ll_unrestricted);
+
+        // Guard against numerical issues: LR should be non-negative
+        let lr_stat = lr_stat.max(0.0);
+
+        let chi2 = ChiSquared::new(df as f64).map_err(|e| e.to_string())?;
+        let p_value = 1.0 - chi2.cdf(lr_stat);
+
+        Ok(LrTestResult {
+            lr_stat,
+            p_value,
+            df,
+            ll_restricted,
+            ll_unrestricted,
+        })
+    }
+
     /// Compare multiple models by information criteria
     ///
     /// # Arguments
@@ -41,18 +136,24 @@ impl ModelSelection {
             .collect();
 
         // Sort by AIC
-        results.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        results.sort_by(|a, b| a.1.total_cmp(&b.1));
 
         // Create sorted BIC for ranking
         let mut bic_sorted = results.clone();
-        bic_sorted.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
+        bic_sorted.sort_by(|a, b| a.2.total_cmp(&b.2));
 
         // Assign rankings
         results
             .iter()
             .map(|(name, aic, bic)| {
-                let rank_aic = results.iter().position(|x| &x.0 == name).unwrap() + 1;
-                let rank_bic = bic_sorted.iter().position(|x| &x.0 == name).unwrap() + 1;
+                let rank_aic = results
+                    .iter()
+                    .position(|x| &x.0 == name)
+                    .map_or(1, |p| p + 1);
+                let rank_bic = bic_sorted
+                    .iter()
+                    .position(|x| &x.0 == name)
+                    .map_or(1, |p| p + 1);
                 (name.clone(), *aic, *bic, rank_aic, rank_bic)
             })
             .collect()
@@ -264,11 +365,7 @@ impl PanelDiagnostics {
             entity_idx.entry(eid).or_default().push(i);
         }
         for indices in entity_idx.values_mut() {
-            indices.sort_by(|&a, &b| {
-                time_vals[a]
-                    .partial_cmp(&time_vals[b])
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
+            indices.sort_by(|&a, &b| time_vals[a].total_cmp(&time_vals[b]));
         }
 
         let mut sorted_entities: Vec<i64> = entity_idx.keys().copied().collect();
@@ -427,7 +524,7 @@ impl PanelDiagnostics {
                 unique_times.push(t);
             }
         }
-        unique_times.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        unique_times.sort_by(|a, b| a.total_cmp(b));
         let t_count = unique_times.len();
 
         if t_count < 2 {
@@ -690,11 +787,7 @@ impl PanelDiagnostics {
             entity_idx.entry(eid).or_default().push(i);
         }
         for indices in entity_idx.values_mut() {
-            indices.sort_by(|&a, &b| {
-                time_vals[a]
-                    .partial_cmp(&time_vals[b])
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
+            indices.sort_by(|&a, &b| time_vals[a].total_cmp(&time_vals[b]));
         }
 
         let n_entities = entity_idx.len();
@@ -918,7 +1011,7 @@ impl SummaryStats {
         let std = data.std(0.0);
 
         let mut sorted = data.to_vec();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.sort_by(|a, b| a.total_cmp(b));
 
         let min = sorted[0];
         let max = sorted[n - 1];

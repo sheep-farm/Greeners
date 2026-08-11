@@ -130,7 +130,7 @@ impl CategoricalColumn {
     }
 
     /// Create dummy variables (one-hot encoding)
-    /// Returns HashMap of column_name -> Array1<f64>
+    /// Returns HashMap of column_name -> `Array1<f64>`
     pub fn get_dummies(&self, prefix: &str, drop_first: bool) -> IndexMap<String, Array1<f64>> {
         let mut dummies = IndexMap::new();
         let start_idx = if drop_first { 1 } else { 0 };

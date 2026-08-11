@@ -1,6 +1,6 @@
 use crate::linalg::LinalgInverse as _;
 use crate::GreenersError;
-use ndarray::{Array1, Array2};
+use ndarray::{Array1, Array2, Axis};
 use statrs::distribution::ContinuousCDF;
 use std::fmt;
 
@@ -10,6 +10,7 @@ pub struct Equation {
     pub y: Array1<f64>,
     pub x: Array2<f64>, // Inclui endógenas e exógenas
     pub name: String,
+    pub var_names: Vec<String>,
 }
 
 /// Resultado do Sistema 3SLS
@@ -28,6 +29,7 @@ pub struct EquationResult {
     pub t_values: Array1<f64>,
     pub p_values: Array1<f64>,
     pub r_squared: f64,
+    pub var_names: Vec<String>,
 }
 
 impl fmt::Display for ThreeSLSResult {
@@ -55,10 +57,15 @@ impl fmt::Display for ThreeSLSResult {
             writeln!(f, "{:-^78}", "")?;
 
             for i in 0..eq.params.len() {
+                let label = eq
+                    .var_names
+                    .get(i)
+                    .cloned()
+                    .unwrap_or_else(|| format!("x{i}"));
                 writeln!(
                     f,
-                    "x{:<9} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
-                    i, eq.params[i], eq.std_errors[i], eq.t_values[i], eq.p_values[i]
+                    "{:<10} | {:>10.4} | {:>10.4} | {:>8.3} | {:>8.3}",
+                    label, eq.params[i], eq.std_errors[i], eq.t_values[i], eq.p_values[i]
                 )?;
             }
             writeln!(f, "R-squared: {:.4}", eq.r_squared)?;
@@ -68,6 +75,29 @@ impl fmt::Display for ThreeSLSResult {
 }
 
 pub struct ThreeSLS;
+
+/// Verifica se a matriz de instrumentos já possui uma coluna constante.
+/// Se não tiver, adiciona uma coluna de 1s no início.  Isso faz com que
+/// projeções de uma constante no primeiro estágio sejam exatas, permitindo
+/// que equações 3SLS incluam intercepto quando o frontend assim o especificar.
+fn ensure_constant_instruments(z: &Array2<f64>) -> Array2<f64> {
+    let n = z.nrows();
+    if n == 0 {
+        return z.clone();
+    }
+
+    let has_const = z
+        .axis_iter(Axis(1))
+        .any(|col| col.iter().all(|&v| (v - 1.0).abs() < 1e-12));
+
+    if has_const {
+        z.clone()
+    } else {
+        let mut z_out = Array2::<f64>::ones((n, z.ncols() + 1));
+        z_out.slice_mut(ndarray::s![.., 1..]).assign(z);
+        z_out
+    }
+}
 
 impl ThreeSLS {
     /// Estima um sistema de equações simultâneas via 3SLS.
@@ -86,10 +116,15 @@ impl ThreeSLS {
         // Projetar cada X no espaço de Z para obter X_hat = Z(Z'Z)^-1 Z'X
         // X_hat é a versão "limpa" das endógenas.
 
+        // Garante que a matriz de instrumentos inclui uma constante, de modo que
+        // projeções do intercepto sejam exatas quando a equação estrutural tem
+        // uma coluna de 1s.
+        let z_instruments = ensure_constant_instruments(z_instruments);
+
         // Pré-calcular P_z = Z (Z'Z)^-1 Z'
         // Para eficiência, calculamos apenas a parte (Z'Z)^-1 Z' e multiplicamos depois
         let z_t = z_instruments.t();
-        let ztz = z_t.dot(z_instruments);
+        let ztz = z_t.dot(&z_instruments);
         let ztz_inv = ztz.inv().map_err(|_| GreenersError::SingularMatrix)?;
         let projection_matrix_part = z_instruments.dot(&ztz_inv).dot(&z_t); // N x N (Cuidado com memória aqui se N for huge)
 
@@ -199,17 +234,18 @@ impl ThreeSLS {
 
             // Estatísticas T e P
             let t_values = &params / &std_errors;
-            let p_values = t_values.mapv(|t| {
-                2.0 * (1.0
-                    - statrs::distribution::Normal::new(0.0, 1.0)
-                        .unwrap()
-                        .cdf(t.abs()))
-            });
+            let p_values = t_values
+                .mapv(|t| 2.0 * (1.0 - statrs::distribution::Normal::standard().cdf(t.abs())));
 
             // R2 (Usando resíduos finais do 3SLS)
             let pred = eq.x.dot(&params);
             let res = &eq.y - &pred;
-            let sst = (&eq.y - eq.y.mean().unwrap()).mapv(|v| v.powi(2)).sum();
+            let sst = (&eq.y
+                - eq.y.mean().ok_or_else(|| {
+                    GreenersError::InvalidOperation("Empty dependent variable".to_string())
+                })?)
+            .mapv(|v| v.powi(2))
+            .sum();
             let ssr = res.mapv(|v| v.powi(2)).sum();
             let r2 = 1.0 - (ssr / sst);
 
@@ -220,6 +256,7 @@ impl ThreeSLS {
                 t_values,
                 p_values,
                 r_squared: r2,
+                var_names: eq.var_names.clone(),
             });
 
             cursor += k;

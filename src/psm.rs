@@ -31,7 +31,7 @@ pub struct PsmResult {
     pub n_control: usize,
     /// Unidades tratadas com ao menos um match (descartadas se caliper viola).
     pub n_matched_treated: usize,
-    /// Pares/grupos de matching: (idx_tratado, [idxs_controle]).
+    /// Pares/grupos de matching: (idx_tratado, \[idxs_controle\]).
     pub matched_pairs: Vec<(usize, Vec<usize>)>,
     /// Propensity scores estimados (todos os obs, na ordem original).
     pub propensity_scores: Array1<f64>,
@@ -216,7 +216,7 @@ impl PSM {
 
         // ── 6. Inferência ─────────────────────────────────────────────────────
         let z = att / se;
-        let normal_dist = Normal::new(0.0, 1.0).unwrap();
+        let normal_dist = Normal::standard();
         let p_value = 2.0 * (1.0 - normal_dist.cdf(z.abs()));
         let z95 = 1.959_963_985;
 
@@ -354,7 +354,7 @@ fn nearest_neighbor_match(
             .map(|&ci| (ci, (ps_t - ps[ci]).abs()))
             .collect();
 
-        cands.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        cands.sort_by(|a, b| a.1.total_cmp(&b.1));
 
         let matches: Vec<usize> = cands.iter().take(k).map(|(ci, _)| *ci).collect();
         if !with_replacement {

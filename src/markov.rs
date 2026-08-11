@@ -10,7 +10,7 @@ pub struct MarkovSwitchingResult {
     pub regime_params: Vec<Array1<f64>>,
     /// Regime-specific variances.
     pub regime_variances: Array1<f64>,
-    /// Transition probability matrix (K x K), element [i,j] = P(s_t=j | s_{t-1}=i).
+    /// Transition probability matrix (K x K), element \[i,j\] = P(s_t=j | s_{t-1}=i).
     pub transition_matrix: Array2<f64>,
     /// Filtered regime probabilities (T x K).
     pub filtered_probs: Array2<f64>,

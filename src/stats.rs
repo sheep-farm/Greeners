@@ -321,7 +321,7 @@ impl Stats {
     pub fn benjamini_hochberg(p_values: &[f64]) -> Vec<f64> {
         let m = p_values.len();
         let mut indexed: Vec<(usize, f64)> = p_values.iter().cloned().enumerate().collect();
-        indexed.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        indexed.sort_by(|a, b| a.1.total_cmp(&b.1));
 
         let mut adjusted = vec![0.0; m];
         let mut cum_min: f64 = 1.0;
@@ -341,7 +341,7 @@ impl Stats {
     pub fn holm(p_values: &[f64]) -> Vec<f64> {
         let m = p_values.len();
         let mut indexed: Vec<(usize, f64)> = p_values.iter().cloned().enumerate().collect();
-        indexed.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        indexed.sort_by(|a, b| a.1.total_cmp(&b.1));
 
         let mut adjusted = vec![0.0; m];
         let mut cum_max: f64 = 0.0;

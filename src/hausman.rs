@@ -31,7 +31,9 @@ impl HausmanTest {
         }
 
         // 4. P-Valor
-        let dist = ChiSquared::new(k as f64).unwrap();
+        let Ok(dist) = ChiSquared::new(k as f64) else {
+            return "Invalid degrees of freedom".to_string();
+        };
         let p_value = 1.0 - dist.cdf(chi2_stat);
 
         // Formatar Saída

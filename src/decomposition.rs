@@ -272,7 +272,7 @@ impl Decomposition {
             let residual = series - &trend - &seasonal;
             let abs_resid: Vec<f64> = residual.iter().map(|v| v.abs()).collect();
             let mut sorted = abs_resid.clone();
-            sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            sorted.sort_by(|a, b| a.total_cmp(b));
             let h = sorted[sorted.len() * 6 / 10]; // ~median * 6
 
             if h > 1e-15 {
@@ -325,7 +325,7 @@ fn moving_average(series: &Array1<f64>, window: usize) -> Array1<f64> {
     let mut result = Array1::from_elem(n, f64::NAN);
     let half = window / 2;
 
-    for i in half..n.saturating_sub(half + if window.is_multiple_of(2) { 1 } else { 0 }) {
+    for i in half..n.saturating_sub(half + if window % 2 == 0 { 1 } else { 0 }) {
         let start = i.saturating_sub(half);
         let end = (i + half + 1).min(n);
         let vals: Vec<f64> = (start..end)
@@ -353,7 +353,7 @@ fn loess(x: &[f64], y: &[f64], w: &[f64], x_pred: &[f64], span: usize) -> Vec<f6
         .map(|&xp| {
             // Find distances and sort
             let mut dists: Vec<(usize, f64)> = (0..n).map(|i| (i, (x[i] - xp).abs())).collect();
-            dists.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+            dists.sort_by(|a, b| a.1.total_cmp(&b.1));
 
             let max_dist = dists[h - 1].1.max(1e-15);
 

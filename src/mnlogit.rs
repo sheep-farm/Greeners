@@ -202,7 +202,7 @@ impl MNLogit {
 
         // Detect and sort unique categories
         let mut categories: Vec<f64> = y.iter().copied().collect();
-        categories.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        categories.sort_by(|a, b| a.total_cmp(b));
         categories.dedup();
         let j = categories.len();
 
@@ -398,7 +398,7 @@ impl MNLogit {
         let mut z_mat = Array2::<f64>::zeros((k_clean, j_minus_1));
         let mut p_mat = Array2::<f64>::zeros((k_clean, j_minus_1));
 
-        let normal_dist = Normal::new(0.0, 1.0).unwrap();
+        let normal_dist = Normal::standard();
 
         for c in 0..j_minus_1 {
             for kk in 0..k_clean {

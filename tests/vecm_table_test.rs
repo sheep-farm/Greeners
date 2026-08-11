@@ -1,7 +1,7 @@
 use greeners::VECM;
 use ndarray::Array2;
-use ndarray_rand::rand_distr::Normal;
 use rand::prelude::*;
+use rand_distr::Normal;
 
 #[test]
 fn test_vecm_table_format_is_printed() {

@@ -224,8 +224,8 @@ impl RLM {
 
             // MAD scale estimate
             let mut abs_resid: Vec<f64> = resid.iter().map(|r| r.abs()).collect();
-            abs_resid.sort_by(|a, b| a.partial_cmp(b).unwrap());
-            let median_abs = if abs_resid.len().is_multiple_of(2) {
+            abs_resid.sort_by(|a, b| a.total_cmp(b));
+            let median_abs = if abs_resid.len() % 2 == 0 {
                 (abs_resid[abs_resid.len() / 2 - 1] + abs_resid[abs_resid.len() / 2]) / 2.0
             } else {
                 abs_resid[abs_resid.len() / 2]
@@ -271,8 +271,8 @@ impl RLM {
         // Final scale
         let resid = y - &x.dot(&params);
         let mut abs_resid: Vec<f64> = resid.iter().map(|r| r.abs()).collect();
-        abs_resid.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let median_abs = if abs_resid.len().is_multiple_of(2) {
+        abs_resid.sort_by(|a, b| a.total_cmp(b));
+        let median_abs = if abs_resid.len() % 2 == 0 {
             (abs_resid[abs_resid.len() / 2 - 1] + abs_resid[abs_resid.len() / 2]) / 2.0
         } else {
             abs_resid[abs_resid.len() / 2]

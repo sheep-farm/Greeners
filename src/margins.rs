@@ -113,7 +113,7 @@ impl Margins {
                 .collect()
         };
 
-        let effects = compute_effects(params.as_slice().unwrap());
+        let effects = compute_effects(crate::array1_slice(params));
 
         // Delta method SEs via numerical gradient
         let std_errors = if let Some(v) = vcov {
@@ -121,7 +121,7 @@ impl Margins {
             let mut se = vec![0.0; k];
             for j in 0..k {
                 let mut grad = Array1::<f64>::zeros(k);
-                let params_slice = params.as_slice().unwrap();
+                let params_slice = crate::array1_slice(params);
                 for p in 0..k {
                     let mut beta_plus = params_slice.to_vec();
                     let mut beta_minus = params_slice.to_vec();

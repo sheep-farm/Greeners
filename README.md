@@ -345,6 +345,17 @@ for the complete feature matrix with implementation status.
 
 ---
 
+## Proofs and algebraic invariants
+
+Every estimator is paired with an integration test in
+`tests/<estimator>_invariants.rs` that checks the algebraic invariants implied
+by its mathematical specification. The derivations and the mapping from math to
+code are recorded in [PROOFS.md](PROOFS.md), which now covers 127 estimator
+families. For development commands and the verification checklist, see
+[AGENTS.md](AGENTS.md).
+
+---
+
 ## Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
@@ -352,6 +363,7 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
 Before opening a PR:
 - Add at least one example to `examples/` for new estimators
 - Verify numerical output against statsmodels or R on a reference dataset
+- Add `tests/<estimator>_invariants.rs` for new estimators and update `PROOFS.md`
 - Run `cargo test` and `cargo clippy -- -D warnings`
 
 ---

@@ -86,7 +86,10 @@ pub extern "C" fn odre_get_metadata() -> *const c_char {
     }"#;
 
     // Note: This leaks memory, but it's only called once at load time
-    CString::new(json).unwrap().into_raw()
+    match CString::new(json) {
+        Ok(c) => c.into_raw(),
+        Err(_) => std::ptr::null(),
+    }
 }
 
 /// Executes OLS regression.
@@ -100,7 +103,10 @@ pub extern "C" fn odre_get_metadata() -> *const c_char {
 #[no_mangle]
 pub extern "C" fn odre_execute(inputs_json: *const c_char) -> *mut c_char {
     let result = execute_internal(inputs_json);
-    CString::new(result).unwrap().into_raw()
+    match CString::new(result) {
+        Ok(c) => c.into_raw(),
+        Err(_) => std::ptr::null_mut(),
+    }
 }
 
 fn execute_internal(inputs_json: *const c_char) -> String {

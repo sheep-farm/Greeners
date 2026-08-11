@@ -1411,9 +1411,9 @@ impl ETSModel {
             aic,
             bic,
             n_obs: n,
-            last_level: *level_v.last().unwrap(),
+            last_level: level_v.last().copied().unwrap_or(f64::NAN),
             last_trend: if has_trend {
-                Some(*trend_v.last().unwrap())
+                trend_v.last().copied()
             } else {
                 None
             },

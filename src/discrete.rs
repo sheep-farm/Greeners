@@ -216,7 +216,7 @@ impl Logit {
         let std_errors = cov_matrix.diag().mapv(f64::sqrt);
         let z_values = &beta / &std_errors;
 
-        let normal_dist = Normal::new(0.0, 1.0).unwrap();
+        let normal_dist = Normal::standard();
         let p_values = z_values.mapv(|z| 2.0 * (1.0 - normal_dist.cdf(z.abs())));
 
         let y_mean = y.mean().unwrap_or(0.5);
@@ -275,7 +275,7 @@ impl BinaryModelResult {
                 exp_xb / (1.0 + exp_xb).powi(2)
             } else {
                 // Normal density: (1/√2π)exp(-z²/2)
-                let normal = Normal::new(0.0, 1.0).unwrap();
+                let normal = Normal::standard();
                 normal.pdf(xb)
             };
 
@@ -313,7 +313,9 @@ impl BinaryModelResult {
         let k = x.ncols();
 
         // Calculate means of X (excluding intercept if present)
-        let x_means = x.mean_axis(Axis(0)).unwrap();
+        let x_means = x.mean_axis(Axis(0)).ok_or_else(|| {
+            GreenersError::InvalidOperation("Cannot compute column means".to_string())
+        })?;
 
         // Linear prediction at means
         let xb_mean = x_means.dot(&self.params);
@@ -323,7 +325,7 @@ impl BinaryModelResult {
             let exp_xb = xb_mean.exp();
             exp_xb / (1.0 + exp_xb).powi(2)
         } else {
-            let normal = Normal::new(0.0, 1.0).unwrap();
+            let normal = Normal::standard();
             normal.pdf(xb_mean)
         };
 
@@ -351,7 +353,7 @@ impl BinaryModelResult {
             xb.mapv(|val| 1.0 / (1.0 + (-val).exp()))
         } else {
             // Normal CDF: Φ(x'β)
-            let normal = Normal::new(0.0, 1.0).unwrap();
+            let normal = Normal::standard();
             xb.mapv(|val| normal.cdf(val))
         }
     }
@@ -392,7 +394,7 @@ impl BinaryModelResult {
                     let p = xb.mapv(|val| 1.0 / (1.0 + (-val).exp()));
                     &p * &(1.0 - &p)
                 } else {
-                    let normal_dist = Normal::new(0.0, 1.0).unwrap();
+                    let normal_dist = Normal::standard();
                     let mut w = Array1::<f64>::zeros(n);
                     for i in 0..n {
                         let val = xb[i];
@@ -414,7 +416,7 @@ impl BinaryModelResult {
         // 2. Compute Jacobian: J_jm = (1/n) Σ_i [ 1_{j=m} d(x_i'β) + β_j d'(x_i'β) x_im ]
         let xb = x.dot(&self.params);
         let mut jacobian = Array2::<f64>::zeros((k, k));
-        let normal_dist = Normal::new(0.0, 1.0).unwrap();
+        let normal_dist = Normal::standard();
 
         for i in 0..n {
             let x_i = x.row(i);
@@ -469,7 +471,7 @@ impl BinaryModelResult {
         let me_se = self.average_marginal_effects_se(x)?;
         let k = ame.len();
 
-        let normal_dist = Normal::new(0.0, 1.0).unwrap();
+        let normal_dist = Normal::standard();
         let z_crit = normal_dist.inverse_cdf(1.0 - alpha / 2.0);
 
         let mut lower = Array1::<f64>::zeros(k);
@@ -550,7 +552,7 @@ impl Probit {
         }
 
         let mut beta = Array1::<f64>::zeros(k_clean);
-        let normal_dist = Normal::new(0.0, 1.0).unwrap();
+        let normal_dist = Normal::standard();
 
         let tol = 1e-6;
         let max_iter = 100;

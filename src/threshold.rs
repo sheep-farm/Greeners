@@ -63,7 +63,7 @@ impl PanelThreshold {
         // 1. Definir Grid de Busca (Trimmed)
         // Precisamos dos valores únicos de q, ordenados
         let mut q_vec: Vec<f64> = q.to_vec();
-        q_vec.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        q_vec.sort_by(|a, b| a.total_cmp(b));
         q_vec.dedup(); // Apenas únicos
 
         let n_unique = q_vec.len();
@@ -90,7 +90,9 @@ impl PanelThreshold {
         let mut best_r2 = 0.0;
 
         // IDs cru para o FE
-        let id_slice = entity_ids.as_slice().unwrap();
+        let id_slice = entity_ids.as_slice().ok_or_else(|| {
+            GreenersError::InvalidOperation("Non-contiguous entity IDs".to_string())
+        })?;
 
         // 2. Loop de Grid Search
         for i in (0..candidates.len()).step_by(step) {

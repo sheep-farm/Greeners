@@ -108,7 +108,7 @@ impl fmt::Display for ZeroInflatedResult {
 }
 
 impl ZeroInflatedResult {
-    /// Predicted expected counts: E[y] = (1 - π) * μ.
+    /// Predicted expected counts: E\[y\] = (1 - π) * μ.
     pub fn predict_count(&self, x_count: &Array2<f64>, x_inflate: &Array2<f64>) -> Array1<f64> {
         let mu = x_count.dot(&self.count_params).mapv(f64::exp);
         let pi = x_inflate
@@ -466,7 +466,7 @@ fn fit_zero_inflated(
         .inv()
         .unwrap_or_else(|_| Array2::eye(total_params) * 1e-4);
 
-    let normal_dist = Normal::new(0.0, 1.0).unwrap();
+    let normal_dist = Normal::standard();
 
     let count_se: Array1<f64> = (0..k_count)
         .map(|i| cov_matrix[[i, i]].max(0.0).sqrt())

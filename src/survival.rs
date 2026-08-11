@@ -83,7 +83,7 @@ impl KaplanMeier {
 
         // Sort by time
         let mut indices: Vec<usize> = (0..n).collect();
-        indices.sort_by(|&a, &b| times[a].partial_cmp(&times[b]).unwrap());
+        indices.sort_by(|&a, &b| times[a].total_cmp(&times[b]));
 
         // Find unique event times and compute d_i, n_i
         let mut unique_times: Vec<f64> = Vec::new();
@@ -268,7 +268,7 @@ impl CoxPH {
 
         // Sort by time (descending for risk set computation)
         let mut order: Vec<usize> = (0..n).collect();
-        order.sort_by(|&a, &b| times[a].partial_cmp(&times[b]).unwrap());
+        order.sort_by(|&a, &b| times[a].total_cmp(&times[b]));
 
         let mut beta = Array1::<f64>::zeros(k);
         let max_iter = 100;

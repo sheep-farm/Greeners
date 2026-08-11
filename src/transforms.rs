@@ -18,7 +18,7 @@ impl Transforms {
             (true, true) => std::cmp::Ordering::Equal,
             (true, false) => std::cmp::Ordering::Greater,
             (false, true) => std::cmp::Ordering::Less,
-            (false, false) => vals[a].partial_cmp(&vals[b]).unwrap(),
+            (false, false) => vals[a].total_cmp(&vals[b]),
         });
         let mut ranks = vec![0.0f64; n];
         let mut i = 0;
@@ -82,7 +82,7 @@ impl Transforms {
         if sorted.is_empty() {
             return f64::NAN;
         }
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.sort_by(|a, b| a.total_cmp(b));
         let n = sorted.len();
         let q25 = sorted[(0.25 * (n - 1) as f64).round() as usize];
         let q75 = sorted[(0.75 * (n - 1) as f64).round() as usize];
@@ -101,9 +101,8 @@ impl Transforms {
         if unique.iter().all(|s| s.parse::<f64>().is_ok()) {
             unique.sort_by(|a, b| {
                 a.parse::<f64>()
-                    .unwrap()
-                    .partial_cmp(&b.parse::<f64>().unwrap())
-                    .unwrap()
+                    .unwrap_or(f64::NAN)
+                    .total_cmp(&b.parse::<f64>().unwrap_or(f64::NAN))
             });
         } else {
             unique.sort();
@@ -290,6 +289,31 @@ impl Transforms {
 
     /// Apply a named binary function element-wise to two slices.
     pub fn apply2(a: &[f64], b: &[f64], func: &str) -> Result<Vec<f64>, GreenersError> {
+        if func == "round" {
+            if b.len() != 1 && b.len() != a.len() {
+                return Err(GreenersError::ShapeMismatch(format!(
+                    "round(x, digits): digits must be scalar or same length as x ({} vs {})",
+                    a.len(),
+                    b.len()
+                )));
+            }
+            let digits: Vec<f64> = if b.len() == 1 {
+                vec![b[0]; a.len()]
+            } else {
+                b.to_vec()
+            };
+            return Ok(a
+                .iter()
+                .zip(digits.iter())
+                .map(|(&x, &d)| {
+                    if d.is_infinite() || d.is_nan() {
+                        return x;
+                    }
+                    let mult = 10.0_f64.powf(d);
+                    (x * mult).round() / mult
+                })
+                .collect());
+        }
         if a.len() != b.len() {
             return Err(GreenersError::ShapeMismatch(format!(
                 "apply2: mismatched lengths {} vs {}",
@@ -568,6 +592,22 @@ mod tests {
         let a = vec![1.0, 2.0];
         let b = vec![1.0];
         assert!(Transforms::apply2(&a, &b, "pow").is_err());
+    }
+
+    #[test]
+    fn test_apply2_round() {
+        let a = vec![3.14159, 1234.5678, 1.2345];
+        let b = vec![2.0, -2.0, 3.0];
+        let result = Transforms::apply2(&a, &b, "round").unwrap();
+        assert!((result[0] - 3.14).abs() < 1e-10);
+        assert!((result[1] - 1200.0).abs() < 1e-10);
+        assert!((result[2] - 1.235).abs() < 1e-10);
+
+        let scalar = vec![2.0];
+        let result = Transforms::apply2(&a, &scalar, "round").unwrap();
+        assert!((result[0] - 3.14).abs() < 1e-10);
+        assert!((result[1] - 1234.57).abs() < 1e-10);
+        assert!((result[2] - 1.23).abs() < 1e-10);
     }
 
     #[test]

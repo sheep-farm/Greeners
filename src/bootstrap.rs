@@ -66,7 +66,9 @@ impl Bootstrap {
             let mut boot_indices = vec![0; n];
             // for i in 0..n {
             for indice in boot_indices.iter_mut().take(n) {
-                *indice = *indices.choose(&mut rng).unwrap();
+                *indice = *indices.choose(&mut rng).ok_or_else(|| {
+                    GreenersError::InvalidOperation("Empty index pool for bootstrap".to_string())
+                })?;
             }
 
             // Create bootstrap sample
@@ -134,7 +136,7 @@ impl Bootstrap {
 
         for j in 0..k {
             let mut col: Vec<f64> = boot_coefs.column(j).to_vec();
-            col.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            col.sort_by(|a, b| a.total_cmp(b));
 
             lower[j] = col[lower_idx.min(n_boot - 1)];
             upper[j] = col[upper_idx.min(n_boot - 1)];

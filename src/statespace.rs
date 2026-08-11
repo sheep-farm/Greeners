@@ -1,5 +1,9 @@
 use crate::linalg::LinalgInverse as _;
 use crate::GreenersError;
+use argmin::{
+    core::{CostFunction, Error as ArgminError, Executor, IterState, State},
+    solver::neldermead::NelderMead,
+};
 use ndarray::{Array1, Array2};
 use std::fmt;
 
@@ -255,4 +259,154 @@ fn det_positive(m: &Array2<f64>) -> f64 {
     // For larger, use LU
     use crate::linalg::LinalgDeterminant as _;
     m.det().unwrap_or(1e-30).abs().max(1e-30)
+}
+
+// ============================================================================
+// Local-level model with MLE estimation of variances
+// ============================================================================
+
+/// Result of a local-level Kalman filter with estimated variances.
+#[derive(Debug, Clone)]
+pub struct LocalLevelResult {
+    pub sigma_obs: f64,
+    pub sigma_state: f64,
+    pub log_likelihood: f64,
+    pub filtered_states: Vec<Array1<f64>>,
+    pub smoothed_states: Vec<Array1<f64>>,
+    pub n_obs: usize,
+}
+
+impl fmt::Display for LocalLevelResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "\n{:=^60}", " Local-Level Kalman Filter ")?;
+        writeln!(f, "{:<20} {:>10}", "Observations:", self.n_obs)?;
+        writeln!(f, "{:<20} {:>10.6}", "sigma_obs:", self.sigma_obs)?;
+        writeln!(f, "{:<20} {:>10.6}", "sigma_state:", self.sigma_state)?;
+        writeln!(f, "{:<20} {:>10.4}", "Log-likelihood:", self.log_likelihood)?;
+        writeln!(f, "{:=^60}", "")
+    }
+}
+
+/// Local-level state-space model: y_t = mu_t + e_t, mu_t = mu_{t-1} + eta_t.
+pub struct LocalLevel;
+
+impl LocalLevel {
+    /// Fit a local-level model by maximum likelihood.
+    ///
+    /// Returns the estimated observation and state standard deviations together
+    /// with the filtered and smoothed states.
+    pub fn fit(y: &[f64]) -> Result<LocalLevelResult, GreenersError> {
+        let n = y.len();
+        if n < 4 {
+            return Err(GreenersError::InvalidOperation(
+                "LocalLevel: need at least 4 observations".into(),
+            ));
+        }
+
+        // Initial values from the sample variance of first differences.
+        let diffs: Vec<f64> = y.windows(2).map(|w| w[1] - w[0]).collect();
+        let mean_diff = diffs.iter().sum::<f64>() / diffs.len() as f64;
+        let diff_var =
+            diffs.iter().map(|d| (d - mean_diff).powi(2)).sum::<f64>() / (diffs.len() - 1) as f64;
+        let sigma_obs0 = (diff_var / 2.0).sqrt().max(1e-6);
+        let sigma_state0 = (sigma_obs0 * 0.1).max(1e-6);
+
+        // Optimise log variances to keep parameters unconstrained and positive.
+        let initial = vec![
+            (sigma_obs0 * sigma_obs0).ln(),
+            (sigma_state0 * sigma_state0).ln(),
+        ];
+
+        let vertices = build_simplex(&initial, 0.5);
+        let solver: NelderMead<Vec<f64>, f64> =
+            NelderMead::new(vertices)
+                .with_sd_tolerance(1e-7)
+                .map_err(|e| GreenersError::InvalidOperation(format!("Nelder-Mead config: {e}")))?;
+
+        let problem = LocalLevelProblem { y: y.to_vec() };
+        let result = Executor::new(problem, solver)
+            .configure(|state: IterState<Vec<f64>, (), (), (), (), f64>| state.max_iters(2000))
+            .run()
+            .map_err(|e| GreenersError::InvalidOperation(format!("Optimisation failed: {e}")))?;
+
+        let best = result.state().get_best_param().ok_or_else(|| {
+            GreenersError::InvalidOperation("Optimisation did not return a best parameter".into())
+        })?;
+
+        let sigma_obs_sq = best[0].exp();
+        let sigma_state_sq = best[1].exp();
+        let sigma_obs = sigma_obs_sq.sqrt();
+        let sigma_state = sigma_state_sq.sqrt();
+
+        let model = StateSpaceModel {
+            h: Array2::from_elem((1, 1), 1.0),
+            f: Array2::from_elem((1, 1), 1.0),
+            r: Array2::from_elem((1, 1), 1.0),
+            q: Array2::from_elem((1, 1), sigma_state_sq),
+            r_obs: Array2::from_elem((1, 1), sigma_obs_sq),
+            s0: Array1::from_vec(vec![y[0]]),
+            p0: Array2::from_elem((1, 1), sigma_obs_sq * 10.0),
+        };
+
+        let obs: Vec<Array1<f64>> = y.iter().map(|&v| Array1::from_vec(vec![v])).collect();
+        let ss = state_space_estimate(&model, &obs)?;
+
+        Ok(LocalLevelResult {
+            sigma_obs,
+            sigma_state,
+            log_likelihood: ss.log_likelihood,
+            filtered_states: ss.filtered_states,
+            smoothed_states: ss.smoothed_states,
+            n_obs: y.len(),
+        })
+    }
+}
+
+struct LocalLevelProblem {
+    y: Vec<f64>,
+}
+
+impl CostFunction for LocalLevelProblem {
+    type Param = Vec<f64>;
+    type Output = f64;
+
+    fn cost(&self, param: &Self::Param) -> Result<Self::Output, ArgminError> {
+        let sigma_obs_sq = param[0].exp();
+        let sigma_state_sq = param[1].exp();
+
+        let model = StateSpaceModel {
+            h: Array2::from_elem((1, 1), 1.0),
+            f: Array2::from_elem((1, 1), 1.0),
+            r: Array2::from_elem((1, 1), 1.0),
+            q: Array2::from_elem((1, 1), sigma_state_sq),
+            r_obs: Array2::from_elem((1, 1), sigma_obs_sq),
+            s0: Array1::from_vec(vec![self.y[0]]),
+            p0: Array2::from_elem((1, 1), sigma_obs_sq * 10.0),
+        };
+
+        let obs: Vec<Array1<f64>> = self.y.iter().map(|&v| Array1::from_vec(vec![v])).collect();
+
+        match KalmanFilter::filter(&model, &obs) {
+            Ok(res) => {
+                if res.log_likelihood.is_finite() {
+                    Ok(-res.log_likelihood)
+                } else {
+                    Ok(1e12)
+                }
+            }
+            Err(_) => Ok(1e12),
+        }
+    }
+}
+
+fn build_simplex(center: &[f64], scale: f64) -> Vec<Vec<f64>> {
+    let n = center.len();
+    let mut vertices = Vec::with_capacity(n + 1);
+    vertices.push(center.to_vec());
+    for i in 0..n {
+        let mut v = center.to_vec();
+        v[i] += scale;
+        vertices.push(v);
+    }
+    vertices
 }

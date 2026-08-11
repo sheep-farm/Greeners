@@ -13,7 +13,7 @@ fn phi(x: f64) -> f64 {
 }
 
 fn norm_cdf(x: f64) -> f64 {
-    Normal::new(0.0, 1.0).unwrap().cdf(x)
+    Normal::standard().cdf(x)
 }
 
 // ===========================================================================
@@ -142,14 +142,13 @@ impl Tobit {
         let y_unc: Array1<f64> = unc_idx.iter().map(|&i| y[i]).collect::<Vec<_>>().into();
         let x_unc: Array2<f64> = {
             let rows: Vec<ndarray::ArrayView1<f64>> = unc_idx.iter().map(|&i| x.row(i)).collect();
-            ndarray::stack(ndarray::Axis(0), &rows).unwrap()
+            ndarray::stack(ndarray::Axis(0), &rows)
+                .map_err(|e| GreenersError::ShapeMismatch(format!("{}", e)))?
         };
 
-        let ols_init =
-            OLS::fit(&y_unc, &x_unc, crate::CovarianceType::NonRobust).unwrap_or_else(|_| {
-                OLS::fit(y, x, crate::CovarianceType::NonRobust)
-                    .expect("Tobit: falha na inicialização OLS")
-            });
+        let ols_init = OLS::fit(&y_unc, &x_unc, crate::CovarianceType::NonRobust)
+            .or_else(|_| OLS::fit(y, x, crate::CovarianceType::NonRobust))
+            .map_err(|_| GreenersError::OptimizationFailed)?;
 
         let mut beta = ols_init.params.clone();
         let init_sigma = {

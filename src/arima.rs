@@ -334,7 +334,7 @@ impl ARIMA {
                 .collect(),
         );
 
-        let normal = NormalDist::new(0.0, 1.0).unwrap();
+        let normal = NormalDist::standard();
         let z_values = Array1::from_vec(
             (0..n_cols)
                 .map(|i| {
@@ -1449,7 +1449,7 @@ impl fmt::Display for ArimaResult {
                 } else if j < p + q + sp + sq {
                     self.seasonal_ma_params[j - p - q - sp]
                 } else {
-                    self.exog_params.as_ref().unwrap()[j - p - q - sp - sq]
+                    self.exog_params.as_ref().ok_or(fmt::Error)?[j - p - q - sp - sq]
                 }
             };
             writeln!(

@@ -1,8 +1,7 @@
 use greeners::VARMA;
 use ndarray::Array2;
-use ndarray_rand::rand_distr::Normal;
-// use ndarray_rand::RandomExt;
 use rand::prelude::*;
+use rand_distr::Normal;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Precisamos de um T maior para o Hannan-Rissanen estabilizar (Long VAR consome dados)

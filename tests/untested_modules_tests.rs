@@ -14,7 +14,7 @@ use ndarray::{Array1, Array2};
 fn panel_data_for_hausman() -> (Array1<f64>, Array2<f64>, Vec<i64>, Array1<i64>) {
     // 5 entities, 4 periods each = 20 obs
     let n = 20;
-    let entity_ids_vec: Vec<i64> = (0..5).flat_map(|e| std::iter::repeat_n(e, 4)).collect();
+    let entity_ids_vec: Vec<i64> = (0..5).flat_map(|e| std::iter::repeat(e).take(4)).collect();
     let entity_ids_arr = Array1::from(entity_ids_vec.clone());
 
     // entity effects
@@ -56,7 +56,7 @@ fn test_hausman_compare_runs() {
 fn test_hausman_with_strong_entity_effects() {
     // With strong entity effects, FE should be preferred (reject H0)
     let n = 40;
-    let entity_ids_vec: Vec<i64> = (0..10).flat_map(|e| std::iter::repeat_n(e, 4)).collect();
+    let entity_ids_vec: Vec<i64> = (0..10).flat_map(|e| std::iter::repeat(e).take(4)).collect();
     let entity_ids_arr = Array1::from(entity_ids_vec.clone());
 
     let alpha: Vec<f64> = entity_ids_vec.iter().map(|&e| (e as f64) * 10.0).collect();
@@ -240,11 +240,13 @@ fn test_three_sls_two_equations() {
             y: Array1::from(y1),
             x: x1,
             name: "supply".to_string(),
+            var_names: vec!["const".into(), "endog".into(), "exog".into()],
         },
         Equation {
             y: Array1::from(y2),
             x: x2,
             name: "demand".to_string(),
+            var_names: vec!["const".into(), "endog".into(), "exog".into()],
         },
     ];
 
@@ -284,7 +286,7 @@ fn test_arellano_bond_basic() {
 
     let entity_ids = Array1::from(
         (0..n_entities)
-            .flat_map(|e| std::iter::repeat_n(e as i64, t_periods))
+            .flat_map(|e| std::iter::repeat(e as i64).take(t_periods))
             .collect::<Vec<_>>(),
     );
     let time_ids = Array1::from(
@@ -636,7 +638,7 @@ fn test_panel_threshold_basic() {
 
     let entity_ids = Array1::from(
         (0..n_entities)
-            .flat_map(|e| std::iter::repeat_n(e as i64, t_periods))
+            .flat_map(|e| std::iter::repeat(e as i64).take(t_periods))
             .collect::<Vec<_>>(),
     );
 
@@ -929,11 +931,13 @@ fn test_three_sls_overidentified() {
             y: Array1::from(y1),
             x: x1,
             name: "eq1".to_string(),
+            var_names: vec!["const".into(), "endog".into(), "exog".into()],
         },
         Equation {
             y: Array1::from(y2),
             x: x2,
             name: "eq2".to_string(),
+            var_names: vec!["const".into(), "endog".into(), "exog".into()],
         },
     ];
 
@@ -991,11 +995,13 @@ fn test_three_sls_vs_equation_by_equation() {
             y: Array1::from(y1),
             x: x1,
             name: "supply".to_string(),
+            var_names: vec!["const".into(), "endog".into(), "exog".into()],
         },
         Equation {
             y: Array1::from(y2),
             x: x2,
             name: "demand".to_string(),
+            var_names: vec!["const".into(), "endog".into(), "exog".into()],
         },
     ];
 
@@ -1029,7 +1035,7 @@ fn test_arellano_bond_larger_panel() {
 
     let entity_ids = Array1::from(
         (0..n_entities)
-            .flat_map(|e| std::iter::repeat_n(e as i64, t_periods))
+            .flat_map(|e| std::iter::repeat(e as i64).take(t_periods))
             .collect::<Vec<_>>(),
     );
     let time_ids = Array1::from(
@@ -1078,7 +1084,7 @@ fn test_arellano_bond_with_exogenous() {
 
     let entity_ids = Array1::from(
         (0..n_entities)
-            .flat_map(|e| std::iter::repeat_n(e as i64, t_periods))
+            .flat_map(|e| std::iter::repeat(e as i64).take(t_periods))
             .collect::<Vec<_>>(),
     );
     let time_ids = Array1::from(
@@ -1145,7 +1151,7 @@ fn test_panel_threshold_clear_break() {
 
     let entity_ids = Array1::from(
         (0..n_entities)
-            .flat_map(|e| std::iter::repeat_n(e as i64, t_periods))
+            .flat_map(|e| std::iter::repeat(e as i64).take(t_periods))
             .collect::<Vec<_>>(),
     );
 
