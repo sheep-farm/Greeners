@@ -161,12 +161,16 @@ impl SV {
         let problem = SvProblem { z: z.to_vec() };
         let max_iters = n_iter.max(200);
         let result = Executor::new(problem, solver)
-            .configure(|state: IterState<Vec<f64>, (), (), (), (), f64>| state.max_iters(max_iters as u64))
+            .configure(|state: IterState<Vec<f64>, (), (), (), (), f64>| {
+                state.max_iters(max_iters as u64)
+            })
             .run()
             .map_err(|e| GreenersError::InvalidOperation(format!("SV optimisation failed: {e}")))?;
 
         let best = result.state().get_best_param().ok_or_else(|| {
-            GreenersError::InvalidOperation("SV: optimisation did not return a best parameter".into())
+            GreenersError::InvalidOperation(
+                "SV: optimisation did not return a best parameter".into(),
+            )
         })?;
 
         let mu = best[0];
