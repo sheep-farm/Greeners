@@ -248,8 +248,16 @@ impl PSTR {
         // Refine grid around best (gamma, c)
         let gamma_low = (best_gamma - 1.0).max(0.1);
         let gamma_high = best_gamma + 1.0;
-        let c_low = (best_c - 0.5 * (q_sorted.last().copied().unwrap_or(best_c) - q_sorted.first().copied().unwrap_or(best_c))).max(q_sorted.first().copied().unwrap_or(best_c));
-        let c_high = (best_c + 0.5 * (q_sorted.last().copied().unwrap_or(best_c) - q_sorted.first().copied().unwrap_or(best_c))).min(q_sorted.last().copied().unwrap_or(best_c));
+        let c_low = (best_c
+            - 0.5
+                * (q_sorted.last().copied().unwrap_or(best_c)
+                    - q_sorted.first().copied().unwrap_or(best_c)))
+        .max(q_sorted.first().copied().unwrap_or(best_c));
+        let c_high = (best_c
+            + 0.5
+                * (q_sorted.last().copied().unwrap_or(best_c)
+                    - q_sorted.first().copied().unwrap_or(best_c)))
+        .min(q_sorted.last().copied().unwrap_or(best_c));
 
         for gi in 0..21 {
             let gamma = gamma_low + (gamma_high - gamma_low) * gi as f64 / 20.0;

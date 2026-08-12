@@ -194,10 +194,10 @@ impl ConformalPrediction {
         }
 
         // Compute conformal quantile
-        // q = ceil((n_calib + 1) * (1 - alpha) / n_calib)-th smallest score
+        // q = ceil((n_calib + 1) * (1 - alpha))-th smallest score
         let mut sorted_scores = scores.clone();
         sorted_scores.sort_by(|a, b| a.total_cmp(b));
-        let q_rank = (((n_calib + 1) as f64 * coverage / n_calib as f64).ceil()) as usize;
+        let q_rank = ((n_calib + 1) as f64 * coverage).ceil() as usize;
         let q_rank = q_rank.min(n_calib).max(1);
         let quantile = sorted_scores[q_rank - 1];
 
