@@ -133,7 +133,7 @@ impl SpatialDurbin {
             .collect();
         unique_ids.sort();
         let n_entities = unique_ids.len();
-        let n_periods = if n_entities > 0 { n / n_entities } else { 1 };
+        let n_periods = n.checked_div(n_entities).unwrap_or(1);
         let is_panel = n_periods > 1;
 
         // Build full n×n W matrix (block diagonal)
