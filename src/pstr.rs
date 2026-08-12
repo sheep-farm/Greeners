@@ -245,6 +245,42 @@ impl PSTR {
             }
         }
 
+        // Refine grid around best (gamma, c)
+        let gamma_low = (best_gamma - 1.0).max(0.1);
+        let gamma_high = best_gamma + 1.0;
+        let c_low = (best_c - 0.5 * (q_sorted.last().copied().unwrap_or(best_c) - q_sorted.first().copied().unwrap_or(best_c))).max(q_sorted.first().copied().unwrap_or(best_c));
+        let c_high = (best_c + 0.5 * (q_sorted.last().copied().unwrap_or(best_c) - q_sorted.first().copied().unwrap_or(best_c))).min(q_sorted.last().copied().unwrap_or(best_c));
+
+        for gi in 0..21 {
+            let gamma = gamma_low + (gamma_high - gamma_low) * gi as f64 / 20.0;
+            for ci in 0..21 {
+                let c = c_low + (c_high - c_low) * ci as f64 / 20.0;
+                let g: Array1<f64> = (0..n)
+                    .map(|i| 1.0 / (1.0 + (-gamma * (q_dm[i] - c)).exp()))
+                    .collect();
+                let mut x_combined = Array2::zeros((n, 2 * k));
+                for i in 0..n {
+                    for j in 0..k {
+                        x_combined[(i, j)] = x_dm[(i, j)];
+                        x_combined[(i, k + j)] = x_dm[(i, j)] * g[i];
+                    }
+                }
+                let xt = x_combined.t();
+                let xtx = xt.dot(&x_combined);
+                let xtx_reg = &xtx + Array2::eye(2 * k) * 1e-8;
+                let xtx_inv = xtx_reg.inv()?;
+                let xty = xt.dot(&y_dm);
+                let beta: Array1<f64> = xtx_inv.dot(&xty);
+                let res = &y_dm - x_combined.dot(&beta);
+                let sse = res.dot(&res);
+                if sse < best_sse {
+                    best_sse = sse;
+                    best_gamma = gamma;
+                    best_c = c;
+                }
+            }
+        }
+
         // Final estimate at best (gamma, c)
         let g: Array1<f64> = (0..n)
             .map(|i| 1.0 / (1.0 + (-best_gamma * (q_dm[i] - best_c)).exp()))
