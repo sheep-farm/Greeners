@@ -6,7 +6,7 @@
 //! where W is a row-standardized spatial weights matrix.
 
 use crate::error::GreenersError;
-use crate::linalg::LinalgInverse as _;
+use crate::linalg::{LinalgEig as _, LinalgInverse as _};
 use ndarray::{Array1, Array2};
 use statrs::distribution::{ContinuousCDF, Normal};
 use std::fmt;
@@ -125,6 +125,9 @@ impl Spatial {
             ));
         }
 
+        // Pre-compute real eigenvalues of W for the Jacobian log-determinant
+        let w_eigvals = Self::eigvals(w)?;
+
         // Grid search for rho over [-0.99, 0.99]
         let mut best_rho = 0.0_f64;
         let mut best_ll = f64::NEG_INFINITY;
@@ -133,7 +136,7 @@ impl Spatial {
         let n_grid = 199;
         for i in 0..n_grid {
             let rho = -0.99 + 1.98 * i as f64 / (n_grid - 1) as f64;
-            let ll = Self::sar_log_likelihood(y, x, w, rho)?;
+            let ll = Self::sar_log_likelihood(y, x, w, rho, &w_eigvals)?;
             if ll > best_ll {
                 best_ll = ll;
                 best_rho = rho;
@@ -148,21 +151,21 @@ impl Spatial {
         let mut b = hi;
         let mut c = b - golden * (b - a);
         let mut d = a + golden * (b - a);
-        let mut fc = Self::sar_log_likelihood(y, x, w, c)?;
-        let mut fd = Self::sar_log_likelihood(y, x, w, d)?;
+        let mut fc = Self::sar_log_likelihood(y, x, w, c, &w_eigvals)?;
+        let mut fd = Self::sar_log_likelihood(y, x, w, d, &w_eigvals)?;
         for _ in 0..50 {
             if fc > fd {
                 b = d;
                 d = c;
                 fd = fc;
                 c = b - golden * (b - a);
-                fc = Self::sar_log_likelihood(y, x, w, c)?;
+                fc = Self::sar_log_likelihood(y, x, w, c, &w_eigvals)?;
             } else {
                 a = c;
                 c = d;
                 fc = fd;
                 d = a + golden * (b - a);
-                fd = Self::sar_log_likelihood(y, x, w, d)?;
+                fd = Self::sar_log_likelihood(y, x, w, d, &w_eigvals)?;
             }
         }
         best_rho = if fc > fd { c } else { d };
@@ -190,8 +193,8 @@ impl Spatial {
         // SE for rho (from Hessian approximation)
         let rho_se = {
             let h = 0.01;
-            let ll_p = Self::sar_log_likelihood(y, x, w, best_rho + h)?;
-            let ll_m = Self::sar_log_likelihood(y, x, w, best_rho - h)?;
+            let ll_p = Self::sar_log_likelihood(y, x, w, best_rho + h, &w_eigvals)?;
+            let ll_m = Self::sar_log_likelihood(y, x, w, best_rho - h, &w_eigvals)?;
             let second_deriv = (ll_p - 2.0 * best_ll + ll_m) / (h * h);
             if second_deriv < 0.0 {
                 (-1.0 / second_deriv).sqrt()
@@ -274,6 +277,9 @@ impl Spatial {
         let xty = xt.dot(y);
         let beta_ols = xtx_inv.dot(&xty);
 
+        // Pre-compute real eigenvalues of W
+        let w_eigvals = Self::eigvals(w)?;
+
         // Grid search for lambda
         let mut best_lambda = 0.0_f64;
         let mut best_ll = f64::NEG_INFINITY;
@@ -281,7 +287,7 @@ impl Spatial {
         let n_grid = 199;
         for i in 0..n_grid {
             let lambda = -0.99 + 1.98 * i as f64 / (n_grid - 1) as f64;
-            let ll = Self::sem_log_likelihood(y, x, w, lambda, &beta_ols)?;
+            let ll = Self::sem_log_likelihood(y, x, w, lambda, &beta_ols, &w_eigvals)?;
             if ll > best_ll {
                 best_ll = ll;
                 best_lambda = lambda;
@@ -294,21 +300,21 @@ impl Spatial {
         let mut b = best_lambda + 0.05;
         let mut c = b - golden * (b - a);
         let mut d = a + golden * (b - a);
-        let mut fc = Self::sem_log_likelihood(y, x, w, c, &beta_ols)?;
-        let mut fd = Self::sem_log_likelihood(y, x, w, d, &beta_ols)?;
+        let mut fc = Self::sem_log_likelihood(y, x, w, c, &beta_ols, &w_eigvals)?;
+        let mut fd = Self::sem_log_likelihood(y, x, w, d, &beta_ols, &w_eigvals)?;
         for _ in 0..50 {
             if fc > fd {
                 b = d;
                 d = c;
                 fd = fc;
                 c = b - golden * (b - a);
-                fc = Self::sem_log_likelihood(y, x, w, c, &beta_ols)?;
+                fc = Self::sem_log_likelihood(y, x, w, c, &beta_ols, &w_eigvals)?;
             } else {
                 a = c;
                 c = d;
                 fc = fd;
                 d = a + golden * (b - a);
-                fd = Self::sem_log_likelihood(y, x, w, d, &beta_ols)?;
+                fd = Self::sem_log_likelihood(y, x, w, d, &beta_ols, &w_eigvals)?;
             }
         }
         best_lambda = if fc > fd { c } else { d };
@@ -333,8 +339,8 @@ impl Spatial {
 
         let lambda_se = {
             let h = 0.01;
-            let ll_p = Self::sem_log_likelihood(y, x, w, best_lambda + h, &beta)?;
-            let ll_m = Self::sem_log_likelihood(y, x, w, best_lambda - h, &beta)?;
+            let ll_p = Self::sem_log_likelihood(y, x, w, best_lambda + h, &beta, &w_eigvals)?;
+            let ll_m = Self::sem_log_likelihood(y, x, w, best_lambda - h, &beta, &w_eigvals)?;
             let second_deriv = (ll_p - 2.0 * best_ll + ll_m) / (h * h);
             if second_deriv < 0.0 {
                 (-1.0 / second_deriv).sqrt()
@@ -395,12 +401,19 @@ impl Spatial {
         })
     }
 
+    /// Compute real eigenvalues of W for the Jacobian log-determinant.
+    fn eigvals(w: &Array2<f64>) -> Result<Array1<f64>, GreenersError> {
+        let (evals, _evecs) = w.eig()?;
+        Ok(evals.mapv(|c| c.re))
+    }
+
     /// SAR log-likelihood for a given rho
     fn sar_log_likelihood(
         y: &Array1<f64>,
         x: &Array2<f64>,
         w: &Array2<f64>,
         rho: f64,
+        w_eigvals: &Array1<f64>,
     ) -> Result<f64, GreenersError> {
         let n = y.len();
         let wy = w.dot(y);
@@ -416,13 +429,12 @@ impl Spatial {
         let rss = residuals.dot(&residuals);
         let sigma2 = rss / n as f64;
 
-        // Log-det(I - rho*W) via eigenvalues approximation
-        // For simplicity, use the trace approximation: log|I-ρW| ≈ -ρ*tr(W) - ρ²/2*tr(W²) - ...
-        // For row-standardized W, tr(W) ≈ 0, so this is small.
-        // We use the exact approach: compute eigenvalues of W (expensive but correct for small n)
-        // For now, use a simplified Jacobian: log|I-ρW| ≈ n*log(1-ρ²*mean_eig²)
-        // This is an approximation; exact computation requires eigenvalue decomposition.
-        let log_det = -(n as f64) * (1.0 - rho * rho).max(1e-10).ln() / 2.0;
+        // Exact log-det(I - rho*W) = sum_i log(1 - rho * eig_i(W))
+        let mut log_det = 0.0;
+        for &e in w_eigvals.iter() {
+            let denom = (1.0 - rho * e).abs().max(1e-15);
+            log_det += denom.ln();
+        }
 
         let ll = log_det
             - n as f64 / 2.0 * (2.0 * std::f64::consts::PI * sigma2).ln()
@@ -438,6 +450,7 @@ impl Spatial {
         w: &Array2<f64>,
         lambda: f64,
         beta: &Array1<f64>,
+        w_eigvals: &Array1<f64>,
     ) -> Result<f64, GreenersError> {
         let n = y.len();
         let residuals = y.clone() - x.dot(beta);
@@ -446,7 +459,11 @@ impl Spatial {
         let rss = u_star.dot(&u_star);
         let sigma2 = rss / n as f64;
 
-        let log_det = -(n as f64) * (1.0 - lambda * lambda).max(1e-10).ln() / 2.0;
+        let mut log_det = 0.0;
+        for &e in w_eigvals.iter() {
+            let denom = (1.0 - lambda * e).abs().max(1e-15);
+            log_det += denom.ln();
+        }
 
         let ll = log_det
             - n as f64 / 2.0 * (2.0 * std::f64::consts::PI * sigma2).ln()

@@ -211,7 +211,8 @@ impl GEE {
                 }
 
                 let dt_vinv = di_mat.t().dot(&v_inv);
-                bread = &bread + &xi.t().dot(&dt_vinv.dot(&xi));
+                let dt_vinv_d = &dt_vinv.dot(&di_mat);
+                bread = &bread + &xi.t().dot(&dt_vinv_d.dot(&xi));
                 let ri = &yi - &mu_i;
                 meat_sum = &meat_sum + &xi.t().dot(&dt_vinv.dot(&ri));
             }
@@ -292,7 +293,8 @@ impl GEE {
             }
 
             let dt_vinv = di_mat.t().dot(&v_inv);
-            bread = &bread + &xi.t().dot(&dt_vinv.dot(&xi));
+            let dt_vinv_d = &dt_vinv.dot(&di_mat);
+            bread = &bread + &xi.t().dot(&dt_vinv_d.dot(&xi));
 
             // Meat: sum of u_i u_i' where u_i = X_i' D_i V_i^{-1} (y_i - mu_i)
             let ri = &yi - &mu_i;

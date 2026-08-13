@@ -192,13 +192,13 @@ impl NARDL {
 
             // Lagged differences
             for j in 0..lags {
-                // Delta y_{t-j}
-                z[(i, 4 + j)] = y[t_i - j] - y[t_i - j - 1];
-                // Delta x^+_{t-j}
-                let dx_p = x_pos[t_i - j] - x_pos[t_i - j - 1];
+                // Delta y_{t-j-1} = y_{t-j-1} - y_{t-j-2}
+                z[(i, 4 + j)] = y[t_i - j - 1] - y[t_i - j - 2];
+                // Delta x^+_{t-j-1}
+                let dx_p = x_pos[t_i - j - 1] - x_pos[t_i - j - 2];
                 z[(i, 4 + lags + j)] = dx_p;
-                // Delta x^-_{t-j}
-                let dx_n = x_neg[t_i - j] - x_neg[t_i - j - 1];
+                // Delta x^-_{t-j-1}
+                let dx_n = x_neg[t_i - j - 1] - x_neg[t_i - j - 2];
                 z[(i, 4 + 2 * lags + j)] = dx_n;
             }
         }

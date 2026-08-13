@@ -154,23 +154,25 @@ impl MLP {
             }
         }
 
-        let limit2 = (6.0 / (n_hidden + 1) as f64).sqrt();
         let mut w2 = Array2::zeros((1, n_hidden));
         let mut b2 = 0.0_f64;
-        for j in 0..n_hidden {
-            w2[(0, j)] = (Self::rand_uniform() * 2.0 - 1.0) * limit2;
-        }
 
-        // Momentum
-        let mut v_w1 = Array2::zeros((n_hidden, k));
-        let mut v_b1 = Array1::zeros(n_hidden);
-        let mut v_w2 = Array2::zeros((1, n_hidden));
+        // Adam optimizer state
+        let mut m_w1: Array2<f64> = Array2::zeros((n_hidden, k));
+        let mut v_w1: Array2<f64> = Array2::zeros((n_hidden, k));
+        let mut m_b1: Array1<f64> = Array1::zeros(n_hidden);
+        let mut v_b1: Array1<f64> = Array1::zeros(n_hidden);
+        let mut m_w2: Array2<f64> = Array2::zeros((1, n_hidden));
+        let mut v_w2: Array2<f64> = Array2::zeros((1, n_hidden));
+        let mut m_b2 = 0.0_f64;
         let mut v_b2 = 0.0_f64;
-        let momentum = 0.9;
+        let beta1: f64 = 0.9;
+        let beta2: f64 = 0.999;
+        let eps: f64 = 1e-8;
 
         let mut final_mse = 0.0_f64;
 
-        for _epoch in 0..epochs {
+        for epoch in 0..epochs {
             let mut grad_w1 = Array2::zeros((n_hidden, k));
             let mut grad_b1 = Array1::zeros(n_hidden);
             let mut grad_w2 = Array2::zeros((1, n_hidden));
@@ -228,16 +230,27 @@ impl MLP {
             grad_w2 /= nf;
             grad_b2 /= nf;
 
-            // Update with momentum
-            v_w1 = v_w1 * momentum + &grad_w1 * lr;
-            v_b1 = v_b1 * momentum + &grad_b1 * lr;
-            v_w2 = v_w2 * momentum + &grad_w2 * lr;
-            v_b2 = v_b2 * momentum + grad_b2 * lr;
+            // Adam update
+            let t = (epoch + 1) as f64;
+            let lr_t = lr * (1.0 - beta2.powf(t)).sqrt() / (1.0 - beta1.powf(t));
 
-            w1 += &v_w1;
-            b1 += &v_b1;
-            w2 += &v_w2;
-            b2 += v_b2;
+            m_w1 = &m_w1 * beta1 + &grad_w1 * (1.0 - beta1);
+            v_w1 = &v_w1 * beta2 + &grad_w1 * &grad_w1 * (1.0 - beta2);
+            w1 = w1 - (&m_w1 * lr_t / v_w1.mapv(|v: f64| (v + eps).sqrt()));
+
+            m_b1 = &m_b1 * beta1 + &grad_b1 * (1.0 - beta1);
+            v_b1 = &v_b1 * beta2 + &grad_b1 * &grad_b1 * (1.0 - beta2);
+            for j in 0..n_hidden {
+                b1[j] -= lr_t * m_b1[j] / f64::sqrt(v_b1[j] + eps);
+            }
+
+            m_w2 = &m_w2 * beta1 + &grad_w2 * (1.0 - beta1);
+            v_w2 = &v_w2 * beta2 + &grad_w2 * &grad_w2 * (1.0 - beta2);
+            w2 = w2 - (&m_w2 * lr_t / v_w2.mapv(|v: f64| (v + eps).sqrt()));
+
+            m_b2 = m_b2 * beta1 + grad_b2 * (1.0 - beta1);
+            v_b2 = v_b2 * beta2 + grad_b2 * grad_b2 * (1.0 - beta2);
+            b2 -= lr_t * m_b2 / f64::sqrt(v_b2 + eps);
 
             final_mse = epoch_loss / nf;
         }
