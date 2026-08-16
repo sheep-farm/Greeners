@@ -28,7 +28,7 @@ use std::fmt;
 pub struct GpResult {
     /// Predicted mean at training points
     pub fitted: Array1<f64>,
-    /// Predicted standard deviation (uncertainty) at training points
+    /// Latent-function posterior standard deviation at training points
     pub fitted_sd: Array1<f64>,
     /// Length scale (l)
     pub length_scale: f64,
@@ -171,21 +171,20 @@ impl GaussianProcess {
             )?
         };
 
-        // Compute K matrix and predictions at training points
-        let k_mat = Self::build_kernel(&dists, best_l, best_sf, best_sn, n);
-        let k_inv = k_mat.inv()?;
+        // K_f is the latent-function covariance. K_y additionally includes
+        // observation noise and is used to condition on the observed response.
+        let k_latent = Self::build_latent_kernel(&dists, best_l, best_sf, n);
+        let k_observed = Self::add_observation_noise(k_latent.clone(), best_sn, n);
+        let k_observed_inv = k_observed.inv()?;
 
-        // Predictions: mu = K * K^{-1} * y = y (for training points)
-        // But we compute properly for consistency
-        let alpha = k_inv.dot(&y_norm);
-        let fitted_norm = k_mat.dot(&alpha);
+        let alpha = k_observed_inv.dot(&y_norm);
+        let fitted_norm = k_latent.dot(&alpha);
 
-        // Predictive variance at training points:
-        // sigma*^2 = k(x*, x*) - k(x*, X) * K^{-1} * k(X, x*)
-        // For training points: k(x*, x*) = sf^2 + sn^2, and k(x*, X) = row of K
-        // So sigma*^2 = (sf^2 + sn^2) - diag(K * K^{-1}) = (sf^2 + sn^2) - 1
-        let diag_var = best_sf + best_sn - 1.0; // approximate
-        let fitted_sd_norm = Array1::from_elem(n, diag_var.max(0.0).sqrt());
+        // Latent posterior covariance at the training inputs:
+        // K_f - K_f K_y^{-1} K_f.
+        let posterior_covariance = &k_latent - &k_latent.dot(&k_observed_inv).dot(&k_latent);
+        let fitted_sd_norm =
+            Array1::from_iter((0..n).map(|i| posterior_covariance[(i, i)].max(0.0).sqrt()));
 
         // Un-standardize
         let fitted = fitted_norm.mapv(|v| v * y_std + y_mean);
@@ -231,12 +230,18 @@ impl GaussianProcess {
         dists
     }
 
-    fn build_kernel(dists: &Array2<f64>, l: f64, sf: f64, sn: f64, n: usize) -> Array2<f64> {
+    fn build_latent_kernel(dists: &Array2<f64>, l: f64, sf: f64, n: usize) -> Array2<f64> {
         let mut k_mat = Array2::zeros((n, n));
         for i in 0..n {
             for j in 0..n {
                 k_mat[(i, j)] = sf * (-dists[(i, j)] / (2.0 * l * l)).exp();
             }
+        }
+        k_mat
+    }
+
+    fn add_observation_noise(mut k_mat: Array2<f64>, sn: f64, n: usize) -> Array2<f64> {
+        for i in 0..n {
             k_mat[(i, i)] += sn;
         }
         k_mat
@@ -250,7 +255,7 @@ impl GaussianProcess {
         sn: f64,
         n: usize,
     ) -> Result<f64, GreenersError> {
-        let k_mat = Self::build_kernel(dists, l, sf, sn, n);
+        let k_mat = Self::add_observation_noise(Self::build_latent_kernel(dists, l, sf, n), sn, n);
         let k_inv = k_mat.inv()?;
         let alpha = k_inv.dot(y);
         let lml = -0.5 * y.dot(&alpha)
