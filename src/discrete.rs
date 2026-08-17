@@ -172,7 +172,7 @@ impl Logit {
             }
             let hessian = -x.t().dot(&x_weighted);
 
-            // E. Update
+            //E. Update
             let neg_hessian = -hessian;
             let inv_neg_hessian = match neg_hessian.inv() {
                 Ok(mat) => mat,
@@ -458,7 +458,7 @@ impl BinaryModelResult {
     ///
     /// # Arguments
     /// * `x` - Design matrix
-    /// * `alpha` - Significance level (e.g. 0.05 for 95% CI)
+    /// * `alpha` - Meaning level (e.g. 0.05 for 95% CI)
     ///
     /// # Returns
     /// Tuple of (lower_bounds, upper_bounds) for each marginal effect

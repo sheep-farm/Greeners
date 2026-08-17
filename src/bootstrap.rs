@@ -120,7 +120,7 @@ impl Bootstrap {
     ///
     /// # Arguments
     /// * `boot_coefs` - Bootstrap coefficient matrix (n_bootstrap × k)
-    /// * `alpha` - Significance level (e.g., 0.05 for 95% CI)
+    /// * `alpha` - Meaning level (e.g. 0.05 for 95% CI)
     ///
     /// # Returns
     /// Tuple of (lower_bounds, upper_bounds)
@@ -170,11 +170,11 @@ impl HypothesisTest {
     /// use ndarray::{Array1, Array2};
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// // Setup de dados falsos para o exemplo
+    /// // False data setup for example
     /// let beta = Array1::from(vec![0.5, 2.0, 0.0]);
     /// let cov_matrix = Array2::eye(3); // Matriz identidade como exemplo
     ///
-    /// // Testando se beta[1] = 0 e beta[2] = 0
+    /// // Testing if beta[1] = 0 and beta[2] = 0
     /// let r = Array2::from_shape_vec((2, 3), vec![
     ///     0.0, 1.0, 0.0,
     ///     0.0, 0.0, 1.0,

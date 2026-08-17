@@ -11,7 +11,7 @@
 //!     estimator (Mentch & Hooker 2016; Wager & Athey 2018)
 //!
 //! This implementation focuses on CATE estimation with:
-//!   1. Nuisance functions m(X) = E[Y|X] and e(X) = E[T|X]
+//1. Nuisance functions m(X) = E[Y
 //!      estimated via OLS on the full sample
 //!   2. Pseudo-outcome: rho_i = (Y_i - m(X_i)) / (T_i - e(X_i)) + tau_0
 //!      where tau_0 is the AIPW estimator
@@ -35,7 +35,7 @@ pub struct GrfResult {
     pub ate_se: f64,
     /// 95% CI for ATE
     pub ate_ci: [f64; 2],
-    /// Propensity score estimates e(X) (n)
+    /// propensity score estimates e(X) (n)
     pub propensity: Array1<f64>,
     /// Outcome regression m(X) estimates (n)
     pub outcome_reg: Array1<f64>,
@@ -160,7 +160,7 @@ impl GRF {
         let depth = max_depth.unwrap_or(5);
 
         // Step 1: Estimate nuisance functions via OLS
-        // m(X) = E[Y|X] — outcome regression
+        //m(X) = E[Y
         let m_beta = Self::ols_fit(y, x, n, k)?;
         let m_hat: Array1<f64> = (0..n)
             .map(|i| {
@@ -172,7 +172,7 @@ impl GRF {
             })
             .collect();
 
-        // e(X) = E[T|X] — propensity (linear probability model)
+        //e(X) = E[T
         let t_vec: Array1<f64> = t.iter().map(|&t| if t { 1.0 } else { 0.0 }).collect();
         let e_beta = Self::ols_fit(&t_vec, x, n, k)?;
         let e_hat: Array1<f64> = (0..n)

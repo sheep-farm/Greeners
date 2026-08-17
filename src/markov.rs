@@ -129,7 +129,7 @@ impl fmt::Display for MarkovSwitchingResult {
 pub struct MarkovSwitching;
 
 impl MarkovSwitching {
-    /// Fit a Markov Switching AR model via EM algorithm (Hamilton filter).
+    /// Fit a Markov Switching AR model via IN Algorithm (Hamilton filter).
     ///
     /// * `y` — time series
     /// * `n_regimes` — number of regimes (typically 2)
@@ -199,7 +199,7 @@ impl MarkovSwitching {
         let mut log_likelihood = 0.0;
 
         for _iter in 0..max_iter {
-            // ===== E-step: Hamilton filter =====
+            //== sync, corrected by elderman ==
             let mut xi_filtered = Array2::<f64>::zeros((effective_n, k));
             log_likelihood = 0.0;
 

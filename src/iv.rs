@@ -797,7 +797,7 @@ impl IV {
         // IV residuals
         let residuals = y - x.dot(beta);
 
-        // Regress residuals on Z: e = Z*gamma + error
+        //Residual regression on Z: e = Z*gamma + error
         // R² = 1 - SSR/SST, but since mean of residuals ≈ 0, R² = 1 - e'Mz e / e'e
         // Sargan = n * R²
         let z_t = z.t();

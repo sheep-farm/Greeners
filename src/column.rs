@@ -16,9 +16,9 @@ pub enum DataType {
 /// Categorical column with string levels and integer codes
 #[derive(Debug, Clone)]
 pub struct CategoricalColumn {
-    /// Unique category levels (e.g., ["SP", "RJ", "MG"])
+    /// Unique category levels (e.g. ["SP", "RJ", "MG"])
     pub levels: Vec<String>,
-    /// Integer codes mapping to levels (e.g., [0, 1, 0, 2])
+    /// Integer codes mapping to levels (e.g. [0, 1, 0, 2])
     pub codes: Vec<u32>,
     /// Reverse mapping: level name -> code
     level_to_code: IndexMap<String, u32>,

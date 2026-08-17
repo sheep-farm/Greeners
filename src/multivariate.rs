@@ -400,7 +400,7 @@ impl MANOVA {
             GreenersError::InvalidOperation("Cannot compute grand mean".to_string())
         })?;
 
-        // Between-groups (H) and within-groups (E) matrices
+        //Between groups (H) and within groups (E) matrixes
         let mut h_matrix = Array2::<f64>::zeros((p, p));
         let mut e_matrix = Array2::<f64>::zeros((p, p));
 

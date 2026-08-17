@@ -10,17 +10,17 @@ use std::fmt;
 pub struct SynthResult {
     /// Pesos dos doadores: (id_string, peso). Inclui pesos ≈ 0.
     pub weights: Vec<(String, f64)>,
-    /// Série do controle sintético para todos os períodos T.
+    /// Synthetic control series for all periods T.
     pub synthetic_series: Vec<f64>,
-    /// Série observada da unidade tratada para todos os períodos T.
+    /// Observed series of the treated unit for all periods T.
     pub actual_series: Vec<f64>,
-    /// Valores de tempo ordenados (ex: anos).
+    /// Ordered time values (e.g. years).
     pub time_index: Vec<f64>,
-    /// Primeiro período pós-tratamento.
+    /// First post-treatment period.
     pub t0: f64,
-    /// RMSPE no período pré-tratamento (qualidade do ajuste).
+    /// RMSPE in the pre-treatment period (quality of adjustment).
     pub rmspe_pre: f64,
-    /// RMSPE no período pós-tratamento (magnitude do efeito estimado).
+    /// RMSPE in the post-treatment period (magnitude of the estimated effect).
     pub rmspe_post: Option<f64>,
     pub treated_unit: String,
     pub outcome_name: String,
@@ -36,27 +36,27 @@ impl fmt::Display for SynthResult {
         writeln!(f, "\n{thick}")?;
         writeln!(
             f,
-            " Controle Sintético  —  Abadie, Diamond, Hainmueller (2010)"
+            " Synthetic Control  —  Abadie, Diamond, Hainmueller (2010)"
         )?;
         writeln!(f, "{thick}")?;
         writeln!(
             f,
-            " Unidade tratada : {}   Outcome: {}",
+            "Treatment unit : {} Outcome: {}",
             self.treated_unit, self.outcome_name
         )?;
         writeln!(
             f,
-            " T₀ (1ª pós-trat): {}   Doadores: {}   T pré: {}   T pós: {}",
+            " T₀ (1st post-treat): {}   Donors: {}   T pre: {}   T post: {}",
             self.t0, self.n_donors, self.t_pre, self.t_post
         )?;
-        writeln!(f, " RMSPE pré  : {:.4}", self.rmspe_pre)?;
+        writeln!(f, " RMSPE pre  : {:.4}", self.rmspe_pre)?;
         if let Some(rp) = self.rmspe_post {
             let ratio = if self.rmspe_pre > 1e-12 {
                 rp / self.rmspe_pre
             } else {
                 f64::NAN
             };
-            writeln!(f, " RMSPE pós  : {:.4}   razão pós/pré: {:.3}", rp, ratio)?;
+            writeln!(f, " RMSPE post  : {:.4}   post/pre ratio: {:.3}", rp, ratio)?;
         }
         writeln!(f, "{thin}")?;
         writeln!(f, " Pesos dos doadores (w > 0.001):")?;
@@ -64,7 +64,7 @@ impl fmt::Display for SynthResult {
             self.weights.iter().filter(|(_, w)| *w > 0.001).collect();
         nonzero.sort_by(|a, b| b.1.total_cmp(&a.1));
         if nonzero.is_empty() {
-            writeln!(f, "   (nenhum peso > 0.001)")?;
+            writeln!(f, "(no weight > 0.01)")?;
         } else {
             for (unit, w) in &nonzero {
                 writeln!(f, "   {:<24}  {:.4}", unit, w)?;
@@ -74,7 +74,7 @@ impl fmt::Display for SynthResult {
         writeln!(
             f,
             " {:>8}  {:>12}  {:>12}  {:>12}",
-            "Período", "Real", "Sintético", "Efeito"
+            "Period", "Actual", "Synthetic", "Effect"
         )?;
         writeln!(f, " {}", "─".repeat(50))?;
         for (i, &t) in self.time_index.iter().enumerate() {
@@ -94,7 +94,7 @@ impl fmt::Display for SynthResult {
             )?;
         }
         writeln!(f, "{thick}")?;
-        writeln!(f, " * pós-tratamento")
+        writeln!(f, " * post-treatment")
     }
 }
 
@@ -103,13 +103,13 @@ impl fmt::Display for SynthResult {
 pub struct SyntheticControl;
 
 impl SyntheticControl {
-    /// Estima o Controle Sintético por mínimos quadrados com restrição de simplex.
+    /// Estimates Synthetic Control by least squares with simplex restriction.
     ///
-    /// Parâmetros
+    /// Parameters
     /// ----------
     /// * `outcome_col`     — coluna com a variável de resultado
     /// * `treated_unit`    — ID (string ou numérico) da unidade tratada
-    /// * `t0`              — primeiro período pós-tratamento
+    /// * `t0` — first post-treatment period
     /// * `df`              — painel em formato longo (uma linha por unidade × período)
     /// * `id_col`          — coluna de ID de entidade
     /// * `time_col`        — coluna de tempo
@@ -126,7 +126,7 @@ impl SyntheticControl {
         time_col: &str,
         covariate_cols: Option<&[String]>,
     ) -> Result<SynthResult, GreenersError> {
-        // ── 1. Extrair colunas base ───────────────────────────────────────────
+        //── 1. Extract base columns ───────────────────────────────────────────
         let y_col = df.get(outcome_col)?.to_owned();
         let t_col = df.get(time_col)?.to_owned();
         let n = df.n_rows();
@@ -134,7 +134,7 @@ impl SyntheticControl {
         // IDs como strings
         let unit_ids: Vec<String> = unit_ids_as_strings(df, id_col)?;
 
-        // ── 2. Períodos e unidades únicas ordenadas ────────────────────────
+        //── 2. Organisation
         let mut times: Vec<f64> = t_col.to_vec();
         times.sort_by(|a, b| a.total_cmp(b));
         times.dedup_by(|a, b| (*a - *b).abs() < 1e-9);
@@ -159,7 +159,7 @@ impl SyntheticControl {
 
         let treated_j = *unit_idx.get(treated_unit).ok_or_else(|| {
             GreenersError::InvalidOperation(format!(
-                "synth: unidade tratada '{treated_unit}' não encontrada em '{id_col}'"
+                "synth: treated unit '{treated_unit}' not found in '{id_col}'"
             ))
         })?;
 
@@ -180,20 +180,20 @@ impl SyntheticControl {
         // Checar NaN
         if y_mat.iter().any(|v| v.is_nan()) {
             return Err(GreenersError::InvalidOperation(
-                "synth: painel desbalanceado ou missing — preencha antes de estimar".into(),
+                "synth: unbalanced panel or missing — fill in before estimating".into(),
             ));
         }
 
         let y_matrix = Array2::from_shape_vec((n_t, n_units), y_mat)
             .map_err(|e| GreenersError::ShapeMismatch(e.to_string()))?;
 
-        // ── 4. Índices pré/pós e doadores ────────────────────────────────────
+        //── 4. Pre/post and donor indices ────────────────────────────────────
         let t_pre = times.iter().filter(|&&t| t < t0).count();
         let t_post = n_t - t_pre;
 
         if t_pre < 2 {
             return Err(GreenersError::InvalidOperation(format!(
-                "synth: apenas {t_pre} período(s) pré-tratamento (mínimo 2)"
+                "synth: only {t_pre} pre-treatment period(s) (minimum 2)"
             )));
         }
 
@@ -201,7 +201,7 @@ impl SyntheticControl {
         let n_donors = donor_idxs.len();
         if n_donors == 0 {
             return Err(GreenersError::InvalidOperation(
-                "synth: sem doadores no pool de controle".into(),
+                "synth: no donors in the control pool".into(),
             ));
         }
 
@@ -217,12 +217,12 @@ impl SyntheticControl {
         let mut q = y0_pre.t().dot(&y0_pre);
         let mut c = y0_pre.t().dot(&y1_pre);
 
-        // Covariáveis opcionais: augmentar Q e c com matching de médias pré-trat
+        //Optional covariates: add-on Q and c with pre-trat average matching
         if let Some(cov_cols) = covariate_cols {
             for col_name in cov_cols {
                 let x_col = df.get(col_name)?.to_owned();
 
-                // Médias pré-tratamento: treated e cada doador
+                //Pretreatment averages: treated and each donor
                 let (x1_mean, x1_std) = pre_mean_std(&x_col, &t_col, &unit_ids, treated_unit, t0);
                 let scale = x1_std.max(1e-10);
 
@@ -250,7 +250,7 @@ impl SyntheticControl {
         // ── 6. Resolver QP no simplex ─────────────────────────────────────────
         let weights = simplex_qp(&q, &c);
 
-        // ── 7. Série do controle sintético completa ───────────────────────────
+        //── 7. Full synthetic control series ───────────────────────────
         let y0_all = build_donor_matrix(&y_matrix, n_t, &donor_idxs, 0);
         let synthetic_series: Vec<f64> = y0_all.dot(&weights).to_vec();
         let actual_series: Vec<f64> = (0..n_t).map(|t| y_matrix[[t, treated_j]]).collect();
@@ -296,12 +296,12 @@ impl SyntheticControl {
 
 // ── Internos ──────────────────────────────────────────────────────────────────
 
-/// Representa f64 como chave de HashMap (via bits).
+/// Represents f64 as HashMap key (via bits).
 fn float_key(v: f64) -> String {
     format!("{}", v.to_bits())
 }
 
-/// Extrai IDs de unidade como Vec<String> (tenta string, int, float).
+/// Extracts unit IDs like Vec<String> (attempt string, int, float).
 fn unit_ids_as_strings(df: &DataFrame, id_col: &str) -> Result<Vec<String>, GreenersError> {
     if let Ok(arr) = df.get_string(id_col) {
         return Ok(arr);
@@ -332,7 +332,7 @@ fn build_donor_matrix(
     out
 }
 
-/// Média e desvio padrão pré-tratamento de uma série para uma unidade específica.
+/// Average and standard deviation pre-treatment of a series for a specific unit.
 fn pre_mean_std(
     x: &Array1<f64>,
     t_col: &Array1<f64>,
@@ -369,7 +369,7 @@ fn simplex_qp(q: &Array2<f64>, c: &Array1<f64>) -> Array1<f64> {
     // Inicializa uniforme
     let mut w: Vec<f64> = vec![1.0 / j as f64; j];
 
-    // Passo: 1 / trace(Q) (conservador mas estável)
+    //Step: 1 / trace(Q) (conservative but stable)
     let trace = q.diag().iter().sum::<f64>();
     let lr = if trace > 1e-15 { 1.0 / trace } else { 1e-4 };
 
@@ -385,7 +385,7 @@ fn simplex_qp(q: &Array2<f64>, c: &Array1<f64>) -> Array1<f64> {
             .collect();
         project_simplex(&mut w_new);
 
-        // critério de convergência
+        //convergence criterion
         let diff: f64 = w_new
             .iter()
             .zip(w.iter())

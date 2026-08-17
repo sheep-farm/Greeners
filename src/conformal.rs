@@ -15,7 +15,7 @@
 //!
 //! Guarantee: P(y_new in interval) >= 1-alpha (exchangeability).
 //!
-//! This implementation uses OLS as the base predictor, but the
+//I'm sorry. This implementation uses OLS as the base predictor, but the
 //! conformal wrapper is model-agnostic.
 
 use crate::linalg::LinalgInverse as _;
@@ -58,7 +58,7 @@ impl fmt::Display for ConformalResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "\n{:=^78}", " Conformal Prediction ")?;
         writeln!(f, "Vovk, Gammerman & Shafer (2005)")?;
-        writeln!(f, "Split conformal with OLS base predictor")?;
+        writeln!(f, "Split conformal with OLS predictive base")?;
         writeln!(f, "{:<20} {:>12}", "Training samples:", self.n_train)?;
         writeln!(f, "{:<20} {:>12}", "Calibration samples:", self.n_calib)?;
         writeln!(f, "{:<20} {:>12}", "Test samples:", self.n_test)?;

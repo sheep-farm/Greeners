@@ -5,7 +5,7 @@
 //! a VAR is estimated on the factors plus observed policy variables.
 //!
 //! y_t = [F_t', R_t']' where F_t are extracted factors and R_t are
-//! observed variables (e.g., federal funds rate).
+//! Observed variables (e.g., federal funds rate).
 //!
 //! F_t = Lambda_f * F_{t-1} + ... + eps_t  (VAR part)
 //!

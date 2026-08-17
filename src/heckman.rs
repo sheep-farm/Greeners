@@ -4,7 +4,7 @@
 /// Equação de resultado (OLS, z_i=1 apenas):   y_i  = x_i'β + ε_i
 /// Cov(u, ε) = ρσ_ε  →  E[ε_i | z_i=1, x_i] = ρσ_ε λ_i
 ///
-/// Referência: Heckman (1979) "Sample Selection Bias as a Specification Error".
+/// Reference: Heckman (1979) "Sample Selection Bias as a Specification Error".
 ///             Greene (2012) Econometric Analysis, 7th ed., Cap. 19.
 use crate::error::GreenersError;
 use crate::linalg::LinalgInverse as _;
@@ -72,7 +72,7 @@ impl fmt::Display for HeckmanResult {
         writeln!(f, "{thick}")?;
         writeln!(
             f,
-            " Obs (total): {:<8}  Selecionadas: {}",
+            "Obs (total): {:<8} Selected: {}",
             self.n_obs, self.n_selected
         )?;
         writeln!(
@@ -82,12 +82,12 @@ impl fmt::Display for HeckmanResult {
         )?;
         writeln!(f, "{thin}")?;
 
-        // ── Equação de resultado ──
-        writeln!(f, " Equação de resultado  (y | z=1)")?;
+        //── Outcome equation ──
+        writeln!(f, " Outcome equation  (y | z=1)")?;
         writeln!(
             f,
             " {:<18} {:>12}  {:>12}  {:>8}  {:>8}",
-            "Variável", "coef", "SE", "z", "P>|z|"
+            "Variable", "coef", "SE", "z", "P>|z|"
         )?;
         writeln!(f, " {}", "─".repeat(64))?;
         for i in 0..self.params.len() {
@@ -129,8 +129,8 @@ impl fmt::Display for HeckmanResult {
         )?;
 
         writeln!(f, "\n{thin}")?;
-        writeln!(f, " Equação de seleção  (Probit — todos os obs)")?;
-        writeln!(f, " {:<18} {:>12}  {:>12}", "Variável", "γ̂", "SE")?;
+        writeln!(f, " Selection equation  (Probit — all obs)")?;
+        writeln!(f, " {:<18} {:>12}  {:>12}", "Variable", "γ̂", "SE")?;
         writeln!(f, " {}", "─".repeat(44))?;
         for i in 0..self.select_params.len() {
             let name = self
@@ -156,7 +156,7 @@ impl fmt::Display for HeckmanResult {
 pub struct Heckman;
 
 impl Heckman {
-    /// Estima o modelo Heckman Two-Step.
+    /// Estimates the Heckman Two-Step model.
     ///
     /// * `y`            — variável de resultado (n×1, observada apenas para z=1)
     /// * `x_out`        — regressores da equação de resultado (n×k₁, COM intercepto)
@@ -178,7 +178,7 @@ impl Heckman {
 
         if x_out.nrows() != n || z.len() != n || x_sel.nrows() != n {
             return Err(GreenersError::ShapeMismatch(
-                "Heckman: dimensões de y, x_out, z e x_sel divergem".into(),
+                "Heckman: dimensions of y, x_out, z and x_sel differ".into(),
             ));
         }
         if y.iter().any(|v| !v.is_finite())
@@ -186,23 +186,23 @@ impl Heckman {
             || x_sel.iter().any(|v| !v.is_finite())
         {
             return Err(GreenersError::InvalidOperation(
-                "Heckman: dados contêm NaN ou Inf".into(),
+                "Heckman: data contains NaN or Inf".into(),
             ));
         }
         if !z.iter().all(|&v| v == 0.0 || v == 1.0) {
             return Err(GreenersError::InvalidOperation(
-                "Heckman: z deve ser binário (0/1)".into(),
+                "Heckman: z shall be binary (0/1)".into(),
             ));
         }
 
         let n_selected: usize = z.iter().filter(|&&v| v == 1.0).count();
         if n_selected < k1 + 1 {
             return Err(GreenersError::ShapeMismatch(
-                "Heckman: obs selecionadas insuficientes para a equação de resultado".into(),
+                "Heckman: insufficient selected obs for the outcome equation".into(),
             ));
         }
 
-        // ── Passo 1: Probit na equação de seleção (todos os obs) ──────────────
+        //── Step 1: Probit in the selection equation (all obs) ──────────────
         let (gamma, v_gamma) = Self::probit_with_vcov(z, x_sel)?;
 
         // ── λ_i e δ_i para obs selecionadas ──────────────────────────────────

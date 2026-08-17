@@ -252,7 +252,7 @@ impl TimeSeries {
 
         // Detrend: regress y on constant (and trend if "ct")
         let residuals = if regression == "ct" {
-            // y = a + b*t + e
+            //y = a + b*t + e
             let mut x = Array2::<f64>::zeros((n, 2));
             x.column_mut(0).fill(1.0);
             for i in 0..n {
@@ -261,7 +261,7 @@ impl TimeSeries {
             let ols_res = OLS::fit(series, &x, CovarianceType::NonRobust)?;
             ols_res.residuals(series, &x)
         } else {
-            // y = a + e
+            //y = a + e
             let mean = series.mean().unwrap_or(0.0);
             series.mapv(|x| x - mean)
         };
@@ -490,7 +490,7 @@ impl TimeSeries {
             ));
         }
 
-        // Step 1: Cointegrating regression y1 = a + b*y2 + e
+        //Step 1: Cointegration regression y1 = a + b*y2 + and
         let mut x = Array2::<f64>::zeros((n, 2));
         x.column_mut(0).fill(1.0);
         x.column_mut(1).assign(y2);
@@ -751,7 +751,7 @@ impl TimeSeries {
     /// frequency band defined by `[2π/high, 2π/low]` periods.
     ///
     /// * `low` — minimum period of the cycle (e.g., 6 for quarterly)
-    /// * `high` — maximum period of the cycle (e.g., 32 for quarterly)
+    /// * `high` — maximum period of the cycle (e.g. 32 for quarterly)
     /// * `k` — number of lead/lag terms (truncation; e.g., 12)
     ///
     /// Returns the cycle component. First and last `k` values are NaN.

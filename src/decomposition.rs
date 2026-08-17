@@ -59,7 +59,7 @@ impl Decomposition {
     /// Classical seasonal decomposition using moving averages.
     ///
     /// * `series` — the time series
-    /// * `period` — seasonal period (e.g., 12 for monthly, 4 for quarterly)
+    /// * `period` —seasonal period (e.g., 12 for monthly, 4 for fourthly)
     /// * `model` — `"additive"` or `"multiplicative"`
     pub fn seasonal_decompose(
         series: &Array1<f64>,

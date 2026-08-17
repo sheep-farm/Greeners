@@ -7,7 +7,7 @@ use std::fmt;
 pub struct VarResult {
     pub params: Array2<f64>,     // Matriz (1 + k*p) x k
     pub std_errors: Array2<f64>, // Matriz (1 + k*p) x k
-    pub sigma_u: Array2<f64>,    // Covariância dos resíduos (k x k)
+    pub sigma_u: Array2<f64>,    //Waste covariance (k x k)
     pub aic: f64,
     pub bic: f64,
     pub lags: usize,
@@ -17,15 +17,15 @@ pub struct VarResult {
 }
 
 impl VarResult {
-    /// Calcula a Função de Impulso-Resposta (IRF) Ortogonalizada.
-    /// Usa Decomposição de Cholesky para identificar os choques estruturais.
-    /// Retorna Array3 de dimensão (steps x k x k).
-    /// Elemento [h, i, j] = Resposta da variável i ao choque na variável j no tempo h.
+    /// Calculate Impulse Response Function (IRF) Orthogonalized.
+    /// Uses Cholesky Decomposition to identify structural shocks.
+    /// Regressors dimension array3 (steps x k x k).
+    /// Element [h, i, j] = Response of variable i to shock in variable j in time h.
     pub fn irf(&self, steps: usize) -> Result<Array3<f64>, GreenersError> {
         let k = self.n_vars;
         let p = self.lags;
 
-        // 1. Identificação de Choques (Cholesky)
+        //1. Identification of Shocks (Cholesky)
         // P * P' = Sigma_u. P é triangular inferior.
         let p_chol = self
             .sigma_u
@@ -55,7 +55,7 @@ impl VarResult {
         for h in 1..steps {
             let mut phi_h = Array2::<f64>::zeros((k, k));
 
-            // Soma ponderada pelos lags passados
+            //Sum weighted by past lags
             for j in 1..=p {
                 if h >= j {
                     let a_j = &a_matrices[j - 1];
@@ -105,8 +105,8 @@ impl VarResult {
         Ok(fevd_tensor)
     }
 
-    /// Teste de Causalidade de Granger (Placeholder).
-    /// Retorna erro por enquanto, pois requer reestimação do modelo restrito.
+    /// Granger Causality Test (Placeholder).
+    /// Regressors error for now, as it requires reestimation of the restricted model.
     pub fn granger_causality(
         &self,
         _cause_idx: usize,
@@ -202,13 +202,13 @@ impl VAR {
             ));
         }
 
-        // 1. Criar Matrizes Y e X (Lags)
-        // Y efetivo: t = p até T
+        //1. Create Y and X Matrixes (Lags)
+        //Effective Y: t = p to T
         let y_eff = data.slice(s![lags.., ..]).to_owned();
         let n_obs = y_eff.nrows();
 
         // X matrix: [1, y_{t-1}, ..., y_{t-p}]
-        // Dimensão: N x (1 + k*p)
+        //Size: N x (1 + k*p)
         let n_cols_x = 1 + k * lags;
         let mut x_mat = Array2::<f64>::zeros((n_obs, n_cols_x));
 
@@ -217,7 +217,7 @@ impl VAR {
 
         // Preencher Lags
         for i in 0..n_obs {
-            // A linha i do X corresponde ao tempo (lags + i)
+            //X line i corresponds to time (lags + i)
             let current_time_idx = lags + i;
 
             for l in 1..=lags {
@@ -231,7 +231,7 @@ impl VAR {
             }
         }
 
-        // 2. Estimação OLS Multivariada (Algebra direta)
+        //2. Estimated (direct algebra)
         // B = (X'X)^-1 X'Y
         let xt_x = x_mat.t().dot(&x_mat);
         let xt_x_inv = xt_x.inv().map_err(|_| GreenersError::SingularMatrix)?;
@@ -239,7 +239,7 @@ impl VAR {
 
         let params = xt_x_inv.dot(&xt_y); // (1+kp) x k
 
-        // 3. Resíduos e Sigma
+        //3. Waste and Sigma
         let preds = x_mat.dot(&params);
         let residuals = &y_eff - &preds;
 
@@ -255,8 +255,8 @@ impl VAR {
             }
         }
 
-        // 4. Critérios de Informação
-        // Para usar .det(), importamos a trait Determinant
+        //4. Information Criteria
+        //To use .det(), we import the Trait Determinant
         let det_sigma = sigma_u.det().unwrap_or(1.0).max(1e-10);
         let log_det = det_sigma.ln();
 

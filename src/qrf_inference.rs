@@ -29,7 +29,7 @@ pub struct QrfInferenceResult {
     pub upper: Array2<f64>,
     /// Coverage rate (empirical)
     pub coverage: f64,
-    /// Confidence level (e.g., 0.95)
+    /// Confidence level (e.g. 0.95)
     pub confidence: f64,
     /// Number of bootstrap replications
     pub n_bootstrap: usize,
@@ -162,7 +162,7 @@ impl QrfInference {
 
         let n_q = quantiles.len();
 
-        // Fit base QRF
+        //Fit base QRF
         let base_result = QRF::fit(y, x, quantiles.clone(), m_trees, depth, None)?;
 
         // Bootstrap
@@ -204,7 +204,7 @@ impl QrfInference {
         let mut lower = Array2::zeros((n, n_q));
         let mut upper = Array2::zeros((n, n_q));
 
-        // Point estimates from base QRF
+        //Point estimates from base QRF
         for i in 0..n {
             for j in 0..n_q {
                 if i < base_result.quantile_predictions.nrows()

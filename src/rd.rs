@@ -58,7 +58,7 @@ pub struct RdResult {
     pub cutoff: f64,
     pub kernel: RdKernel,
     pub is_fuzzy: bool,
-    /// Para RD fuzzy: salto na probabilidade de tratamento (primeira etapa)
+    /// For fuzzy RD: jump in the probability of treatment (first step)
     pub first_stage_tau: Option<f64>,
     pub first_stage_se: Option<f64>,
     pub outcome_name: Option<String>,
@@ -74,14 +74,14 @@ impl fmt::Display for RdResult {
         let p_name = match self.poly_order {
             0 => "Local Constante",
             1 => "Local Linear",
-            2 => "Local Quadrático",
-            3 => "Local Cúbico",
+            2 => "Local Quadratic",
+            3 => "Local Cubic",
             p => return write!(f, "[poly order {p}]"),
         };
         writeln!(f, "\n{thick}")?;
         writeln!(
             f,
-            " Regressão Descontínua  —  {}  —  {} (p={})",
+            " Regression Discontinuity  —  {}  —  {} (p={})",
             kind, p_name, self.poly_order
         )?;
         writeln!(f, "{thick}")?;
@@ -95,7 +95,7 @@ impl fmt::Display for RdResult {
         )?;
         writeln!(
             f,
-            " Obs total: {}   N esquerda: {}   N direita: {}",
+            "Total obs {} N left {} N right {}",
             self.n_total, self.n_left, self.n_right
         )?;
         writeln!(f, "{thin}")?;
@@ -117,7 +117,7 @@ impl fmt::Display for RdResult {
                 let trt_label = self.treatment_name.as_deref().unwrap_or("D");
                 let fs_z = fs_tau / fs_se;
                 let fs_p = 2.0 * (1.0 - Normal::standard().cdf(fs_z.abs()));
-                writeln!(f, " Primeira Etapa ({}):", trt_label)?;
+                writeln!(f, "First Step ({}):", trt_label)?;
                 writeln!(
                     f,
                     "   Salto D̂    {:>10.4}   SE {:>10.4}   z {:>8.3}   p {:>8.4}  {}",
@@ -131,7 +131,7 @@ impl fmt::Display for RdResult {
             }
         }
 
-        writeln!(f, " Efeito de Tratamento (τ̂):")?;
+        writeln!(f, " Treatment effect (τ̂):")?;
         let z_str = if self.z.abs() > 1e10 {
             format!("{:.3e}", self.z)
         } else {
@@ -157,14 +157,14 @@ impl fmt::Display for RdResult {
 pub struct RD;
 
 impl RD {
-    /// Sharp RD por regressão local polinomial ponderada.
+    /// Sharp RD by weighted polynomial local regression.
     ///
-    /// * `y`         — variável dependente
-    /// * `x`         — variável contínua de atribuição (running variable)
-    /// * `cutoff`    — limiar de tratamento
+    /// * `y` — dependent variable
+    /// * `x` — continuous variable assignment
+    /// * `cutoff` — treatment threshold
     /// * `bandwidth` — `None` dispara seletor IK (Imbens-Kalyanaraman 2012)
     /// * `poly_order`— ordem do polinômio local (1 = linear, 2 = quadrático)
-    /// * `kernel`    — função kernel (padrão: Triangular)
+    /// * `kernel` — kernel function (standard: Triangular)
     pub fn fit(
         y: &Array1<f64>,
         x: &Array1<f64>,
@@ -177,12 +177,12 @@ impl RD {
         let n = y.len();
         if x.len() != n {
             return Err(GreenersError::ShapeMismatch(
-                "rd: y e x têm tamanhos diferentes".into(),
+                "rd: y and x have different sizes".into(),
             ));
         }
         if y.iter().chain(x.iter()).any(|v| !v.is_finite()) {
             return Err(GreenersError::InvalidOperation(
-                "rd: dados contêm NaN ou Inf".into(),
+                "rd: data contain NaN or Inf".into(),
             ));
         }
 
@@ -227,9 +227,9 @@ impl RD {
         })
     }
 
-    /// Fuzzy RD — estimador de Wald local (LATE no cutoff).
+    /// Fuzzy RD — local Wald estimator (LATE no cutoff).
     ///
-    /// * `d` — tratamento real recebido (binário ou contínuo em \[0,1\])
+    /// * `d` — real treatment received (binary or continuous at \[0,1\])
     ///
     /// τ̂_FRD = salto(Y) / salto(D)  (razão de dois RD sharps)
     #[allow(clippy::too_many_arguments)]
@@ -246,7 +246,7 @@ impl RD {
         let n = y.len();
         if d.len() != n || x.len() != n {
             return Err(GreenersError::ShapeMismatch(
-                "fuzzy_rd: y, d, x devem ter o mesmo tamanho".into(),
+                "fuzzy_rd: y, d, x must be the same size".into(),
             ));
         }
         if y.iter()
@@ -255,19 +255,19 @@ impl RD {
             .any(|v| !v.is_finite())
         {
             return Err(GreenersError::InvalidOperation(
-                "fuzzy_rd: dados contêm NaN ou Inf".into(),
+                "fuzzy_rd: data contain NaN or Inf".into(),
             ));
         }
 
         let h = bandwidth.unwrap_or_else(|| Self::ik_bandwidth(y, x, cutoff, poly_order));
 
-        // Reduzida: Y ~ X  (salto em Y)
+        //Reduced: Y ~ X (Y jump)
         let (beta_yl, vcov_yl, n_left) =
             Self::side_fit(y, x, cutoff, h, poly_order, kernel, Side::Left)?;
         let (beta_yr, vcov_yr, _) =
             Self::side_fit(y, x, cutoff, h, poly_order, kernel, Side::Right)?;
 
-        // Primeira etapa: D ~ X  (salto em D)
+        //First step: D ~ X (D jump)
         let (beta_dl, vcov_dl, _) =
             Self::side_fit(d, x, cutoff, h, poly_order, kernel, Side::Left)?;
         let (beta_dr, vcov_dr, n_right) =
@@ -278,7 +278,7 @@ impl RD {
 
         if tau_d.abs() < 1e-10 {
             return Err(GreenersError::InvalidOperation(
-                "fuzzy_rd: salto na primeira etapa é praticamente zero (τ_D ≈ 0)".into(),
+                "fuzzy_rd: first-stage jump is practically zero (τ_D ≈ 0)".into(),
             ));
         }
 
@@ -326,7 +326,7 @@ impl RD {
 
     // ── Internos ─────────────────────────────────────────────────────────────
 
-    /// Ajuste de polinômio local em um lado do cutoff (WLS + HC1).
+    /// Local polynomial adjustment on one side of the cutoff (WLS + HC1).
     fn side_fit(
         y: &Array1<f64>,
         x: &Array1<f64>,
@@ -363,7 +363,7 @@ impl RD {
 
         if n < p {
             return Err(GreenersError::ShapeMismatch(format!(
-                "rd: observações insuficientes ({n}) para polinômio de ordem {poly_order} (lado {})",
+                "rd: insufficient observations ({n}) for polynomial of order {poly_order} (side {})",
                 match side { Side::Left => "esquerdo", Side::Right => "direito" }
             )));
         }
@@ -372,11 +372,11 @@ impl RD {
         Ok((beta, vcov, n))
     }
 
-    /// Seletor automático de bandwidth — Imbens-Kalyanaraman (2012), revisão ReStud.
+    /// Automatic bandwidth selector — Imbens-Kalyanaraman (2012), revision ReStud.
     ///
-    /// Para local linear (p=1) com kernel triangular:
+    /// For linear location (p=1) with triangular kernel:
     ///   h* = [C_K * (σ²₊ + σ²₋) / (n * f(c) * B²)]^(1/5)
-    /// onde B = salto na derivada de segunda ordem.
+    /// where B = jump in second order derivative.
     pub fn ik_bandwidth(y: &Array1<f64>, x: &Array1<f64>, cutoff: f64, poly_order: usize) -> f64 {
         let n = y.len() as f64;
         if n < 10.0 {
@@ -439,13 +439,13 @@ impl RD {
         let (m_left, sigma2_left) = side_fit_pilot(Side::Left).unwrap_or((0.0, 1.0));
         let (m_right, sigma2_right) = side_fit_pilot(Side::Right).unwrap_or((0.0, 1.0));
 
-        // Salto na derivada (p+1)-ésima (dividida por (p+1)!)
+        //Jump on derivative (p+1)-th (divided by (p+1)!)
         let b_jump = m_right - m_left;
         if b_jump.abs() < 1e-12 {
-            return h0; // sem curvatura detectável → fallback
+            return h0; //without detectable curvature → fallback
         }
 
-        // Densidade em c: contagem na janela piloto / (2 * h0 * n)
+        //C density: count in pilot window / (2 *h0 * n)
         let n_window = x.iter().filter(|&&xi| (xi - cutoff).abs() <= h0).count() as f64;
         let f_c = (n_window / (2.0 * h0 * n)).max(1e-10);
 
@@ -456,7 +456,7 @@ impl RD {
         let h_star =
             (c_k * (sigma2_left + sigma2_right) / (n * f_c * b_jump * b_jump)).powf(exponent);
 
-        // Mantém dentro de [0.05 * sd, 2 * sd]
+        //Keep within [0.05 * sd, 2 * sd]
         h_star.max(0.05 * x_sd).min(2.0 * x_sd)
     }
 }
@@ -469,7 +469,7 @@ enum Side {
     Right,
 }
 
-/// Regressão local polinomial por WLS com SE HC1.
+/// Polynomial local regression by WLS with SE HC1.
 ///
 /// Retorna (β, V̂) onde β[0] = intercepto no cutoff e V̂[0,0] = variância de β[0].
 fn local_poly_wls(
@@ -481,7 +481,7 @@ fn local_poly_wls(
     let n = y.len();
     let p = poly_order + 1;
 
-    // X'WX e X'Wy
+    //X'WX and X'Wy
     let mut xtwx = Array2::<f64>::zeros((p, p));
     let mut xtwy = Array1::<f64>::zeros(p);
 
@@ -499,7 +499,7 @@ fn local_poly_wls(
     let xtwx_inv = xtwx.inv()?;
     let beta = xtwx_inv.dot(&xtwy);
 
-    // Resíduos
+    //Waste
     let resid: Vec<f64> = (0..n)
         .map(|i| {
             let y_hat: f64 = (0..p).map(|j| beta[j] * x_centered[i].powi(j as i32)).sum();

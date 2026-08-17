@@ -255,7 +255,7 @@ impl MLP {
             final_mse = epoch_loss / nf;
         }
 
-        // Compute fitted values (de-standardized)
+        //Compute fitted values (de-standardized)
         let mut fitted = Array1::zeros(n);
         for i in 0..n {
             let xi = x_std_mat.row(i).to_owned();

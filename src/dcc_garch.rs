@@ -181,7 +181,7 @@ impl DCCGARCH {
         // Compute dynamic correlations with best parameters
         let dcc_correlations = Self::compute_dcc(&std_resids, &q_bar, best_alpha, best_beta, k, t);
 
-        // Total log-likelihood (GARCH + DCC)
+        //Total log-likelihood (GARCH + DCC)
         let mut garch_ll = 0.0_f64;
         for j in 0..k {
             for i in 0..t {

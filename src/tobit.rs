@@ -5,7 +5,7 @@ use ndarray::{Array1, Array2};
 use statrs::distribution::{ContinuousCDF, Normal};
 use std::fmt;
 
-// ── Helpers numéricos ────────────────────────────────────────────────────────
+//── Numerical helpers ────────────────────────────────────────────────────────
 
 fn phi(x: f64) -> f64 {
     const INV_SQRT_2PI: f64 = 0.398_942_280_401_432_7;
@@ -42,11 +42,11 @@ impl fmt::Display for TobitResult {
         let thin = "─".repeat(70);
         let n_unc = self.n_obs - self.n_censored;
         writeln!(f, "\n{thick}")?;
-        writeln!(f, " Tobit  —  MLE  (censura inferior em {})", self.ll)?;
+        writeln!(f, " Tobit  —  MLE  (lower censoring at {})", self.ll)?;
         writeln!(f, "{thick}")?;
         writeln!(
             f,
-            " Obs: {:<8}  Censuradas: {:<6}  Não-cens.: {:<6}  Iter.: {}",
+            " Obs: {:<8}  Censored: {:<6}  Uncens.: {:<6}  Iter.: {}",
             self.n_obs, self.n_censored, n_unc, self.iterations
         )?;
         writeln!(
@@ -58,7 +58,7 @@ impl fmt::Display for TobitResult {
         writeln!(
             f,
             " {:<18} {:>12}  {:>12}  {:>8}  {:>8}",
-            "Variável", "coef", "SE", "z", "P>|z|"
+            "Variable", "coef", "SE", "z", "P>|z|"
         )?;
         writeln!(f, " {}", "─".repeat(64))?;
         let sig = |p: f64| {
@@ -97,17 +97,17 @@ impl fmt::Display for TobitResult {
 }
 
 // ===========================================================================
-// Tobit MLE — censura esquerda em `ll` (default 0)
+//Tobit (default 0)
 // ===========================================================================
 
 pub struct Tobit;
 
 impl Tobit {
-    /// Estima modelo Tobit por MLE via Newton-Raphson.
+    /// Estimate Tobit model by MLE via Newton-Raphson.
     ///
     /// * `y`  — variável dependente (permite y_i = ll para censuradas)
     /// * `x`  — regressores COM intercepto (n × k)
-    /// * `ll` — limite inferior de censura (default 0.0)
+    /// * `ll` — lower limit of censorship (default 0.0)
     pub fn fit(
         y: &Array1<f64>,
         x: &Array2<f64>,
@@ -119,25 +119,25 @@ impl Tobit {
 
         if x.nrows() != n {
             return Err(GreenersError::ShapeMismatch(
-                "Tobit: y e x têm dimensões incompatíveis".into(),
+                "Tobit: y and x have incompatible dimensions".into(),
             ));
         }
         if y.iter().any(|v| !v.is_finite()) || x.iter().any(|v| !v.is_finite()) {
             return Err(GreenersError::InvalidOperation(
-                "Tobit: dados contêm NaN ou Inf".into(),
+                "Tobit: data contain NaN or Inf".into(),
             ));
         }
         if n <= k {
             return Err(GreenersError::ShapeMismatch(
-                "Tobit: graus de liberdade insuficientes".into(),
+                "Tobit: insufficient degrees of freedom".into(),
             ));
         }
 
-        // ── Indicador de censura ──
+        //── Censor indicator ──
         let d: Vec<bool> = y.iter().map(|&yi| yi > ll).collect();
         let n_censored = d.iter().filter(|&&b| !b).count();
 
-        // ── Inicialização: OLS nos não-censurados ──
+        //── Initialization: OLS in uncensored ──
         let unc_idx: Vec<usize> = (0..n).filter(|&i| d[i]).collect();
         let y_unc: Array1<f64> = unc_idx.iter().map(|&i| y[i]).collect::<Vec<_>>().into();
         let x_unc: Array2<f64> = {
@@ -172,7 +172,7 @@ impl Tobit {
             let sigma = gamma.exp();
             let s2 = sigma * sigma;
 
-            // ── Gradient e Hessian ──
+            //- Gradient and Hessian.
             let mut g_beta = Array1::<f64>::zeros(k);
             let mut g_gamma = 0.0_f64;
 
@@ -187,7 +187,7 @@ impl Tobit {
             for i in 0..n {
                 let xb = x.row(i).dot(&beta);
                 if d[i] {
-                    // Não censurada
+                    //Not censored
                     let e = (y[i] - xb) / sigma;
                     ll_val += -gamma - LOG_SQRT_2PI - 0.5 * e * e;
 
@@ -207,7 +207,7 @@ impl Tobit {
                     // H_gg -= 2*e²
                     h_gg -= 2.0 * e * e;
                 } else {
-                    // Censurada
+                    //Censored
                     let a = (xb - ll) / sigma;
                     let (phi_neg_ln, lam, delta, c) = if a > 30.0 {
                         let l = a + 1.0 / a;
@@ -268,7 +268,7 @@ impl Tobit {
             };
             let step = neg_h_inv.dot(&g_full);
 
-            // backtracking line search para garantir subida
+            //backtracking line search to ensure ascent
             let mut alpha = 1.0_f64;
             for _ in 0..20 {
                 let b_new = &beta + &step.slice(ndarray::s![..k]).to_owned() * alpha;

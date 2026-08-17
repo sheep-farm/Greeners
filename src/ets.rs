@@ -1280,7 +1280,7 @@ impl ETSModel {
             }
         };
 
-        // Also do a coarse grid search on smoothing params to find a better starting point
+        //Also a strain grid search on smoothing parameters to find a better starting point
         let alpha_grid = [0.1, 0.3, 0.5, 0.7, 0.9];
         let beta_grid = [0.01, 0.05, 0.1, 0.2];
         let gamma_grid = [0.01, 0.05, 0.1, 0.2];

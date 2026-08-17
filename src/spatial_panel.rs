@@ -1,4 +1,4 @@
-//! Spatial panel models: SAR and SEM with fixed or random effects.
+//I'm sorry. Spatial panel models: SAR and SEM with fixed or random effects.
 //!
 //! SAR panel:  y_it = ρ·W·y_it + x_it'β + μ_i + ε_it
 //! SEM panel:  y_it = x_it'β + μ_i + u_it,  u_it = λ·W·u_it + ε_it
@@ -19,7 +19,7 @@ use std::fmt;
 /// Result of spatial panel estimation.
 #[derive(Debug)]
 pub struct SpatialPanelResult {
-    /// Model type: "sar" or "sem"
+    /// Model type: "sar" or "without"
     pub model_type: String,
     /// Spatial parameter (rho for SAR, lambda for SEM)
     pub spatial_param: f64,

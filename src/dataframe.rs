@@ -679,7 +679,7 @@ impl DataFrame {
                 categories.sort();
 
                 // Create dummies (drop first category for identification)
-                // e.g., if categories are [0, 1, 2], create dummies for 1 and 2
+                //e.g. if categories are [0, 1, 2], create dummyes for 1 and 2
                 if categories.len() < 2 {
                     return Err(GreenersError::FormulaError(format!(
                         "Categorical variable '{}' must have at least 2 categories",
@@ -4244,7 +4244,7 @@ impl DataFrame {
     ///
     /// # Arguments
     /// * `column` - Column to calculate quantile for
-    /// * `q` - Quantile to compute (0.0 to 1.0, e.g., 0.5 = median)
+    /// * `q` - Quantile to compute (0,0 to 1.0, e.g., 0.5 = median)
     ///
     /// # Examples
     /// ```
@@ -4543,7 +4543,7 @@ impl DataFrame {
                 }
 
                 // Add variable name (encoded as number for simplicity)
-                // In a real implementation, you might want to support string columns
+                //In a real implementation, you might want to support string columns
                 let var_idx = cols_to_melt
                     .iter()
                     .position(|n| n == col_name)

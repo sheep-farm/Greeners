@@ -180,7 +180,7 @@ impl MarkovAutoregression {
         let mut log_likelihood = 0.0;
 
         for _iter in 0..max_iter {
-            // ===== E-step: Hamilton filter =====
+            //== sync, corrected by elderman ==
             let mut xi_filtered = Array2::<f64>::zeros((effective_n, k));
             log_likelihood = 0.0;
 

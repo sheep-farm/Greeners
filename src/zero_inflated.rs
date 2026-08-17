@@ -247,7 +247,7 @@ fn fit_zero_inflated(
     for iteration in 0..max_iter {
         iter = iteration + 1;
 
-        // E-step: compute posterior probability of being from inflate component
+        //E-step: posterior compute probability of being from inflate component
         let eta_count = x_count.dot(&beta);
         let mu: Array1<f64> = eta_count.mapv(f64::exp);
         let eta_inflate = x_inflate.dot(&gamma);

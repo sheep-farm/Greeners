@@ -143,7 +143,7 @@ impl GarchResult {
                             let zi = z[n - 1 - i];
                             log_val += alphas[i] * (zi.abs() - e_abs_z) + gammas[i] * zi;
                         }
-                        // For multi-step, E[alpha*(|z|-sqrt(2/pi)) + gamma*z] = 0 under normality
+                        //For multi-step, E[alpha*(
                     }
                     for j in 0..self.p {
                         let lh = if s == 0 {

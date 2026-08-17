@@ -317,7 +317,7 @@ impl VECM {
             }
         }
 
-        // 2. Regressões Auxiliares
+        //2. Auxiliary Regressors
         let ztz = z_mat.t().dot(&z_mat);
         let ztz_inv = ztz.inv().map_err(|_| GreenersError::SingularMatrix)?;
 
@@ -327,7 +327,7 @@ impl VECM {
         let beta_1 = ztz_inv.dot(&z_mat.t()).dot(&y_lag_level);
         let r1 = &y_lag_level - &z_mat.dot(&beta_1);
 
-        // 3. Matrizes de Momento
+        //3. Moment Matrixes
         let t_float = n_eff as f64;
         let s00 = r0.t().dot(&r0) / t_float;
         let s11 = r1.t().dot(&r1) / t_float;
@@ -352,12 +352,12 @@ impl VECM {
         let (eigvals_complex, eigvecs_complex) =
             temp.eig().map_err(|_| GreenersError::OptimizationFailed)?;
 
-        // 4. Filtrar e Ordenar (CORREÇÃO DE TIPOS AQUI)
+        //4. Filter and Sort (CORRECTION OF TYPES HERE)
         let mut pairs: Vec<(f64, Array1<f64>)> = eigvals_complex
             .iter()
             .enumerate()
             .map(|(i, v)| {
-                // Explicitamos que 'c' é Complex64 para ajudar o compilador
+                //We explained that 'c' is Complex64 to help compiler
                 let vec_real = eigvecs_complex.column(i).mapv(|c: Complex64| c.re);
                 (v.re, vec_real)
             })
@@ -367,7 +367,7 @@ impl VECM {
 
         let sorted_eigenvalues: Array1<f64> = Array1::from_vec(pairs.iter().map(|p| p.0).collect());
 
-        // 5. Estimar Beta e Alpha
+        //5. Estimate Beta and Alpha
         let mut beta_est = Array2::<f64>::zeros((k, rank));
         // for r in 0..rank {
         for (r, _pair) in pairs.iter().enumerate().take(rank) {

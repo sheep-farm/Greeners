@@ -330,16 +330,16 @@ impl PanelDiagnostics {
 
     /// Arellano-Bond (1991) test for serial correlation in first-differenced residuals.
     ///
-    /// Computa as estatísticas m1 e m2 para testar autocorrelação serial de ordem 1 e 2
-    /// nos resíduos da equação em primeira diferença.
+    /// Computes the m1 and m2 statistics to test first- and second-order serial
+    /// autocorrelation in the first-difference equation residuals.
     ///
-    /// Interpretação:
-    ///   m1 DEVE rejeitar H₀ (FD induz AR(1) por construção — confirma o modelo)
-    ///   m2 NÃO deve rejeitar H₀ (valida instrumentos y_{i,t-2} do GMM)
+    /// Interpretation:
+    ///   m1 SHOULD reject H₀ (FD induces AR(1) by construction — confirms the model)
+    ///   m2 should NOT reject H₀ (validates instruments y_{i,t-2} of the GMM)
     ///
-    /// Estatística: m_p = C_p / √V̂_p  ~ N(0,1)
+    /// Statistic: m_p = C_p / √V̂_p  ~ N(0,1)
     ///   C_p  = Σ_{i,t} Δê_it · Δê_{i,t-p}
-    ///   V̂_p = Σ_i (Σ_t Δê_it · Δê_{i,t-p})²   (sandwich sob H₀)
+    ///   V̂_p = Σ_i (Σ_t Δê_it · Δê_{i,t-p})²   (sandwich under H₀)
     ///
     /// Returns (m1_stat, m1_pval, m2_stat, m2_pval)
     pub fn arellano_bond_test(
@@ -356,7 +356,7 @@ impl PanelDiagnostics {
         let k = x.ncols();
 
         if entity_ids.len() != n || time_vals.len() != n {
-            return Err("entity_ids e time_vals devem ter o mesmo comprimento que y".to_string());
+            return Err("entity_ids and time_vals must be the same length as y".to_string());
         }
 
         // 1. Group indices by entity, sorted by time
@@ -391,7 +391,7 @@ impl PanelDiagnostics {
 
         let n_fd = dy_vec.len();
         if n_fd == 0 {
-            return Err("Nenhuma observação após primeira diferença".to_string());
+            return Err("No observations after first difference".to_string());
         }
 
         let dy = Array1::from_vec(dy_vec);
@@ -417,7 +417,7 @@ impl PanelDiagnostics {
 
         // 3. OLS on FD model → residuals Δê
         let fd_ols = OLS::fit(&dy, &dx_active, CovarianceType::NonRobust)
-            .map_err(|e| format!("OLS na primeira diferença: {e}"))?;
+            .map_err(|e| format!("OLS in the first difference: {e}"))?;
         let fd_resid = fd_ols.residuals(&dy, &dx_active);
 
         // 4. Map FD residuals back to entity groups
@@ -461,10 +461,10 @@ impl PanelDiagnostics {
             Some((stat, pval))
         };
 
-        let (m1, p1) = m_stat(1)
-            .ok_or("Dados insuficientes para m1 (precisa T ≥ 3 por entidade)".to_string())?;
-        let (m2, p2) = m_stat(2)
-            .ok_or("Dados insuficientes para m2 (precisa T ≥ 4 por entidade)".to_string())?;
+        let (m1, p1) =
+            m_stat(1).ok_or("Insufficient data for m1 (requires T ≥ 3 per entity)".to_string())?;
+        let (m2, p2) =
+            m_stat(2).ok_or("Insufficient data for m2 (requires T ≥ 4 per entity)".to_string())?;
 
         Ok((m1, p1, m2, p2))
     }
@@ -472,19 +472,19 @@ impl PanelDiagnostics {
     /// Chamberlain (1982) test for correlation between regressors and individual effects.
     ///
     /// Generalização do Mundlak: em vez de usar apenas a média individual X̄_i, inclui
-    /// os valores de X em TODOS os períodos — testando a forma mais geral de correlação
-    /// entre efeitos individuais e regressores.
+    /// X values in ALL periods — testing the most general form of correlation
+    /// between individual effects and regressors.
     ///
     /// H₀: Π_1 = Π_2 = ... = Π_T = 0 (RE consistente)
     /// H₁: pelo menos um Π_s ≠ 0 (efeitos correlacionados com X — use FE)
     ///
-    /// Requer painel balanceado (mesmos períodos para todas as entidades).
+    /// Require balanced panel (same periods for all entities).
     ///
     /// Procedure:
-    ///   1. Para cada regressor não-constante j e período s, cria coluna contendo
-    ///      o valor x_{i,j,s} para cada observação da entidade i (constante dentro da entidade)
-    ///   2. Augmenta o modelo com essas k×T colunas (descartando zero-variância)
-    ///   3. F-test H₀: todos os coeficientes das colunas augmentadas = 0
+    /// 1. For each non-constant regressor j and period s, create a column containing
+    ///    the value x_{i,j,s} for each observation of entity i (constant within the entity)
+    /// 2. Augment the model with these k×T columns (discarding zero-variance)
+    /// 3. F-test H₀: all coefficients of the augmented columns = 0
     ///
     /// Returns (f_stat, p_value, k_active, df_denom, n_entities, t_count)
     pub fn chamberlain(
@@ -501,7 +501,7 @@ impl PanelDiagnostics {
         let k_full = x.ncols();
 
         if entity_ids.len() != n || time_vals.len() != n {
-            return Err("entity_ids e time_vals devem ter o mesmo comprimento que y".to_string());
+            return Err("entity_ids and time_vals must be the same length as y".to_string());
         }
 
         // Non-constant regressors
@@ -513,7 +513,7 @@ impl PanelDiagnostics {
             .collect();
         let k = non_const_cols.len();
         if k == 0 {
-            return Err("Nenhum regressor variante no tempo encontrado".to_string());
+            return Err("No time-varying regressor found".to_string());
         }
 
         // Unique sorted time periods (via bit-based dedup to handle floats correctly)
@@ -528,7 +528,7 @@ impl PanelDiagnostics {
         let t_count = unique_times.len();
 
         if t_count < 2 {
-            return Err("O teste de Chamberlain requer pelo menos 2 períodos".to_string());
+            return Err("The Chamberlain test requires at least 2 periods".to_string());
         }
 
         // Time value → sorted index
@@ -543,7 +543,7 @@ impl PanelDiagnostics {
         for (obs, &eid) in entity_ids.iter().enumerate() {
             let t_idx = *time_to_idx
                 .get(&time_vals[obs].to_bits())
-                .ok_or("Período não encontrado no índice")?;
+                .ok_or("Period not found in index")?;
             let vals: Vec<f64> = non_const_cols.iter().map(|&c| x[[obs, c]]).collect();
             entity_period.entry(eid).or_default().insert(t_idx, vals);
         }
@@ -554,8 +554,7 @@ impl PanelDiagnostics {
         for (&eid, periods) in &entity_period {
             if periods.len() != t_count {
                 return Err(format!(
-                    "Painel desbalanceado: entidade {} tem {} períodos (esperado {}). \
-                     Filtre o dataset para incluir apenas entidades com todos os {} períodos.",
+                    "Unbalanced panel: entity {} has {} periods (expected {}). Filter the dataset to include only entities with all {} periods.",
                     eid,
                     periods.len(),
                     t_count,
@@ -575,9 +574,7 @@ impl PanelDiagnostics {
                 x_aug[[i, c]] = x[[i, c]];
             }
             let eid = entity_ids[i];
-            let ep = entity_period
-                .get(&eid)
-                .ok_or("ID de entidade não encontrado")?;
+            let ep = entity_period.get(&eid).ok_or("Entity ID not found")?;
             for (j, _) in non_const_cols.iter().enumerate() {
                 for s in 0..t_count {
                     if let Some(vals) = ep.get(&s) {
@@ -587,7 +584,7 @@ impl PanelDiagnostics {
             }
         }
 
-        // Drop Chamberlain columns with zero variance (e.g., time-invariant regressors
+        //Drop Chamberlain columns with zero variance (e.g., time-intime-varying regressors)
         // or periods with identical values across all entities)
         let active_aug: Vec<usize> = (k_full..k_aug_total)
             .filter(|&c| {
@@ -598,17 +595,14 @@ impl PanelDiagnostics {
 
         let k_active = active_aug.len();
         if k_active == 0 {
-            return Err(
-                "Nenhuma coluna de augmentação com variância — regressores constantes?".to_string(),
-            );
+            return Err("No augmented column with variance — constant regressors?".to_string());
         }
 
         // Build final augmented matrix: [original X | active Chamberlain cols]
         let k_final = k_full + k_active;
         if n <= k_final {
             return Err(format!(
-                "Graus de liberdade insuficientes: n={} ≤ colunas do modelo augmentado={}. \
-                 T muito grande relativo ao número de observações.",
+                "Insufficient degrees of freedom: n={} ≤ columns of the augmented model={}. T too large relative to the number of observations.",
                 n, k_final
             ));
         }
@@ -624,25 +618,25 @@ impl PanelDiagnostics {
         }
 
         // Restricted OLS: y ~ X
-        let ols_r =
-            OLS::fit(y, x, CovarianceType::NonRobust).map_err(|e| format!("OLS restrito: {e}"))?;
+        let ols_r = OLS::fit(y, x, CovarianceType::NonRobust)
+            .map_err(|e| format!("OLS restricted: {e}"))?;
 
         // Unrestricted OLS: y ~ X + Chamberlain cols
         let ols_u = OLS::fit(y, &x_final, CovarianceType::NonRobust)
-            .map_err(|e| format!("OLS não-restrito: {e}"))?;
+            .map_err(|e| format!("OLS unrestricted: {e}"))?;
 
         let ssr_r = ols_r.sigma.powi(2) * ols_r.df_resid as f64;
         let ssr_u = ols_u.sigma.powi(2) * ols_u.df_resid as f64;
         let df_u = ols_u.df_resid;
 
         if df_u == 0 || ssr_u < 1e-15 {
-            return Err("Graus de liberdade insuficientes no modelo não-restrito".to_string());
+            return Err("Insufficient degrees of freedom in the unrestricted model".to_string());
         }
 
         let f_stat = ((ssr_r - ssr_u) / k_active as f64) / (ssr_u / df_u as f64);
 
         let f_dist = FisherSnedecor::new(k_active as f64, df_u as f64)
-            .map_err(|e| format!("F-distribuição: {e}"))?;
+            .map_err(|e| format!("F-distribution: {e}"))?;
         let p_value = 1.0 - f_dist.cdf(f_stat.max(0.0));
 
         Ok((f_stat, p_value, k_active, df_u, n_entities, t_count))
@@ -673,7 +667,7 @@ impl PanelDiagnostics {
         let k_full = x.ncols();
 
         if entity_ids.len() != n {
-            return Err("entity_ids deve ter o mesmo comprimento que y".to_string());
+            return Err("entity_ids must be the same length as y".to_string());
         }
 
         // Identify non-constant columns (positive variance)
@@ -687,7 +681,7 @@ impl PanelDiagnostics {
 
         let k = non_const_cols.len();
         if k == 0 {
-            return Err("Nenhum regressor variante no tempo encontrado".to_string());
+            return Err("No time-varying regressor found".to_string());
         }
 
         // Compute entity means for non-constant columns
@@ -718,24 +712,24 @@ impl PanelDiagnostics {
 
         // Restricted OLS: y ~ X
         let ols_r = OLS::fit(y, x, CovarianceType::NonRobust)
-            .map_err(|e| format!("OLS restrito falhou: {e}"))?;
+            .map_err(|e| format!("OLS restricted failed: {e}"))?;
 
         // Unrestricted OLS: y ~ X + X̄
         let ols_u = OLS::fit(y, &x_aug, CovarianceType::NonRobust)
-            .map_err(|e| format!("OLS não-restrito falhou: {e}"))?;
+            .map_err(|e| format!("OLS unrestricted failed: {e}"))?;
 
         let ssr_r = ols_r.sigma.powi(2) * ols_r.df_resid as f64;
         let ssr_u = ols_u.sigma.powi(2) * ols_u.df_resid as f64;
         let df_u = ols_u.df_resid;
 
         if df_u == 0 || ssr_u < 1e-15 {
-            return Err("Graus de liberdade insuficientes no modelo não-restrito".to_string());
+            return Err("Insufficient degrees of freedom in the unrestricted model".to_string());
         }
 
         let f_stat = ((ssr_r - ssr_u) / k as f64) / (ssr_u / df_u as f64);
 
         let f_dist = FisherSnedecor::new(k as f64, df_u as f64)
-            .map_err(|e| format!("F-distribuição: {e}"))?;
+            .map_err(|e| format!("F-distribution: {e}"))?;
         let p_value = 1.0 - f_dist.cdf(f_stat.max(0.0));
 
         // Extract γ̂ and SE from the unrestricted model (last k parameters)
@@ -755,7 +749,7 @@ impl PanelDiagnostics {
     ///
     /// Procedure:
     ///   1. Sort by time within entity, first-difference y and X
-    ///   2. Run OLS on first-differenced model to get residuals ê
+    /// 2. Run OLS on first-differenced model to get residuals e
     ///   3. Regress ê_it on ê_{i,t-1} (no intercept, pooled across entities)
     ///   4. Test H₀: ρ̂ = -0.5 using t(N-1) distribution
     ///
@@ -774,11 +768,11 @@ impl PanelDiagnostics {
 
         let n = y.len();
         if entity_ids.len() != n || time_vals.len() != n {
-            return Err("entity_ids e time_vals devem ter o mesmo comprimento que y".to_string());
+            return Err("entity_ids and time_vals must be the same length as y".to_string());
         }
         let k = x.ncols();
         if n < 4 {
-            return Err("Observações insuficientes para o teste de Wooldridge".to_string());
+            return Err("Insufficient observations for the Wooldridge test".to_string());
         }
 
         // 1. Group indices by entity, sorted by time
@@ -815,7 +809,7 @@ impl PanelDiagnostics {
 
         let n_fd = dy_vec.len();
         if n_fd == 0 {
-            return Err("Nenhuma observação após primeira diferença".to_string());
+            return Err("No observations after first difference".to_string());
         }
 
         let dy = Array1::from_vec(dy_vec);
@@ -832,7 +826,7 @@ impl PanelDiagnostics {
             .collect();
 
         if active_cols.is_empty() {
-            return Err("Todos os regressores tornaram-se zero após diferenciação".to_string());
+            return Err("All regressors became zero after differencing".to_string());
         }
 
         let dx_active = {
@@ -845,7 +839,7 @@ impl PanelDiagnostics {
 
         // 3. OLS on first-differenced model
         let fd_ols = OLS::fit(&dy, &dx_active, CovarianceType::NonRobust)
-            .map_err(|e| format!("OLS na primeira diferença falhou: {e}"))?;
+            .map_err(|e| format!("OLS in the first difference failed: {e}"))?;
         let fd_resid = fd_ols.residuals(&dy, &dx_active);
 
         // 4. Build residual lag pairs (ê_it, ê_{i,t-1}) within each entity
@@ -873,8 +867,7 @@ impl PanelDiagnostics {
         let n_pairs = aux_curr.len();
         if n_pairs < 2 {
             return Err(
-                "Poucas observações para o teste (necessário T ≥ 3 em pelo menos uma entidade)"
-                    .to_string(),
+                "Too few observations for the test (need T ≥ 3 in at least one entity)".to_string(),
             );
         }
 
@@ -887,7 +880,7 @@ impl PanelDiagnostics {
             .sum();
 
         if sum_xx < 1e-15 {
-            return Err("Matriz singular na regressão auxiliar".to_string());
+            return Err("Singular matrix in auxiliary regression".to_string());
         }
 
         let rho_hat = sum_xy / sum_xx;
@@ -902,14 +895,14 @@ impl PanelDiagnostics {
         let se_rho = (ssr_aux / df_aux / sum_xx).sqrt();
 
         if se_rho < 1e-15 {
-            return Err("Erro padrão de ρ̂ próximo de zero".to_string());
+            return Err("Standard error of ρ̂ close to zero".to_string());
         }
 
         // 6. t-statistic: H₀: ρ = -0.5, df = N - 1 (Wooldridge, 2002, p.283)
         let t_stat = (rho_hat - (-0.5)) / se_rho;
         let df_t = (n_entities - 1) as f64;
 
-        let t_dist = StudentsT::new(0.0, 1.0, df_t).map_err(|e| format!("t-distribuição: {e}"))?;
+        let t_dist = StudentsT::new(0.0, 1.0, df_t).map_err(|e| format!("t-distribution: {e}"))?;
         let p_value = 2.0 * (1.0 - t_dist.cdf(t_stat.abs()));
 
         Ok((rho_hat, t_stat, p_value, n_pairs))

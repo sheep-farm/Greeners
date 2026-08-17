@@ -4,21 +4,21 @@ use ndarray::{Array1, Array2, Axis};
 use statrs::distribution::ContinuousCDF;
 use std::fmt;
 
-/// Estrutura para definir uma única equação do sistema
+/// Structure to define a single system equation
 #[derive(Clone)]
 pub struct Equation {
     pub y: Array1<f64>,
-    pub x: Array2<f64>, // Inclui endógenas e exógenas
+    pub x: Array2<f64>, //Includes endogenous and exogenous
     pub name: String,
     pub var_names: Vec<String>,
 }
 
-/// Resultado do Sistema 3SLS
+/// 3SLS System Result
 #[derive(Debug)]
 pub struct ThreeSLSResult {
     pub equations: Vec<EquationResult>,
-    pub sigma_cross: Array2<f64>, // Matriz de covariância dos erros entre equações
-    pub system_r2: f64,           // R2 de McElroy (Opcional, mas chique)
+    pub sigma_cross: Array2<f64>, //Covariance matrix of errors between equations
+    pub system_r2: f64,           //McElroy's R2 (Optional but chic)
 }
 
 #[derive(Debug)]
@@ -37,7 +37,7 @@ impl fmt::Display for ThreeSLSResult {
         writeln!(f, "\n{:=^78}", " Three-Stage Least Squares (3SLS) System ")?;
         writeln!(f, "Number of Equations: {}", self.equations.len())?;
 
-        // Mostrar a matriz de correlação de resíduos (Cross-Equation Correlation)
+        //Show the Cross-Equation Correlation Correlation matrix
         writeln!(f, "\n{:-^78}", " Residual Covariance Matrix (Sigma) ")?;
         for row in self.sigma_cross.rows() {
             write!(f, "[ ")?;
@@ -76,10 +76,10 @@ impl fmt::Display for ThreeSLSResult {
 
 pub struct ThreeSLS;
 
-/// Verifica se a matriz de instrumentos já possui uma coluna constante.
-/// Se não tiver, adiciona uma coluna de 1s no início.  Isso faz com que
-/// projeções de uma constante no primeiro estágio sejam exatas, permitindo
-/// que equações 3SLS incluam intercepto quando o frontend assim o especificar.
+/// Check if the instrument matrix already has a constant column.
+/// If not, add a 1s column at the beginning. That makes it
+/// projections of a first stage constant are accurate, allowing
+/// which 3SLS equations include intercept when the frontend so specifies.
 fn ensure_constant_instruments(z: &Array2<f64>) -> Array2<f64> {
     let n = z.nrows();
     if n == 0 {
@@ -100,10 +100,10 @@ fn ensure_constant_instruments(z: &Array2<f64>) -> Array2<f64> {
 }
 
 impl ThreeSLS {
-    /// Estima um sistema de equações simultâneas via 3SLS.
+    /// Estimates a system of simultaneous equations via 3SLS.
     ///
     /// # Arguments
-    /// * `equations` - Vetor de structs `Equation` (cada uma com y e X).
+    /// * `equations` - Vector of structures `Equation` (each with y and X).
     /// * `z_instruments` - Matriz global de instrumentos (união de todas as exógenas).
     pub fn fit(
         equations: &[Equation],
@@ -116,9 +116,9 @@ impl ThreeSLS {
         // Projetar cada X no espaço de Z para obter X_hat = Z(Z'Z)^-1 Z'X
         // X_hat é a versão "limpa" das endógenas.
 
-        // Garante que a matriz de instrumentos inclui uma constante, de modo que
-        // projeções do intercepto sejam exatas quando a equação estrutural tem
-        // uma coluna de 1s.
+        //Ensures that the instrument matrix includes a constant, so that
+        //intercept projections are exact when the structural equation has
+        //a column of 1s.
         let z_instruments = ensure_constant_instruments(z_instruments);
 
         // Pré-calcular P_z = Z (Z'Z)^-1 Z'
@@ -126,7 +126,7 @@ impl ThreeSLS {
         let z_t = z_instruments.t();
         let ztz = z_t.dot(&z_instruments);
         let ztz_inv = ztz.inv().map_err(|_| GreenersError::SingularMatrix)?;
-        let projection_matrix_part = z_instruments.dot(&ztz_inv).dot(&z_t); // N x N (Cuidado com memória aqui se N for huge)
+        let projection_matrix_part = z_instruments.dot(&ztz_inv).dot(&z_t); //N x N (Beware of memory here if N is huge)
 
         let mut x_hat_list = Vec::new();
         let mut residuals_2sls = Array2::<f64>::zeros((n_obs, n_eq));
@@ -143,16 +143,16 @@ impl ThreeSLS {
             let xt_y = x_hat.t().dot(&eq.y);
             let beta_2sls = xt_x_inv.dot(&xt_y);
 
-            // Resíduos u = y - X * beta (Usamos o X original para resíduos!)
+            //residuals u = y - X * beta (We use the original X for residuals!)
             let pred = eq.x.dot(&beta_2sls);
             let u = &eq.y - &pred;
 
-            // Guardar para o passo seguinte
+            //Save to next step
             residuals_2sls.column_mut(i).assign(&u);
             x_hat_list.push(x_hat);
         }
 
-        // Calcular Matriz de Covariância dos Erros (Sigma)
+        //Calculate Error Covariance Matrix (Sigma)
         // Sigma_ij = (u_i' u_j) / N
         let sigma = residuals_2sls.t().dot(&residuals_2sls) / (n_obs as f64);
         let sigma_inv = sigma.inv().map_err(|_| GreenersError::SingularMatrix)?;
@@ -160,7 +160,7 @@ impl ThreeSLS {
         // --- STAGE 3: GLS Estimation on the System ---
         // Resolver o sistema gigante: [X_hat' (Sigma^-1 ox I) X_hat] Beta = X_hat' (Sigma^-1 ox I) y
 
-        // 1. Contar total de parâmetros
+        //1. Count total parameters
         let mut k_total = 0;
         let mut k_per_eq = Vec::new();
         for eq in equations {
@@ -169,8 +169,8 @@ impl ThreeSLS {
             k_total += k;
         }
 
-        // 2. Construir Matriz LHS (Hessiana do Sistema) e Vetor RHS
-        // Usamos construção em bloco para evitar Kronecker explícito.
+        //2. Build LHS Matrix (System Hessian) and RHS Vector
+        //We use block construction to avoid explicit Kronecker.
         let mut lhs_system = Array2::<f64>::zeros((k_total, k_total));
         let mut rhs_system = Array1::<f64>::zeros(k_total);
 
@@ -195,12 +195,12 @@ impl ThreeSLS {
                     .slice_mut(ndarray::s![start_i..start_i + ki, start_j..start_j + kj])
                     .assign(&block);
 
-                // Parte do RHS (apenas quando loop j roda, acumula para o i)
+                //Part of RHS (only when loop j runs, accumulates for i)
                 // RHS_i = sum_j (s_ij * X_hat_i' * y_j)
                 let y_j = &equations[j].y;
                 let vec_part = x_hat_i.t().dot(y_j) * s_ij;
 
-                // Somar ao vetor RHS na posição i
+                //Add to RHS vector in position i
                 let mut target_slice = rhs_system.slice_mut(ndarray::s![start_i..start_i + ki]);
                 target_slice += &vec_part;
 
@@ -215,7 +215,7 @@ impl ThreeSLS {
             .map_err(|_| GreenersError::SingularMatrix)?;
         let beta_3sls_all = lhs_inv.dot(&rhs_system);
 
-        // --- PÓS-ESTIMAÇÃO: Separar resultados e Estatísticas ---
+        //--- POST-STIMATION: Separate results and Statistics ---
         let mut final_results = Vec::new();
         let mut cursor = 0;
 
@@ -225,19 +225,19 @@ impl ThreeSLS {
                 .slice(ndarray::s![cursor..cursor + k])
                 .to_owned();
 
-            // Variância Assintótica dos coeficientes dessa equação
-            // É o bloco diagonal correspondente da inversa do sistema
+            //Variance Asymptotic coefficients of this equation
+            //It is the corresponding diagonal block of the system inverse
             let cov_params = lhs_inv
                 .slice(ndarray::s![cursor..cursor + k, cursor..cursor + k])
                 .to_owned();
             let std_errors = cov_params.diag().mapv(f64::sqrt);
 
-            // Estatísticas T e P
+            //Statistics T and P
             let t_values = &params / &std_errors;
             let p_values = t_values
                 .mapv(|t| 2.0 * (1.0 - statrs::distribution::Normal::standard().cdf(t.abs())));
 
-            // R2 (Usando resíduos finais do 3SLS)
+            //R2 (Using 3SLS final residuals)
             let pred = eq.x.dot(&params);
             let res = &eq.y - &pred;
             let sst = (&eq.y

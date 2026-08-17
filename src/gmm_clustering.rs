@@ -6,7 +6,7 @@
 //!
 //!   p(x) = sum_{k=1}^K pi_k * N(x | mu_k, Sigma_k)
 //!
-//! EM algorithm:
+//I'm sorry. IN algorithm:
 //!   E-step: Compute responsibilities gamma_ik = P(z=k | x_i)
 //!   M-step: Update pi_k, mu_k, Sigma_k
 //!
@@ -202,7 +202,7 @@ impl GmmClustering {
         for iter in 0..max_iterations {
             n_iter = iter + 1;
 
-            // E-step: compute responsibilities
+            //E-step: compute liabilities
             let mut ll = 0.0;
 
             for i in 0..n {

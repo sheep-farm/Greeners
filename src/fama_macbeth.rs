@@ -167,7 +167,7 @@ impl std::fmt::Display for FamaMacBethResult {
         writeln!(f, "{thin}")?;
         writeln!(
             f,
-            "  Periods: {}   N total: {}",
+            "Periods: {} Total N: {}",
             self.n_periods, self.n_obs_total
         )?;
         writeln!(f, "{thin}")?;

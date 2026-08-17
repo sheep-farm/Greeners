@@ -298,7 +298,7 @@ fn fit_ordered(
     let cdf_fn = if is_logit { logistic_cdf } else { normal_cdf };
     let pdf_fn = if is_logit { logistic_pdf } else { normal_pdf };
 
-    // Total parameter count: k (slopes) + J-1 (cutpoints)
+    //Total parameter count: k (slopes) + J-1 (cutpoints)
     // Reparametrize: theta = [β_1, ..., β_k, α_1, δ_2, ..., δ_{J-1}]
     // where α_j = α_1 + Σ_{m=2}^{j} exp(δ_m) for j >= 2
     let total_params = k + j_minus_1;

@@ -7,7 +7,7 @@
 //! y_{j,t} = alpha_j + sum_p A_{j,p} * y_{t-p} + eps_{j,t}
 //!
 //! where the tau-quantile of eps_{j,t} is zero. This captures
-//! quantile-specific dynamics (e.g., recession vs expansion).
+//Quantile-specific dynamics (e.g., recession vs expansion).
 //!
 //! Estimation: equation-by-equation quantile regression with
 //! bootstrap standard errors.

@@ -63,7 +63,7 @@ impl fmt::Display for MNLogitResult {
             writeln!(
                 f,
                 "\n{:-^78}",
-                format!(" y={} vs base y={} ", cat_label, base_label)
+                format!("y={} vs base y={}", cat_label, base_label)
             )?;
             writeln!(
                 f,
@@ -108,14 +108,14 @@ impl MNLogitResult {
 
         for i in 0..n {
             let x_i = x.row(i);
-            let mut max_eta = 0.0f64; // base category eta = 0
+            let mut max_eta = 0.0f64; //base category eta = 0
             let mut etas = vec![0.0; j];
             #[allow(clippy::needless_range_loop)]
             for c in 0..j_minus_1 {
                 etas[c] = x_i.dot(&self.params.column(c));
                 max_eta = max_eta.max(etas[c]);
             }
-            // base category
+            //Category
             etas[j_minus_1] = 0.0;
             max_eta = max_eta.max(0.0);
 

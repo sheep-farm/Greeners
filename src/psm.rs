@@ -4,7 +4,7 @@ use ndarray::{Array1, Array2};
 use statrs::distribution::{ContinuousCDF, Normal};
 use std::fmt;
 
-// ── Structs de resultado ──────────────────────────────────────────────────────
+//── Result Structs ──────────────────────────────────────────────────────
 
 #[derive(Debug)]
 pub struct BalanceRow {
@@ -14,13 +14,13 @@ pub struct BalanceRow {
     pub mean_control_matched: f64,
     /// Diferença padronizada antes do matching (|μ_T - μ_C| / σ_pooled).
     pub smd_before: f64,
-    /// Diferença padronizada após o matching.
+    /// Standard difference after matching.
     pub smd_after: f64,
 }
 
 #[derive(Debug)]
 pub struct PsmResult {
-    /// Efeito médio do tratamento nos tratados (ATT).
+    /// Mean treatment effect in treatment (ATT).
     pub att: f64,
     pub se: f64,
     pub z: f64,
@@ -29,11 +29,11 @@ pub struct PsmResult {
     pub ci_upper: f64,
     pub n_treated: usize,
     pub n_control: usize,
-    /// Unidades tratadas com ao menos um match (descartadas se caliper viola).
+    /// Units treated with at least one match (discarded if caliper violates).
     pub n_matched_treated: usize,
     /// Pares/grupos de matching: (idx_tratado, \[idxs_controle\]).
     pub matched_pairs: Vec<(usize, Vec<usize>)>,
-    /// Propensity scores estimados (todos os obs, na ordem original).
+    /// Propensity scores estimated (all obs, in the original order).
     pub propensity_scores: Array1<f64>,
     pub balance: Vec<BalanceRow>,
     pub outcome_name: String,
@@ -65,13 +65,13 @@ impl fmt::Display for PsmResult {
         writeln!(f, "{thick}")?;
         writeln!(
             f,
-            " Outcome: {}   Tratamento: {}",
+            "Outcome: {} Treatment: {}",
             self.outcome_name, self.treatment_name
         )?;
         let cal_str = self
             .caliper
             .map(|c| format!("{c:.4}"))
-            .unwrap_or("nenhum".into());
+            .unwrap_or("none".into());
         writeln!(
             f,
             " k={} match   Caliper: {}   Bootstrap SE: {} reps",
@@ -95,12 +95,12 @@ impl fmt::Display for PsmResult {
         writeln!(f, " IC 95%: [{:.4}, {:.4}]", self.ci_lower, self.ci_upper)?;
         writeln!(f, "{thin}")?;
 
-        // Tabela de balanço
-        writeln!(f, " Balanço de covariáveis (SMD = diferença padronizada):")?;
+        //Balance sheet
+        writeln!(f, " Covariate balance (SMD = standardized difference):")?;
         writeln!(
             f,
             " {:<20} {:>10}  {:>10}  {:>10}  {:>8}  {:>8}",
-            "Covariável", "μ_Trat", "μ_Ctrl(raw)", "μ_Ctrl(mtch)", "SMD_ant", "SMD_dep"
+            "Covariate", "μ_Trat", "μ_Ctrl(raw)", "μ_Ctrl(mtch)", "SMD_ant", "SMD_dep"
         )?;
         writeln!(f, " {}", "─".repeat(70))?;
         for row in &self.balance {
@@ -122,7 +122,7 @@ impl fmt::Display for PsmResult {
         }
         writeln!(
             f,
-            " (!) SMD > 0.10 após matching — covariável mal balanceada"
+            " (!) SMD > 0.10 after matching — covariate poorly balanced"
         )?;
         writeln!(f, "{thick}")?;
         writeln!(f, " *** p<0.01  ** p<0.05  * p<0.10")?;
@@ -149,13 +149,13 @@ impl fmt::Display for PsmResult {
 pub struct PSM;
 
 impl PSM {
-    /// Estima ATT por Propensity Score Matching.
+    /// Estimate ATT by propensity score matching.
     ///
-    /// * `y`               — resultado (todos os obs)
-    /// * `d`               — tratamento (0/1, todos os obs)
+    /// * `y` — result (all obs)
+    /// * `d` — treatment (0/1, all obs)
     /// * `x`               — covariáveis SEM intercepto e SEM tratamento (n × p)
-    /// * `k`               — número de controles por tratado (padrão 1)
-    /// * `caliper`         — limite máximo de distância no PS (None = sem caliper)
+    /// * `k` — number of controls per handle (default 1)
+    /// * `caliper` — PS maximum distance limit (None = no calliper)
     /// * `with_replacement`— reposição no matching (padrão false)
     /// * `n_boot`          — replicações bootstrap para SE (padrão 200)
     /// * `variable_names`  — (outcome, treatment, covariates)
@@ -173,7 +173,7 @@ impl PSM {
         let n = y.len();
         if d.len() != n || x.nrows() != n {
             return Err(GreenersError::ShapeMismatch(
-                "psm: y, d, x devem ter o mesmo número de observações".into(),
+                "psm: y, d, and x must have the same number of observations".into(),
             ));
         }
         if y.iter()
@@ -182,16 +182,14 @@ impl PSM {
             .any(|v| !v.is_finite())
         {
             return Err(GreenersError::InvalidOperation(
-                "psm: dados contêm NaN ou Inf".into(),
+                "psm: data contain NaN or Inf".into(),
             ));
         }
         if k == 0 {
-            return Err(GreenersError::InvalidOperation(
-                "psm: k deve ser ≥ 1".into(),
-            ));
+            return Err(GreenersError::InvalidOperation("psm: k must be ≥ 1".into()));
         }
 
-        // ── 1. Adicionar intercepto às covariáveis para o logit ───────────────
+        //── 1. Add intercept to covariates for logit ───────────────
         let x_aug = add_intercept(x);
 
         // ── 2. Estimar propensity scores via logit ────────────────────────────
@@ -207,20 +205,20 @@ impl PSM {
         let att = compute_att(y, &matched_pairs);
         if !att.is_finite() {
             return Err(GreenersError::InvalidOperation(
-                "psm: ATT não calculável — nenhum tratado obteve match".into(),
+                "psm: ATT not calculable — no treated unit got a match".into(),
             ));
         }
 
         // ── 5. Bootstrap SE ───────────────────────────────────────────────────
         let se = bootstrap_se(y, d, &x_aug, k, caliper, with_replacement, n_boot);
 
-        // ── 6. Inferência ─────────────────────────────────────────────────────
+        //── 6. Inference ─────────────────────────────────────────────────────
         let z = att / se;
         let normal_dist = Normal::standard();
         let p_value = 2.0 * (1.0 - normal_dist.cdf(z.abs()));
         let z95 = 1.959_963_985;
 
-        // ── 7. Tamanhos de amostra ────────────────────────────────────────────
+        //── 7. Sample sizes ────────────────────────────────────────────
         let n_treated = d_vec.iter().filter(|&&di| di > 0.5).count();
         let n_control = n - n_treated;
         let n_matched_treated = matched_pairs
@@ -228,7 +226,7 @@ impl PSM {
             .filter(|(_, cs)| !cs.is_empty())
             .count();
 
-        // ── 8. Balanço ────────────────────────────────────────────────────────
+        //── 8. Balance ────────────────────────────────────────────────────────
         let (outcome_name, treatment_name, cov_names) = variable_names.unwrap_or_else(|| {
             (
                 "y".into(),
@@ -262,7 +260,7 @@ impl PSM {
     }
 }
 
-// ── Logit para propensity score ───────────────────────────────────────────────
+//── Logit for propensity score ───────────────────────────────────────────────
 
 fn add_intercept(x: &Array2<f64>) -> Array2<f64> {
     let n = x.nrows();
@@ -287,7 +285,7 @@ fn fit_logit(d: &Array1<f64>, x: &Array2<f64>) -> Result<Array1<f64>, GreenersEr
         let w: Array1<f64> = p.mapv(|pi| (pi * (1.0 - pi)).max(1e-12));
         let resid = d - &p;
 
-        // Score e Hessian
+        //Score and Hessian
         let mut score = Array1::<f64>::zeros(k);
         let mut hess = Array2::<f64>::zeros((k, k));
         for i in 0..n {
@@ -416,7 +414,7 @@ fn bootstrap_se(
             m
         };
 
-        // Requer ao menos 1 tratado e 1 controle no resample
+        //Requires at least 1 treated and 1 control in resample
         let n_t_b = d_b.iter().filter(|&&v| v > 0.5).count();
         let n_c_b = n - n_t_b;
         if n_t_b == 0 || n_c_b == 0 {
@@ -452,7 +450,7 @@ fn lcg_next(s: &mut u64) -> usize {
     (*s >> 33) as usize
 }
 
-// ── Tabela de balanço ─────────────────────────────────────────────────────────
+//── Balance sheet ─────────────────────────────────────────────────────────
 
 fn compute_balance(
     x: &Array2<f64>,

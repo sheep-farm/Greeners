@@ -28,7 +28,7 @@ impl SpecificationTests {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let residuals = Array1::from(vec![0.1, -0.2, 0.1, 0.0, 0.1]);
     /// # let x = Array2::from_shape_vec((5, 2), vec![1., 1., 1., 2., 1., 3., 1., 4., 1., 5.])?;
-    /// // ... o resto do seu exemplo original aqui ...
+    /// // ... the rest of your original example here ...
     /// let (lm_stat, p_value, df) = SpecificationTests::white_test(&residuals, &x)?;
     /// # Ok(())
     /// # }
@@ -61,7 +61,7 @@ impl SpecificationTests {
             aux_regressors.push(x_j.mapv(|v| v.powi(2)));
         }
 
-        let p = aux_regressors.len(); // Total number of auxiliary regressors
+        let p = aux_regressors.len(); //Total number of auxiliary regressors
 
         // Build auxiliary design matrix
         let mut x_aux = Array2::<f64>::zeros((n, p));
@@ -224,10 +224,10 @@ impl SpecificationTests {
     /// use ndarray::{Array1, Array2};
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # // Setup escondido para o teste rodar:
+    /// # // Hidden setup for test run:
     /// # let residuals = Array1::from(vec![0.1, -0.2, 0.1, 0.0, 0.1]);
     /// # let x = Array2::from_shape_vec((5, 2), vec![1., 1., 1., 2., 1., 3., 1., 4., 1., 5.])?;
-    /// // O exemplo visível começa aqui:
+    /// // The visible example starts here:
     /// let (lm_stat, p_value, df) = SpecificationTests::breusch_godfrey_test(&residuals, &x, 1)?;
     /// # Ok(())
     /// # }

@@ -108,7 +108,7 @@ impl OlsResult {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let y = Array1::from(vec![1.0, 2.0, 3.0]);
     /// # let x = Array2::from_shape_vec((3, 2), vec![1.0, 1.0, 1.0, 2.0, 1.0, 3.0])?;
-    /// // Adicione o argumento extra aqui:
+    /// // Add the extra argument here:
     /// let result = OLS::fit(&y, &x, CovarianceType::NonRobust)?;
     ///
     /// let (aic, bic, loglik, adj_r2) = result.model_stats();
@@ -979,7 +979,7 @@ impl OLS {
 
                         // Outer product: (x_t * x_{t-l}') scaled by (u_t * u_{t-l})
                         // Using 'scaled_add' is efficient: matrix += alpha * (vec * vec.t)
-                        // But ndarray doesn't have concise outer product add, so we do:
+                        //But darray doesn't have concise outside product add, so we do:
                         // term = (u_t * u_prev) * (x_t outer x_{t-l})
 
                         let scale = u_t * u_prev;

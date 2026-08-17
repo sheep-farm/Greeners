@@ -197,7 +197,7 @@ impl FixedEffects {
     ///
     /// # Arguments
     /// * `y` - Dependent variable.
-    /// * `x` - Regressors (DO NOT include a constant/intercept column!).
+    /// * `x` - Regressors (DO NOT includes a constant/intercept column!).
     /// * `groups` - Vector of Entity IDs (Integers, Strings, etc.) corresponding to rows.
     pub fn fit<T>(
         y: &Array1<f64>,
@@ -311,9 +311,9 @@ pub struct RandomEffectsResult {
     pub t_values: Array1<f64>,
     pub p_values: Array1<f64>,
     pub r_squared_overall: f64,
-    pub sigma_u: f64, // Desvio padrão do erro idiossincrático
-    pub sigma_e: f64, // Desvio padrão do efeito individual
-    pub theta: f64,   // Peso da transformação GLS
+    pub sigma_u: f64, //Standard deviation of idiosyncratic error
+    pub sigma_e: f64, //Standard deviation of the individual effect
+    pub theta: f64,   //Weight of transformation GLS
     pub inference_type: InferenceType,
     pub variable_names: Option<Vec<String>>,
 }
@@ -415,7 +415,7 @@ impl RandomEffects {
     pub fn fit(
         y: &Array1<f64>,
         x: &Array2<f64>,
-        entity_ids: &Array1<i64>, // IDs dos indivíduos/empresas
+        entity_ids: &Array1<i64>, //IDs of individuals/enterprises
     ) -> Result<RandomEffectsResult, GreenersError> {
         let n_obs = y.len();
         let k = x.ncols();
@@ -426,7 +426,7 @@ impl RandomEffects {
             ));
         }
 
-        // 1. Mapear Índices por Entidade
+        //1. Map Indexes per Entity
         let mut groups: IndexMap<i64, Vec<usize>> = IndexMap::new();
         for (idx, &id) in entity_ids.iter().enumerate() {
             // CORREÇÃO: or_insert em vez de or_insert_vec
@@ -434,10 +434,10 @@ impl RandomEffects {
         }
 
         let n_entities = groups.len();
-        // Assumindo painel balanceado para cálculo simplificado do Theta (T médio)
+        //Assuming balanced panel for simplified calculation of Theta (average T)
         let t_bar = (n_obs as f64) / (n_entities as f64);
 
-        // --- PASSO 2: Estimar Variâncias (Swamy-Arora) ---
+        //Step 2: Estimate Variances (Swamy-Arora) ---
 
         // A. Variância Within (Fixed Effects) -> Sigma_u
         // Transformação Within manual: (x_it - x_i_bar)
@@ -451,7 +451,7 @@ impl RandomEffects {
         for indices in groups.values() {
             let t_i = indices.len() as f64;
 
-            // Calcular médias do grupo
+            //Calculate group averages
             let mut y_sum = 0.0;
             let mut x_sum = Array1::<f64>::zeros(k);
 
@@ -468,7 +468,7 @@ impl RandomEffects {
                 x_means.push(*val);
             }
 
-            // Subtrair média (Within Transformation)
+            //Subtract Medium (Within Transformation)
             for &idx in indices {
                 y_within[idx] -= y_mean;
                 let mut row = x_within.row_mut(idx);
@@ -476,16 +476,16 @@ impl RandomEffects {
             }
         }
 
-        // --- CORREÇÃO DE SINGULARIDADE (CRUCIAL) ---
-        // Ao subtrair a média, colunas constantes (como intercepto) viram zero.
-        // Isso quebra a inversão de matriz do OLS. Precisamos filtrar essas colunas
+        //--- SINGULARITY CORRECTION (CRUCIAL) ---
+        //By subtracting the average, constant columns (as intercept) turned zero.
+        //This breaks the matrix inversion of OLS. We need to filter these columns.
         // apenas para o passo intermediário de calcular Sigma_u.
         let mut keep_indices = Vec::new();
         for j in 0..k {
             let col = x_within.column(j);
-            let variance = col.var(0.0); // Variância populacional da coluna
+            let variance = col.var(0.0); //Population variance of the column
             if variance > 1e-12 {
-                // Se tem variação, mantemos
+                //If there's variation, we keep
                 keep_indices.push(j);
             }
         }
@@ -496,16 +496,16 @@ impl RandomEffects {
         // Rodar OLS nos dados filtrados (sem intercepto) para pegar Sigma_u
         let fe_model = OLS::fit(&y_within, &x_within_clean, CovarianceType::NonRobust)?;
 
-        // Calcular resíduos usando os dados filtrados e betas obtidos
+        //Calculate residuals using filtered data and betas obtained
         let residuals_fe = &y_within - &x_within_clean.dot(&fe_model.params);
         let ssr_within = residuals_fe.mapv(|v| v.powi(2)).sum();
 
-        // Graus de liberdade corrigidos (usando colunas efetivas)
+        //Corrected degrees of freedom (using effective columns)
         let k_eff = keep_indices.len();
         let df_resid_within = (n_obs as f64 - n_entities as f64 - k_eff as f64).max(1.0);
         let sigma_u_sq = ssr_within / df_resid_within;
 
-        // Rodar OLS nos dados Between (Médias)
+        //Rotate OLS in Between data (Mediums)
         let y_between_arr = Array1::from(y_means);
         // CORREÇÃO: Tratamento de erro no from_shape_vec
         let x_between_arr = Array2::from_shape_vec((n_entities, k), x_means)
@@ -520,11 +520,11 @@ impl RandomEffects {
         let df_resid_between = (n_entities as f64 - k as f64).max(1.0);
         let sigma_b_sq = ssr_between / df_resid_between;
 
-        // Recuperar Sigma_e (Efeito Individual)
+        // Recuperar Sigma_e (Effect Individual)
         // sigma_e^2 = sigma_b^2 - (sigma_u^2 / T)
-        let sigma_e_sq = (sigma_b_sq - (sigma_u_sq / t_bar)).max(0.0); // max(0) para evitar variância negativa
+        let sigma_e_sq = (sigma_b_sq - (sigma_u_sq / t_bar)).max(0.0); //max(0) to avoid negative variance
 
-        // --- PASSO 3: Transformação GLS (Theta) ---
+        //--- STEP 3: Transformation GLS (Theta) ---
         let theta = 1.0 - (sigma_u_sq / (sigma_u_sq + t_bar * sigma_e_sq)).sqrt();
 
         // --- PASSO 4: Transformar Dados Finais ---
@@ -535,7 +535,7 @@ impl RandomEffects {
         for indices in groups.values() {
             let t_i = indices.len() as f64;
 
-            // Recalcular médias (rápido)
+            //Recalculate average (fast)
             let mut y_sum = 0.0;
             let mut x_sum = Array1::<f64>::zeros(k);
             for &idx in indices {
@@ -545,7 +545,7 @@ impl RandomEffects {
             let y_mean = y_sum / t_i;
             let x_mean = x_sum / t_i;
 
-            // Aplicar Quasi-Diferença
+            //Apply Quasi-Difference
             for &idx in indices {
                 y_gls[idx] -= theta * y_mean;
                 let mut row = x_gls.row_mut(idx);
@@ -556,7 +556,7 @@ impl RandomEffects {
         // --- PASSO 5: OLS Final ---
         let final_model = OLS::fit(&y_gls, &x_gls, CovarianceType::NonRobust)?;
 
-        // R2 Overall (Correlação entre Y predito e Y real original)
+        //R2 Overall (Correlation between predicted Y and original real Y)
         let pred_original = x.dot(&final_model.params);
         let y_mean_total = y.mean().ok_or_else(|| {
             GreenersError::InvalidOperation("Empty dependent variable".to_string())
@@ -661,7 +661,7 @@ impl BetweenEstimator {
         Self::fit(&y, &x, entity_ids)
     }
 
-    /// Estima a regressão nas médias temporais de cada indivíduo.
+    /// Estimates the regression in the temporal means of each individual.
     /// y_bar_i = alpha + beta * x_bar_i + (alpha_i + u_bar_i)
     pub fn fit(
         y: &Array1<f64>,
@@ -677,7 +677,7 @@ impl BetweenEstimator {
             ));
         }
 
-        // 1. Agrupar por Entidade
+        //1. Group by Entity
         let mut groups: IndexMap<i64, Vec<usize>> = IndexMap::new();
         for (idx, &id) in entity_ids.iter().enumerate() {
             groups.entry(id).or_default().push(idx);
@@ -685,11 +685,11 @@ impl BetweenEstimator {
 
         let n_entities = groups.len();
 
-        // 2. Calcular Médias (Collapse)
+        //2. Calculate Averages (Collapse)
         let mut y_means = Vec::with_capacity(n_entities);
         let mut x_means = Vec::with_capacity(n_entities * k);
 
-        // Iterar sobre os grupos para criar o dataset reduzido (N x K)
+        //Iterate over groups to create reduced dataset (N x K)
         for indices in groups.values() {
             let t_i = indices.len() as f64;
 
@@ -768,7 +768,7 @@ impl fmt::Display for PanelIvResult {
         writeln!(
             f,
             " {:<18} {:>12}  {:>12}  {:>8}  {:>8}",
-            "Variável", "coef", "SE", "t", "P>|t|"
+            "Variable", "coef", "SE", "t", "P>|t|"
         )?;
         writeln!(f, " {}", "─".repeat(64))?;
         for i in 0..self.params.len() {
@@ -790,13 +790,13 @@ impl fmt::Display for PanelIvResult {
 pub struct FE2SLS;
 
 impl FE2SLS {
-    /// Estima FE-2SLS: `feiv(y ~ x1+x2, ~ x1+z1+z2, df, id=col)`
+    /// Estimates FE-2SLS: `feiv(y ~ x1+x2, ~ x1+z1+z2, df, id=col)`
     ///
-    /// * `y`      — variável dependente (n)
-    /// * `x`      — regressores estruturais sem constante (n × k); coluna endógena incluída
-    /// * `z`      — matriz de instrumentos completa sem constante (n × l), l ≥ k
-    ///   deve incluir os regressores exógenos + instrumentos excluídos
-    /// * `groups` — IDs de entidade para a transformação within
+    /// * `y` — dependent variable (n)
+    /// * `x` — structural regressors without constant (n × k); endogenous column included
+    /// * `z` — full instrument matrix without constant (n × l), l ≥ k;
+    ///   must include exogenous regressors + excluded instruments
+    /// * `groups` — entity IDs for within transformation
     pub fn fit<T>(
         y: &Array1<f64>,
         x: &Array2<f64>,
@@ -813,12 +813,12 @@ impl FE2SLS {
 
         if x.nrows() != n || z.nrows() != n || groups.len() != n {
             return Err(GreenersError::ShapeMismatch(
-                "FE2SLS: dimensões de y, x, z e grupos divergem".into(),
+                "FE2SLS: dimensions of y, x, z and groups differ".into(),
             ));
         }
         if l < k {
             return Err(GreenersError::ShapeMismatch(format!(
-                "FE2SLS: condição de ordem violada — Z tem {l} instrumentos, X tem {k} regressores"
+                "FE2SLS: order condition violated — Z has {l} instruments, X has {k} regressors"
             )));
         }
         if y.iter().any(|v| !v.is_finite())
@@ -826,11 +826,11 @@ impl FE2SLS {
             || z.iter().any(|v| !v.is_finite())
         {
             return Err(GreenersError::InvalidOperation(
-                "FE2SLS: dados contêm NaN ou Inf".into(),
+                "FE2SLS: data contain NaN or Inf".into(),
             ));
         }
 
-        // ── 1. Transformação within (demean) ──
+        //── 1. Transformation within (demean) ──
         let y_mat = y.view().insert_axis(Axis(1)).to_owned();
         let y_dm = FixedEffects::within_transform(&y_mat, groups)?;
         let x_dm = FixedEffects::within_transform(x, groups)?;
@@ -851,7 +851,7 @@ impl FE2SLS {
         let xht_xd_inv = xht_xd.inv()?;
         let beta = xht_xd_inv.dot(&xht.dot(&y_d));
 
-        // ── 4. Resíduos e graus de liberdade ──
+        //── 4. Residues and degrees of freedom ──
         let fitted = x_dm.dot(&beta);
         let resid = &y_d - &fitted;
         let ssr = resid.dot(&resid);
@@ -863,11 +863,11 @@ impl FE2SLS {
             }
             seen.len()
         };
-        // FE consome N-1 graus de liberdade (efeitos individuais demeaned)
+        //FE consumes N-1 degrees of freedom (individual effects demeaned)
         let df_resid = n.saturating_sub(k).saturating_sub(n_entities - 1);
         if df_resid == 0 {
             return Err(GreenersError::ShapeMismatch(
-                "FE2SLS: graus de liberdade insuficientes".into(),
+                "FE2SLS: insufficient degrees of freedom".into(),
             ));
         }
 
@@ -922,12 +922,12 @@ impl FE2SLS {
 }
 
 // ===========================================================================
-// Helpers compartilhados — extração de painel balanceado
+//Shared helpers — balanced panel extraction
 // ===========================================================================
 
 type BalancedPanelResult = (Vec<i64>, Vec<Array1<f64>>, Vec<Array2<f64>>, usize);
 
-/// Extrai submatrizes por entidade a partir de dados longos, ordenando por
+/// Extract submatrixes per entity from long data, ordering by
 /// (entity_id, time_id). Exige painel balanceado (T igual para todas as entidades).
 /// Retorna (entidades_ordenadas, y_panels, x_panels, T).
 fn extract_balanced_panels(
@@ -939,15 +939,15 @@ fn extract_balanced_panels(
     let n = y.len();
     if x.nrows() != n || entity_ids.len() != n || time_ids.len() != n {
         return Err(GreenersError::ShapeMismatch(
-            "dimensões de y, x, entity_ids, time_ids divergem".into(),
+            "dimensions of y, x, entity_ids, time_ids differ".into(),
         ));
     }
 
-    // Ordena índices por (entity, time)
+    //Sort indexes by (entity, time)
     let mut order: Vec<usize> = (0..n).collect();
     order.sort_by_key(|&i| (entity_ids[i], time_ids[i]));
 
-    // Coleta entidades únicas em ordem
+    //Collect unique entities in order
     let mut entities: Vec<i64> = Vec::new();
     for &i in &order {
         let e = entity_ids[i];
@@ -956,7 +956,7 @@ fn extract_balanced_panels(
         }
     }
 
-    // Conta T por entidade e verifica balance
+    //T account per entity and check balance
     let mut counts: IndexMap<i64, usize> = IndexMap::new();
     for &i in &order {
         *counts.entry(entity_ids[i]).or_insert(0) += 1;
@@ -965,7 +965,7 @@ fn extract_balanced_panels(
     let t0 = t_vec[0];
     if t_vec.iter().any(|&t| t != t0) {
         return Err(GreenersError::InvalidOperation(
-            "painel não balanceado: número de períodos difere entre entidades".into(),
+            "unbalanced panel: number of periods differs between entities".into(),
         ));
     }
 
@@ -1030,7 +1030,7 @@ impl fmt::Display for PcseResult {
         writeln!(f, "{thick}")?;
         writeln!(
             f,
-            " Obs: {:<8}  Entidades: {:<6}  Períodos: {:<6}  df_resid: {}",
+            " Obs: {:<8}  Entidades: {:<6}  Periods: {:<6}  df_resid: {}",
             self.n_obs, self.n_entities, self.t_periods, self.df_resid
         )?;
         writeln!(f, " R²: {:.6}   σ (OLS): {:.6}", self.r_squared, self.sigma)?;
@@ -1038,7 +1038,7 @@ impl fmt::Display for PcseResult {
         writeln!(
             f,
             " {:<18} {:>12}  {:>12}  {:>8}  {:>8}",
-            "Variável", "coef", "PCSE", "t", "P>|t|"
+            "Variable", "coef", "PCSE", "t", "P>|t|"
         )?;
         writeln!(f, " {}", "─".repeat(64))?;
         for i in 0..self.params.len() {
@@ -1069,7 +1069,7 @@ impl PCSE {
     ) -> Result<PcseResult, GreenersError> {
         if y.iter().any(|v| !v.is_finite()) || x.iter().any(|v| !v.is_finite()) {
             return Err(GreenersError::InvalidOperation(
-                "PCSE: dados contêm NaN ou Inf".into(),
+                "PCSE: data contain NaN or Inf".into(),
             ));
         }
 
@@ -1194,7 +1194,7 @@ impl fmt::Display for PanelGlsResult {
         writeln!(f, "{thick}")?;
         writeln!(
             f,
-            " Obs: {:<8}  Entidades: {:<6}  Períodos: {:<6}  df_resid: {}",
+            " Obs: {:<8}  Entidades: {:<6}  Periods: {:<6}  df_resid: {}",
             self.n_obs, self.n_entities, self.t_periods, self.df_resid
         )?;
         writeln!(f, " R²: {:.6}   σ (GLS): {:.6}", self.r_squared, self.sigma)?;
@@ -1202,7 +1202,7 @@ impl fmt::Display for PanelGlsResult {
         writeln!(
             f,
             " {:<18} {:>12}  {:>12}  {:>8}  {:>8}",
-            "Variável", "coef", "SE", "z", "P>|z|"
+            "Variable", "coef", "SE", "z", "P>|z|"
         )?;
         writeln!(f, " {}", "─".repeat(64))?;
         for i in 0..self.params.len() {
@@ -1234,7 +1234,7 @@ impl PanelGLS {
     ) -> Result<PanelGlsResult, GreenersError> {
         if y.iter().any(|v| !v.is_finite()) || x.iter().any(|v| !v.is_finite()) {
             return Err(GreenersError::InvalidOperation(
-                "PanelGLS: dados contêm NaN ou Inf".into(),
+                "PanelGLS: data contain NaN or Inf".into(),
             ));
         }
 
@@ -1245,7 +1245,7 @@ impl PanelGLS {
         let k = x.ncols();
         let df_resid = n_obs.saturating_sub(k);
 
-        // ── Passo 1: OLS para resíduos iniciais ──
+        //── Step 1: OLS for initial residuals ──
         let xtx0: Array2<f64> = x_panels
             .iter()
             .fold(Array2::zeros((k, k)), |acc, xi| acc + xi.t().dot(xi));
@@ -1271,7 +1271,7 @@ impl PanelGLS {
                     let sigma2_i = resid0[i].dot(&resid0[i]) / big_t as f64;
                     if sigma2_i < 1e-15 {
                         return Err(GreenersError::InvalidOperation(format!(
-                            "PanelGLS: σ²_i ≈ 0 para entidade {i} — resíduos perfeitamente ajustados?"
+                            "PanelGLS: σ²_i ≈ 0 for entity {i} — perfectly fitted residuals?"
                         )));
                     }
                     let w = 1.0 / sigma2_i;
@@ -1324,7 +1324,7 @@ impl PanelGLS {
             .collect::<Vec<_>>()
             .into();
         let t_values = &beta / &std_errors;
-        // Parks usa distribuição Normal (z), não t
+        //Parks uses normal distribution (z), not t
         use statrs::distribution::{ContinuousCDF, Normal};
         let norm =
             Normal::new(0.0, 1.0).map_err(|e| GreenersError::InvalidOperation(e.to_string()))?;

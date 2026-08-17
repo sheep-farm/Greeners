@@ -69,7 +69,7 @@ impl fmt::Display for IsotonicResult {
             writeln!(f, "  {:<10.4} {:>14.6}", self.x_steps[i], self.y_steps[i])?;
         }
         if self.x_steps.len() > 15 {
-            writeln!(f, "  ... ({} steps total)", self.x_steps.len())?;
+            writeln!(f, "... ({} total steps)", self.x_steps.len())?;
         }
 
         write!(f, "{:=^78}", "")

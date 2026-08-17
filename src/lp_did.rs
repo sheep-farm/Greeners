@@ -1,13 +1,13 @@
 //! Local Projections Difference-in-Differences (LP-DiD) estimator.
 //!
-//! Native Rust implementation of the estimator in Dube, Girardi, Jordà & Taylor
+//I'm sorry. Native Rust implementation of the estimation in Dube, Girardi, Jordà & Taylor
 //! (2025, *Journal of Applied Econometrics*). Supports the three target
 //! estimands (`vw`, `rw`, `ra`) and the clean-control conditions for both
 //! absorbing and non-absorbing treatment settings described in the paper.
 //!
 //! This implementation is adapted from `pylpdid`
-//! (<https://github.com/Daniel-Uhr/pylpdid>).
-//! Original code copyright (c) 2026 Daniel de Abreu Pereira Uhr,
+//! (<@PRES0000@}
+//I'm sorry. Original code copyright (c) 2026 Daniel de Abreu Pereira Uhr,
 //! used under the MIT License. See the `pylpdid/LICENSE` file or
 //! `Greeners/LICENSE` for the full license text.
 
@@ -92,7 +92,7 @@ impl fmt::Display for LpDidResult {
         writeln!(f, "\n{:=^w$}", " LP-DiD Results ")?;
         writeln!(
             f,
-            "Estimand: {:<18} Clean control: {:<22} Base: {}",
+            "Estimate: {:<18} Clean control: {:<22} Base: {}",
             self.estimand, self.clean_control, self.base_period
         )?;
         writeln!(
@@ -251,13 +251,13 @@ impl LpDid {
         self
     }
 
-    /// List of negative integer base periods (PMD base).
+    /// List of negative integer base periods.
     pub fn with_base_period_list(mut self, base: &[i64]) -> Self {
         self.base_period = BasePeriod::List(base.to_vec());
         self
     }
 
-    /// Use the average of all pre-treatment outcomes as the base.
+    /// Use the average of all pre-treatment outputs as the base.
     pub fn with_base_period_all_pre(mut self) -> Self {
         self.base_period = BasePeriod::AllPre;
         self
@@ -542,7 +542,7 @@ impl LpDid {
             .collect::<Result<Vec<EventRow>, GreenersError>>()?;
         rows.extend(horizon_results);
 
-        // Normalised base-period row for a single integer base period.
+        //Normalised base-period row for a single integrated base period.
         if let BasePeriod::Single(bp) = self.base_period {
             rows.push(EventRow {
                 horizon: bp,

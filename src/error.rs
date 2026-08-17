@@ -3,7 +3,7 @@ use thiserror::Error;
 /// Custom error types for the Greeners library.
 #[derive(Error, Debug)]
 pub enum GreenersError {
-    /// Error thrown when input dimensions (shapes) do not match expectation.
+    /// Error throne when input dimensions (shapes) do not match expectation.
     #[error("Dimension mismatch: {0}")]
     ShapeMismatch(String),
 

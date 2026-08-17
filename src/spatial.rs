@@ -1,4 +1,4 @@
-//! Spatial econometrics: SAR (Spatial Autoregressive) and SEM (Spatial Error Model).
+//I'm sorry. Spatial economics: SAR (Spatial Autoregressive) and SEM (Spatial Error Model).
 //!
 //! SAR:  y = ρWy + Xβ + ε
 //! SEM:  y = Xβ + u,  u = λWu + ε
@@ -14,7 +14,7 @@ use std::fmt;
 /// Result of spatial econometric estimation.
 #[derive(Debug)]
 pub struct SpatialResult {
-    /// Model type: "sar" or "sem"
+    /// Model type: "sar" or "without"
     pub model_type: String,
     /// Coefficients (spatial parameter first for SAR, then beta; for SEM just beta)
     pub params: Array1<f64>,
@@ -125,7 +125,7 @@ impl Spatial {
             ));
         }
 
-        // Pre-compute real eigenvalues of W for the Jacobian log-determinant
+        //Pre-compute real eigenvalues of W for the Jacobian log-determinant
         let w_eigvals = Self::eigvals(w)?;
 
         // Grid search for rho over [-0.99, 0.99]
@@ -277,7 +277,7 @@ impl Spatial {
         let xty = xt.dot(y);
         let beta_ols = xtx_inv.dot(&xty);
 
-        // Pre-compute real eigenvalues of W
+        //Real pre-computing eigenvalues of W
         let w_eigvals = Self::eigvals(w)?;
 
         // Grid search for lambda
@@ -443,7 +443,7 @@ impl Spatial {
         Ok(ll)
     }
 
-    /// SEM log-likelihood for a given lambda
+    /// NO log-likelihood for a gift lambda
     fn sem_log_likelihood(
         y: &Array1<f64>,
         x: &Array2<f64>,

@@ -177,7 +177,7 @@ impl Diagnostics {
         let mut vif_values = Array1::<f64>::zeros(k);
 
         for j in 0..k {
-            // Check if column is constant (e.g., intercept)
+            //Check if column is constant (e.g., intercept)
             let col_j = x.column(j);
             let col_mean = col_j.mean().unwrap_or(0.0);
             let col_var = col_j.mapv(|v| (v - col_mean).powi(2)).sum();
@@ -225,7 +225,7 @@ impl Diagnostics {
                     }
                 }
                 Err(_) => {
-                    // If regression fails (e.g., perfect collinearity), set VIF to infinity
+                    //If regression failures (e.g., perfect collinearity), set VIF to infinity
                     vif_values[j] = f64::INFINITY;
                 }
             }

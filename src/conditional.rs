@@ -198,7 +198,7 @@ impl ConditionalLogit {
 
                     log_likelihood += obs_sum - log_denom;
 
-                    // E[X] and E[XX'] under the conditional distribution
+                    //E[X] and E[XX'] under the conditional distribution
                     for (ci, _combo) in combos.iter().enumerate() {
                         let w = (combo_sums[ci] - max_sum).exp() / total_w;
                         let x_c = &weighted_x[ci];
@@ -214,7 +214,7 @@ impl ConditionalLogit {
                     // Gradient: x_obs - E[X]
                     gradient = &gradient + &(&x_obs - &e_x);
 
-                    // Hessian: -(E[XX'] - E[X]*E[X]')
+                    //Hessian: -(E[XX'] -E[X]*E[X]')
                     for a in 0..k {
                         for b in 0..k {
                             hessian[[a, b]] -= e_xx[[a, b]] - e_x[a] * e_x[b];
@@ -396,7 +396,7 @@ impl ConditionalPoisson {
             group_map.entry(g).or_default().push(i);
         }
 
-        // Filter groups with positive total count
+        //Filter groups with positive total count
         let valid_groups: Vec<Vec<usize>> = group_map
             .values()
             .filter(|indices| {
@@ -658,7 +658,7 @@ impl ConditionalMNLogit {
                     }
                 }
 
-                // Hessian -= E[xx'] - E[x]E[x]'
+                //Hessian -= E[xx'] - E[x]E[x]'
                 for (j, &idx) in indices.iter().enumerate() {
                     let xj = x.row(idx);
                     for a in 0..k {

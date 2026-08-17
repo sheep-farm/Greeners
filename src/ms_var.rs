@@ -8,7 +8,7 @@
 //!
 //! s_t follows a Markov chain with transition matrix P.
 //!
-//! Estimation: EM algorithm with forward-backward (Baum-Welch).
+//I'm sorry. Estimation: EM algorithm with forward-backward (Baum-Welch).
 
 use crate::linalg::{LinalgDeterminant as _, LinalgInverse as _};
 use crate::GreenersError;
@@ -103,7 +103,7 @@ impl fmt::Display for MsVarResult {
 pub struct MSVAR;
 
 impl MSVAR {
-    /// Estimate MS-VAR with K regimes and p lags via EM (Baum-Welch).
+    /// Estimate MS-VAR with K regimens and p lags via EM (Baum-Welch).
     ///
     /// # Arguments
     /// * `y` - Data matrix (T x n_vars)
@@ -221,9 +221,9 @@ impl MSVAR {
             trans[(i, i)] = 0.9;
         }
 
-        // EM iterations
+        //EM iterations
         for _em in 0..50 {
-            // E-step: forward-backward
+            //E-step: forward-backward
             let (filtered, smoothed, ll) = Self::forward_backward(
                 &y_dep,
                 &z_ar,

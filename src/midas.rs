@@ -1,6 +1,6 @@
 //! MIDAS (Mixed Data Sampling) regression.
 //!
-//! Regresses a low-frequency variable (e.g., quarterly GDP) on
+//I'm sorry. Regressors to low-frequency variable (e.g., fourthly GDP) on
 //! high-frequency variables (e.g., monthly indicators) without
 //! aggregating the high-frequency data. Uses Almon polynomial
 //! weighting scheme to avoid parameter proliferation.
@@ -45,7 +45,7 @@ pub struct MidasResult {
     pub n_obs: usize,
     /// Number of high-frequency lags
     pub n_lags: usize,
-    /// Frequency ratio (e.g., 3 for monthly→quarterly)
+    /// Frequency ratio (e.g. 3 for monthly→quarterly)
     pub freq_ratio: usize,
     /// Degree of Almon polynomial
     pub poly_degree: usize,

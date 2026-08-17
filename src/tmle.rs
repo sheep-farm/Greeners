@@ -3,7 +3,7 @@
 //!
 //! A doubly-robust, semiparametric efficient estimator for
 //! causal effects. Combines:
-//!   1. Initial estimates of nuisance functions Q(W) = E[Y|T,W]
+//1. Initial estimates of nuisance functions Q(W) = E[Y
 //!      and g(W) = P(T=1|W) via ML
 //!   2. Targeting step: updates Q via a clever covariate
 //!      H = (T - g(W)) / (g(W) * (1 - g(W)))
@@ -135,7 +135,7 @@ impl TMLE {
         }
 
         // Step 1: Initial estimates of Q(W) and g(W) via OLS
-        // Q(W) = E[Y|T,W] — regression of Y on [T, W]
+        //Q(W) = E[Y
         let t_vec: Array1<f64> = t.iter().map(|&t| if t { 1.0 } else { 0.0 }).collect();
 
         // Q model: Y ~ T + W (linear)

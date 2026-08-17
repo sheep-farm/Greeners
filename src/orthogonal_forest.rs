@@ -9,7 +9,7 @@
 //!
 //! Procedure:
 //!   - Split sample into two halves: I (estimation) and J (nuisance)
-//!   - On J: estimate T(W) = E[T|W] and Y(W) = E[Y|W] via OLS
+//! - On J: estimate T(W) = E[T
 //!   - On I: compute residualized T_tilde = T - T_hat(W) and
 //!     Y_tilde = Y - Y_hat(W)
 //!   - Build a random forest on I using T_tilde as treatment and
@@ -171,9 +171,9 @@ impl OrthogonalForest {
         let forest_idx: Vec<usize> = (split..n).collect();
 
         // Estimate nuisance on first half
-        // T(W) = E[T|W] via OLS
+        //T(W) = E[T
         let t_hat_beta = Self::ols_subset(&t_vec, w, &nuisance_idx, p)?;
-        // Y(W) = E[Y|W] via OLS
+        //Y(W) = E[Y
         let y_hat_beta = Self::ols_subset(y, w, &nuisance_idx, p)?;
 
         // Residualize on forest half

@@ -1225,7 +1225,7 @@ fn check_roots_outside_unit_circle(coeffs: &Array1<f64>) -> bool {
         return coeffs[0].abs() < 1.0;
     }
 
-    // Build companion matrix and do power iteration to find max eigenvalue magnitude.
+    //Build company matrix and power iteration to find max eigenvalue magnitude.
     // For small p this is fine; for large p a proper eigenvalue solver would be better.
     // Use the sufficient condition: sum of |coeffs| < 1 is sufficient but not necessary.
     // For a more accurate check, we iterate.

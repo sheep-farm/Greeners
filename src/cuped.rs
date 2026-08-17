@@ -308,7 +308,7 @@ impl CUPED {
         let y_adj = y - &y_pred;
 
         // The treatment effect is the difference in means of Y_adj
-        // (since X is pre-treatment, E[X|treated] = E[X|control] in expectation)
+        //(since X is pre-treatment, E[X
         let n_treatment = treated.iter().filter(|&&t| t).count();
         let n_control = n - n_treatment;
         if n_treatment == 0 || n_control == 0 {

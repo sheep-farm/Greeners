@@ -201,7 +201,7 @@ impl FGLS {
         while diff > tol && iter < max_iter {
             let old_rho = rho;
 
-            // 2. Estimar Rho regressando resid[t] em resid[t-1]
+            //2. Estimate Rho regressoring reside[t] in reside[t-1]
             let u_t = residuals.slice(s![1..]).to_owned();
             let u_tm1 = residuals.slice(s![..n - 1]).to_owned();
 
@@ -214,10 +214,10 @@ impl FGLS {
             }
             rho = num / den;
 
-            // 3. Transformação Cochrane-Orcutt (Quase-Diferença)
+            //3. Cochrane-Orcutt Transformation
             // y*_t = y_t - rho * y_{t-1}
             // x*_t = x_t - rho * x_{t-1}
-            // Nota: Perdemos a primeira observação (n vira n-1)
+            //Note: We lost the first observation (n turn n-1)
             let y_t = y.slice(s![1..]);
             let y_tm1 = y.slice(s![..n - 1]);
             let y_star = &y_t - &(&y_tm1 * rho);
@@ -233,7 +233,7 @@ impl FGLS {
                 CovarianceType::NonRobust,
             )?;
 
-            // Atualizar resíduos ORIGINAIS (não transformados) para próxima iteração
+            //Update residuals ORIGINAL (unprocessed) for next iteration
             residuals = y - &x.dot(&final_ols.params);
 
             diff = (rho - old_rho).abs();

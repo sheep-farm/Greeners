@@ -3,7 +3,7 @@ use crate::linalg::LinalgInverse as _;
 use ndarray::{s, Array1, Array2};
 use std::fmt;
 
-/// Resultado do estimador Arellano-Bond (Diff-GMM).
+/// Result of the Arellano-Bond estimator (Diff-GMM).
 #[derive(Debug, Clone)]
 pub struct ArellanoBondResult {
     pub params: Array1<f64>,
@@ -13,9 +13,9 @@ pub struct ArellanoBondResult {
     pub sargan_stat: f64,
     pub sargan_pvalue: f64,
     pub sargan_df: usize,
-    pub n_obs: usize, // observações efetivas (após FD)
+    pub n_obs: usize, //effective observations (after FD)
     pub n_entities: usize,
-    pub t_bar: f64, // média de T por entidade
+    pub t_bar: f64, //average T per entity
     pub n_instruments: usize,
     pub max_lags: usize,
     pub step: usize,
@@ -82,11 +82,11 @@ impl fmt::Display for ArellanoBondResult {
         }
 
         writeln!(f, "{:-^78}", "")?;
-        writeln!(f, "\n── Sargan Test (H₀: instrumentos válidos)")?;
+        writeln!(f, "\n── Sargan Test (H₀: valid instruments)")?;
         if self.sargan_df == 0 {
             writeln!(
                 f,
-                "   Modelo exatamente identificado — sem teste de sobreidentificação"
+                "Model exactly identified — without overidentification test"
             )?;
         } else {
             let sig = if self.sargan_pvalue < 0.01 {
@@ -106,7 +106,7 @@ impl fmt::Display for ArellanoBondResult {
             if self.sargan_pvalue < 0.05 {
                 writeln!(
                     f,
-                    "   ⚠  Rejeita H₀ — considere reduzir lags ou revisar instrumentos"
+                    "⚠ Reject H₀ — consider reducing lags or reviewing instruments"
                 )?;
             }
         }
@@ -125,14 +125,14 @@ impl fmt::Display for ArellanoBondResult {
         };
         writeln!(
             f,
-            "   m1: z = {:>8.4}   p = {:.4}  {}   (deve rejeitar — AR(1) esperado em FD)",
+            "m1: z = {:>8.4} p = {:.4} {} (must reject — AR(1) expected in FD)",
             self.m1_stat,
             self.m1_pval,
             sig_m(self.m1_pval)
         )?;
         writeln!(
             f,
-            "   m2: z = {:>8.4}   p = {:.4}  {}   (não deve rejeitar — valida instrumentos)",
+            "m2: z = {:>8.4} p = {:.4} {} (must not reject — valid instruments)",
             self.m2_stat,
             self.m2_pval,
             sig_m(self.m2_pval)
@@ -140,14 +140,14 @@ impl fmt::Display for ArellanoBondResult {
         if self.m2_pval < 0.05 {
             writeln!(
                 f,
-                "   ⚠  m2 rejeita H₀ — AR(2) detectado; instrumentos y_{{t-2}} podem ser inválidos"
+                "⚠ m2 rejects H₀ — AR(2) detected; instruments y_{{t-2}} may be invalid"
             )?;
         }
 
         writeln!(f, "\n{:-^78}", "")?;
         writeln!(
             f,
-            "   *** p<0.01  ** p<0.05  * p<0.10   |   SE robustos (sandwich)"
+            "   *** p<0.01  ** p<0.05  * p<0.10   |   Robust SE (sandwich)"
         )?;
         writeln!(f, "{:=^78}", "")
     }
@@ -156,21 +156,21 @@ impl fmt::Display for ArellanoBondResult {
 pub struct ArellanoBond;
 
 impl ArellanoBond {
-    /// Estima o modelo dinâmico de painel via Diff-GMM (Arellano-Bond 1991).
+    /// Estimates the dynamic panel model via Diff-GMM (Arellano-Bond 1991).
     ///
     /// Modelo: y_it = ρ y_{i,t-1} + X_it'β + α_i + ε_it
     ///
-    /// Método:
+    /// Method:
     ///   1. Primeira diferença para eliminar α_i
     ///   2. Instrumenta Δy_{i,t-1} com lags de nível y_{i,t-2}, ..., y_{i,t-max_lags-1}
     ///      (matriz de instrumentos collapsed — max_lags colunas por lag)
-    ///   3. GMM em 1 passo (com matriz H) ou 2 passos (peso ótimo)
-    ///   4. SE robustos sandwich em 1 passo; SE GMM em 2 passos
-    ///   5. Teste de Sargan + m1/m2
+    /// 3. GMM in 1 step (with H matrix) or 2 steps (great weight)
+    /// 4. SE robust 1 step sandwich; SE GMM in 2 steps
+    /// 5. Sargan test + m1/m2
     ///
     /// Argumentos:
-    ///   y           — variável dependente (níveis)
-    ///   x           — regressores estritamente exógenos (níveis, inclui const)
+    /// y — dependent variable (levels)
+    /// x — strictly exogenous regressors (levels, includes const)
     ///   entity_ids  — ID de entidade por observação
     ///   time_ids    — ID de tempo por observação (inteiros)
     ///   max_lags    — número máximo de lags de y como instrumentos (default 2)
@@ -192,14 +192,14 @@ impl ArellanoBond {
 
         if max_lags < 1 {
             return Err(GreenersError::InvalidOperation(
-                "max_lags deve ser >= 1".into(),
+                "Max_lags must be >= 1".into(),
             ));
         }
         if entity_ids.len() != n_total || time_ids.len() != n_total {
             return Err(GreenersError::ShapeMismatch("IDs mismatch".into()));
         }
 
-        // 1. Ordenar por entidade, depois por tempo
+        //1. Sort by entity, then by time
         let mut ord: Vec<usize> = (0..n_total).collect();
         ord.sort_by_key(|&i| (entity_ids[i], time_ids[i]));
 
@@ -211,7 +211,7 @@ impl ArellanoBond {
         let ids: Vec<i64> = ord.iter().map(|&i| entity_ids[i]).collect();
         let times: Vec<i64> = ord.iter().map(|&i| time_ids[i]).collect();
 
-        // 2. Agrupar por entidade
+        //2. Group by entity
         let mut entity_slices: Vec<std::ops::Range<usize>> = Vec::new();
         let mut start = 0;
         while start < n_total {
@@ -226,10 +226,10 @@ impl ArellanoBond {
         }
         let n_entities = entity_slices.len();
 
-        // 3. Construir dados de primeira diferença + instrumentos
-        //    Equações FD por entidade i: j=2,...,T_i-1  (T_i-2 equações, precisa T >= 3)
-        //    W = [ΔYlag | ΔX_active]  (regressores)
-        //    Z = [Y_lags_collapsed | ΔX_active]  (instrumentos)
+        //3. Construct first difference data + instruments
+        //    FD equations by entity i: j=2,...,T_i-1  (T_i-2 equations, requires T >= 3)
+        //    W = [ΔYlag | ΔX_active]  (regressors)
+        //    Z = [Y_lags_collapsed | ΔX_active]  (instruments)
         let mut dy_vec: Vec<f64> = Vec::new(); // Δy_jt
         let mut dyl_vec: Vec<f64> = Vec::new(); // Δy_{j,t-1} (endógeno)
         let mut dx_rows: Vec<Vec<f64>> = Vec::new(); // ΔX rows
@@ -283,7 +283,7 @@ impl ArellanoBond {
         let n_eff = dy_vec.len();
         if n_eff == 0 {
             return Err(GreenersError::InvalidOperation(
-                "Nenhuma equação FD efetiva — precisa T ≥ 3 por entidade".into(),
+                "No effective FD equation — needs T ≥ 3 per entity".into(),
             ));
         }
 
@@ -299,12 +299,12 @@ impl ArellanoBond {
 
         if n_inst < k_reg {
             return Err(GreenersError::InvalidOperation(format!(
-                "Sub-identificado: {} instrumentos < {} regressores. Aumente max_lags.",
+                "Sub-identified: {} instruments < {} regressors. Increase max_lags.",
                 n_inst, k_reg
             )));
         }
 
-        // 5. Construir matrizes W e Z
+        //5. Build arrays W and Z
         let mut w_mat = Array2::<f64>::zeros((n_eff, k_reg));
         let mut z_mat = Array2::<f64>::zeros((n_eff, n_inst));
         for i in 0..n_eff {
@@ -351,7 +351,7 @@ impl ArellanoBond {
         let params1 = lhs1_inv.dot(&wtz_a1.dot(&zty));
         let resid1 = &dy - &w_mat.dot(&params1);
 
-        // 8. Variância sandwich robusta (1 passo)
+        //8. Robust sandwich variance (1 step)
         let mut sigma = Array2::<f64>::zeros((n_inst, n_inst));
         rptr = 0;
         for &fc in &entity_fd_count {
@@ -385,12 +385,12 @@ impl ArellanoBond {
             (params1.clone(), se1, 1usize)
         };
 
-        // 10. Estatísticas t e p (assintoticamente normais)
+        //10. Statistics t and p (asymptotically normal)
         let normal = Normal::standard();
         let t_values = &params / &std_errors;
         let p_values = t_values.mapv(|t| 2.0 * (1.0 - normal.cdf(t.abs())));
 
-        // 11. Teste de Sargan (1 passo, resíduos de 1 passo)
+        //11. Sargan test (1 step, 1 step residuals)
         let sargan_df = n_inst.saturating_sub(k_reg);
         let (sargan_stat, sargan_pvalue) = if sargan_df > 0 {
             use statrs::distribution::ChiSquared;
@@ -403,11 +403,11 @@ impl ArellanoBond {
             (0.0, 1.0)
         };
 
-        // 12. Testes m1 / m2 de autocorrelação serial
+        //12. Serial autocorrelation m1/m2 tests
         let (m1_stat, m1_pval, m2_stat, m2_pval) =
             compute_m_stats(&resid1, &entity_fd_count, &normal)?;
 
-        // 13. Nomes das variáveis
+        //13. Variable names
         let vnames = variable_names.map(|vn| {
             let non_const: Vec<&str> = vn
                 .iter()
@@ -416,7 +416,7 @@ impl ArellanoBond {
                 .collect();
             let mut names = vec!["LD.y".to_string()];
             for (ni, &oc) in active_x.iter().enumerate() {
-                // oc é índice na matriz x original (com const em 0)
+                //oc is index in the original x matrix (with const at 0)
                 // se há const, non_const[oc-1] é o nome; senão non_const[oc]
                 let nm = non_const
                     .get(oc.saturating_sub(if vn.contains(&"const".to_string()) {
@@ -455,7 +455,7 @@ impl ArellanoBond {
     }
 }
 
-/// Calcula as estatísticas m1 e m2 de autocorrelação serial de Arellano-Bond.
+/// Calculate the m1 and m2 serial autocorrelation statistics of Arellano-Bond.
 fn compute_m_stats(
     fd_resid: &Array1<f64>,
     entity_fd_count: &[usize],
@@ -486,10 +486,10 @@ fn compute_m_stats(
     };
 
     let (m1, p1) = m_stat(1).ok_or_else(|| {
-        GreenersError::InvalidOperation("Dados insuficientes para m1 (precisa T ≥ 4 total)".into())
+        GreenersError::InvalidOperation("Insufficient data for m1 (requires T ≥ 4 in total)".into())
     })?;
     let (m2, p2) = m_stat(2).ok_or_else(|| {
-        GreenersError::InvalidOperation("Dados insuficientes para m2 (precisa T ≥ 5 total)".into())
+        GreenersError::InvalidOperation("Insufficient data for m2 (requires T ≥ 5 in total)".into())
     })?;
 
     Ok((m1, p1, m2, p2))
@@ -498,12 +498,12 @@ fn compute_m_stats(
 // ─────────────────────────────────────────────────────────────────────────────
 // System GMM — Blundell-Bond (1998)
 //
-// Empilha equações em 1ª diferença (Arellano-Bond) com equações em nível,
+//Stack equations in 1st difference (Arellano-Bond) with equations in level,
 // instrumentando as equações em nível com Δy_{t-1} e ΔX_{t-1}.
 // Condição de momento extra: E[Δy_{it} α_i] = 0 (estacionariedade do processo).
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Resultado do estimador System GMM (Blundell-Bond 1998).
+/// System estimator result GMM (Blundell-Bond 1998).
 #[derive(Debug, Clone)]
 pub struct SystemGmmResult {
     pub params: Array1<f64>,
@@ -513,8 +513,8 @@ pub struct SystemGmmResult {
     pub sargan_stat: f64,
     pub sargan_pvalue: f64,
     pub sargan_df: usize,
-    pub n_obs_fd: usize,  // equações em 1ª diferença
-    pub n_obs_lev: usize, // equações em nível
+    pub n_obs_fd: usize,  //equations in 1st difference
+    pub n_obs_lev: usize, //equations at level
     pub n_entities: usize,
     pub n_instruments: usize,
     pub max_lags: usize,
@@ -541,7 +541,7 @@ impl fmt::Display for SystemGmmResult {
         writeln!(
             f,
             "{:<24} {:>10} || {:<20} {:>12}",
-            "Obs FD:", self.n_obs_fd, "Obs nível:", self.n_obs_lev
+            "Obs FD:", self.n_obs_fd, "Obs level:", self.n_obs_lev
         )?;
         writeln!(
             f,
@@ -558,7 +558,7 @@ impl fmt::Display for SystemGmmResult {
         writeln!(
             f,
             "{:<14} | {:>10} | {:>10} | {:>8} | {:>8}",
-            "Variável", "Coef", "Std Err", "z", "P>|z|"
+            "Variable", "Coef", "Std Err", "z", "P>|z|"
         )?;
         writeln!(f, "{:-^78}", "")?;
         for i in 0..self.params.len() {
@@ -581,12 +581,9 @@ impl fmt::Display for SystemGmmResult {
         }
 
         writeln!(f, "{:-^78}", "")?;
-        writeln!(f, "\n── Sargan/Hansen (H₀: instrumentos válidos)")?;
+        writeln!(f, "\n── Sargan/Hansen (H₀: valid instruments)")?;
         if self.sargan_df == 0 {
-            writeln!(
-                f,
-                "   Exatamente identificado — sem teste de sobreidentificação"
-            )?;
+            writeln!(f, "Exactly identified — without overidentification test")?;
         } else {
             let sig = if self.sargan_pvalue < 0.01 {
                 "***"
@@ -603,14 +600,11 @@ impl fmt::Display for SystemGmmResult {
                 self.sargan_df, self.sargan_stat, self.sargan_pvalue, sig
             )?;
             if self.sargan_pvalue < 0.05 {
-                writeln!(
-                    f,
-                    "   ⚠  Rejeita H₀ — verifique condição de estacionariedade"
-                )?;
+                writeln!(f, "⚠ Reject H₀ — check parking condition")?;
             }
         }
 
-        writeln!(f, "\n── Arellano-Bond (resíduos FD)")?;
+        writeln!(f, "\n── Arellano-Bond (FD residuals)")?;
         let sig_m = |p: f64| {
             if p < 0.01 {
                 "***"
@@ -637,13 +631,13 @@ impl fmt::Display for SystemGmmResult {
             sig_m(self.m2_pval)
         )?;
         if self.m2_pval < 0.05 {
-            writeln!(f, "   ⚠  m2 rejeita H₀ — AR(2) nos erros; rever lags")?;
+            writeln!(f, "   ⚠  m2 rejects H₀ — AR(2) in errors; review lags")?;
         }
 
         writeln!(f, "\n{:-^78}", "")?;
         writeln!(
             f,
-            "   *** p<0.01  ** p<0.05  * p<0.10   |   SE robustos (sandwich)"
+            "   *** p<0.01  ** p<0.05  * p<0.10   |   Robust SE (sandwich)"
         )?;
         writeln!(f, "{:=^78}", "")
     }
@@ -652,14 +646,14 @@ impl fmt::Display for SystemGmmResult {
 pub struct SystemGmm;
 
 impl SystemGmm {
-    /// Estima o modelo dinâmico de painel via System GMM (Blundell-Bond 1998).
+    /// Estimates the dynamic panel model via System GMM (Blundell-Bond 1998).
     ///
     /// Empilha:
-    ///   1. Equações FD instrumentadas com lags de nível (Arellano-Bond)
+    /// 1. Instrumented FD equations with level lags (Arellano-Bond)
     ///   2. Equações em nível instrumentadas com Δy_{t-1} e ΔX_{t-1}
     ///
     /// Condição extra: E[Δy_{it} α_i] = 0 — processo próximo a raiz unitária.
-    /// Preferir Diff-GMM se a condição de estacionariedade não for plausível.
+    /// Prefer Diff-GMM if the parking condition is not plausible.
     pub fn fit(
         y: &Array1<f64>,
         x: &Array2<f64>,
@@ -676,11 +670,11 @@ impl SystemGmm {
 
         if max_lags < 1 {
             return Err(GreenersError::InvalidOperation(
-                "max_lags deve ser >= 1".into(),
+                "Max_lags must be >= 1".into(),
             ));
         }
 
-        // 1. Ordenar por entidade, depois tempo
+        //1. Sort by entity, then time
         let mut ord: Vec<usize> = (0..n_total).collect();
         ord.sort_by_key(|&i| (entity_ids[i], time_ids[i]));
 
@@ -691,7 +685,7 @@ impl SystemGmm {
             .collect();
         let ids: Vec<i64> = ord.iter().map(|&i| entity_ids[i]).collect();
 
-        // 2. Agrupar por entidade
+        //2. Group by entity
         let mut entity_slices: Vec<std::ops::Range<usize>> = Vec::new();
         let mut start = 0;
         while start < n_total {
@@ -706,15 +700,15 @@ impl SystemGmm {
         }
         let n_entities = entity_slices.len();
 
-        // 3. Construir dados FD + nível
-        //    Equações FD:  j = 2,...,T-1  (T-2 por entidade)
-        //    Equações nív: j = 2,...,T-1  (T-2 por entidade — mesma janela)
+        //3. Construct FD data + level
+        //FD equations: j = 2,...,T-1 (T-2 per entity)
+        //Niv equations: j = 2,...,T-1 (T-2 per entity — same window)
         //      Instrumento nível: Δy_{j-1} = y[j-1] - y[j-2]  (sempre disponível para j>=2)
 
         let mut dy_vec: Vec<f64> = Vec::new(); // Δy_jt   (FD dep)
         let mut dyl_vec: Vec<f64> = Vec::new(); // Δy_{j,t-1} (FD endog)
         let mut dx_rows: Vec<Vec<f64>> = Vec::new(); // ΔX (FD exog)
-        let mut zinst_fd: Vec<Vec<f64>> = Vec::new(); // instrumentos FD (lags nível)
+        let mut zinst_fd: Vec<Vec<f64>> = Vec::new(); //FD instruments (level lags)
 
         let mut y_lev: Vec<f64> = Vec::new(); // y_jt   (nível dep)
         let mut yl_lev: Vec<f64> = Vec::new(); // y_{j-1} (nível endog)
@@ -779,7 +773,7 @@ impl SystemGmm {
 
         if n_sys == 0 {
             return Err(GreenersError::InvalidOperation(
-                "Nenhuma equação efetiva — precisa T ≥ 3 por entidade".into(),
+                "No effective equation — needs T ≥ 3 per entity".into(),
             ));
         }
 
@@ -790,7 +784,7 @@ impl SystemGmm {
         let k_dx = active_x.len();
         let k_reg = 1 + k_dx; // [y_{t-1} | X_active]
 
-        // Montar instrumentos em nível apenas com colunas ativas.
+        //Mount instruments at level only with active columns.
         let zinst_lv: Vec<Vec<f64>> = zinst_lv_base
             .iter()
             .zip(dx_lv_rows.iter())
@@ -809,7 +803,7 @@ impl SystemGmm {
 
         if n_inst_sys < k_reg {
             return Err(GreenersError::InvalidOperation(format!(
-                "Sub-identificado: {} instrumentos < {} regressores.",
+                "Sub-identified: {} instruments < {} regressors.",
                 n_inst_sys, k_reg
             )));
         }
@@ -884,7 +878,7 @@ impl SystemGmm {
         let params1 = lhs1_inv.dot(&wtz_a1.dot(&zty));
         let resid1 = &dy_sys - &w_sys.dot(&params1);
 
-        // 8. Variância sandwich robusta
+        //8. Robust sandwich variance
         let mut sigma = Array2::<f64>::zeros((n_inst_sys, n_inst_sys));
         let mut rfd = 0usize;
         let mut rlev = n_fd;
@@ -893,7 +887,7 @@ impl SystemGmm {
                 continue;
             }
             let fc = fc_fd + fc_lev;
-            // Concatena linhas da entidade (FD seguidas de nível) para cálculo do sandwich
+            //Concaten entity lines (FD followed by level) for sandwich calculation
             let mut z_ent = Array2::<f64>::zeros((fc, n_inst_sys));
             let mut u_ent = Array1::<f64>::zeros(fc);
             for r in 0..fc_fd {
@@ -930,7 +924,7 @@ impl SystemGmm {
             (params1.clone(), se1, 1usize)
         };
 
-        // 10. Estatísticas z e p
+        //10. Statistics z and p
         let normal = Normal::standard();
         let t_values = &params / &std_errors;
         let p_values = t_values.mapv(|t| 2.0 * (1.0 - normal.cdf(t.abs())));
@@ -948,12 +942,12 @@ impl SystemGmm {
             (0.0, 1.0)
         };
 
-        // 12. m1/m2 — apenas nos resíduos FD
+        //12 m1/m2 — only in FD residuals
         let fd_resid: Array1<f64> = resid1.slice(s![..n_fd]).to_owned();
         let (m1_stat, m1_pval, m2_stat, m2_pval) =
             compute_m_stats(&fd_resid, &entity_fd_count, &normal)?;
 
-        // 13. Nomes das variáveis (interpretação em nível)
+        //13. Variable names (level interpretation)
         let vnames = variable_names.map(|vn| {
             let non_const: Vec<&str> = vn
                 .iter()

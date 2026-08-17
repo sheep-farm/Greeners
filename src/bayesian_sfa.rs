@@ -345,7 +345,7 @@ impl SimpleRng {
         // Sample independent normals
         let z: Array1<f64> = (0..k).map(|_| self.normal(0.0, 1.0)).collect();
         // For simplicity, use sqrt of diagonal (approximation)
-        // A proper implementation would do Cholesky, but this is sufficient
+        //A Cholesky property implementation would, but this is sufficient
         // for the posterior which is already well-conditioned
         let mut result = Array1::zeros(k);
         for i in 0..k {

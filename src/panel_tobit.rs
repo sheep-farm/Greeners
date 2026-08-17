@@ -187,12 +187,12 @@ impl PanelTobit {
             Normal::new(0.0, 1.0).map_err(|e| GreenersError::InvalidOperation(e.to_string()))?;
 
         for _iter in 0..20 {
-            // E-step: compute expected y* for censored obs
+            //E-step: compute expected y* for censored obs
             let mut y_star = y.clone();
             for i in 0..n {
                 if censored[i] {
                     let xb = x.row(i).dot(&beta);
-                    // E[y* | y* <= censor] = xb - sigma * phi((censor - xb)/sigma) / Phi((censor - xb)/sigma)
+                    //E[y*
                     let z = (censor_left - xb) / sigma.max(1e-10);
                     let phi_z = normal.pdf(z);
                     let cdf_z = normal.cdf(z).max(1e-300);

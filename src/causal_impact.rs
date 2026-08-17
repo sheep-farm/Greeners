@@ -89,7 +89,7 @@ impl fmt::Display for CausalImpactResult {
             "P(effect > 0):", self.p_effect_positive
         )?;
 
-        // Total cumulative effect
+        //Total cumulative effect
         writeln!(f, "\n  Cumulative effect:")?;
         writeln!(f, "  {:<20} {:>12.6}", "Total:", self.total_effect)?;
         writeln!(f, "  {:<20} {:>12.6}", "SD:", self.total_effect_sd)?;
@@ -257,7 +257,7 @@ impl CausalImpact {
         let avg_var: f64 = post_sds.iter().map(|s| s * s).sum::<f64>() / (n_post * n_post) as f64;
         let avg_effect_sd = avg_var.sqrt();
 
-        // Total effect
+        //Total effect
         let total_effect: f64 = post_effects.iter().sum();
         let total_var: f64 = post_sds.iter().map(|s| s * s).sum();
         let total_effect_sd = total_var.sqrt();

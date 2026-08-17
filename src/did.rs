@@ -14,7 +14,7 @@ pub struct DidResult {
     pub control_pre_mean: f64,  // Control Mean (Pre)
     pub control_post_mean: f64, // Control Mean (Post)
     pub treated_pre_mean: f64,  // Treated Mean (Pre)
-    pub treated_post_mean: f64, // Treated Mean (Post - Counterfactual vs Real)
+    pub treated_post_mean: f64, // Treated Mean (Post - Counterfactual vs Actual)
     pub cov_type: CovarianceType,
     pub params: Array1<f64>,
     pub std_errors: Array1<f64>,

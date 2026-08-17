@@ -47,7 +47,7 @@ impl BSplineBasis {
             knots.push(x_max + 0.01 * range);
         }
 
-        // Evaluate B-spline basis using de Boor's algorithm
+        //Evaluate B-spline bass using Boor's algorithm
         let mut basis = Array2::<f64>::zeros((n, df));
 
         for (idx, &xi) in x.iter().enumerate() {

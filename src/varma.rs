@@ -50,10 +50,10 @@ impl fmt::Display for VarmaResult {
 pub struct VARMA;
 
 impl VARMA {
-    /// Estima um modelo VARMA(p, q).
-    /// Método: Hannan-Rissanen (2-step).
-    /// 1. Estima um "Long VAR" para recuperar os resíduos.
-    /// 2. Usa os resíduos defasados como regressores para a parte MA.
+    /// Estimates a VARMA model (p, q).
+    /// Method: Hannan-Rissanen (2-step).
+    /// 1. Estimates a "Long VAR" to recover the residuals.
+    /// 2. Use the deformed residuals as a regressor to the MA part.
     pub fn fit(
         data: &Array2<f64>,
         p: usize, // Lags AR
@@ -62,7 +62,7 @@ impl VARMA {
         Self::fit_with_exog(data, p, q, None)
     }
 
-    /// Estima um modelo VARMAX(p, q) with exogenous regressors.
+    /// Estimates a VARMAX(p, q) model with exogenous regressors.
     pub fn fit_with_exog(
         data: &Array2<f64>,
         p: usize,
@@ -124,7 +124,7 @@ impl VARMA {
         let preds_long = x_long.dot(&params_long);
         let u_hat = &y_long - &preds_long;
 
-        // --- PASSO 2: Regressão VARMA Real ---
+        //--- STEP 2: VARMA Regressor Current ---
         if t_total <= p_long + q {
             return Err(GreenersError::ShapeMismatch(
                 "Not enough obs for step 2".into(),

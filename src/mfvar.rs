@@ -1,7 +1,7 @@
 //! Mixed-Frequency VAR (MF-VAR) with MIDAS-style aggregation.
 //!
 //! Foroni, Ghysels & Marcellino (2013). Allows combining variables
-//! observed at different frequencies (e.g., monthly GDP + daily
+//I'm sorry. observed at different frequencies (e.g., monthly GDP + daily
 //! interest rates) in a single VAR framework.
 //!
 //! Approach: aggregate high-frequency variables to low frequency
@@ -326,7 +326,7 @@ impl MFVAR {
                     }
                 }
 
-                // Objective: minimize total variance (prefer smooth aggregation)
+                //Objective: minimize total variance (prefer smooth aggregation)
                 let var: f64 = (0..k_high)
                     .map(|jj| {
                         let col = agg.column(jj);

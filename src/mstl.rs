@@ -66,7 +66,7 @@ fn std_dev(arr: &Array1<f64>) -> f64 {
 impl MSTL {
     /// Decompose a time series with multiple seasonal periods.
     ///
-    /// `periods`: vector of seasonal periods, e.g., [7, 365] for daily data
+    /// `periods`: vector of seasonal periods, e.g., [7, 365] for daily date
     /// with weekly + yearly seasonality. Each period must be >= 2.
     pub fn fit(y: &Array1<f64>, periods: &[usize]) -> Result<MSTLResult, GreenersError> {
         let n = y.len();

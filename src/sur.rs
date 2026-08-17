@@ -3,7 +3,7 @@ use crate::{CovarianceType, GreenersError, OLS};
 use ndarray::{Array1, Array2};
 use std::fmt;
 
-/// Estrutura de entrada para o SUR
+/// Entry structure for the SUR
 #[derive(Clone)]
 pub struct SurEquation {
     pub y: Array1<f64>,
@@ -67,13 +67,13 @@ impl fmt::Display for SurResult {
 pub struct SUR;
 
 impl SUR {
-    /// Estima o modelo Zellner's SUR (Feasible GLS on System).
-    /// Melhora a eficiência sobre o OLS quando os erros das equações são correlacionados.
+    /// Estimate the Zellner's SUR model (Feasible GLS on System).
+    /// Improves efficiency over OLS when equations errors are correlated.
     pub fn fit(equations: &[SurEquation]) -> Result<SurResult, GreenersError> {
         let n_obs = equations[0].y.len();
         let n_eq = equations.len();
 
-        // 1. Passo OLS: Obter resíduos iniciais para estimar Sigma
+        //1. Step OLS: Get initial residuals to estimate Sigma
         let mut residuals_ols = Array2::<f64>::zeros((n_obs, n_eq));
 
         for (i, eq) in equations.iter().enumerate() {
@@ -86,20 +86,20 @@ impl SUR {
             // Rodar OLS simples
             let ols = OLS::fit(&eq.y, &eq.x, CovarianceType::NonRobust)?;
 
-            // Recalcular resíduos (y - Xb)
+            //Recalculate residuals (y - Xb)
             let pred = eq.x.dot(&ols.params);
             let u = &eq.y - &pred;
             residuals_ols.column_mut(i).assign(&u);
         }
 
-        // 2. Estimar Matriz de Covariância dos Erros (Sigma)
+        //2. Estimate Error Covariance Matrix (Sigma)
         // Sigma = (u'u) / N
         let sigma = residuals_ols.t().dot(&residuals_ols) / (n_obs as f64);
 
-        // Inverter Sigma para usar no GLS
+        //Invert Sigma to use in GLS
         let sigma_inv = sigma.inv().map_err(|_| GreenersError::SingularMatrix)?;
 
-        // 3. Montar Sistema GLS (Kronecker Product implícito por blocos)
+        //3. System Mount GLS (Kronecker Product implicit by blocks)
         // [X' (Sigma^-1 ox I) X] Beta = X' (Sigma^-1 ox I) y
 
         let mut k_total = 0;
@@ -131,7 +131,7 @@ impl SUR {
                 lhs.slice_mut(ndarray::s![start_i..start_i + ki, start_j..start_j + kj])
                     .assign(&block);
 
-                // Bloco RHS (acumulado na linha i)
+                //RHS block (cumulated in line i)
                 // RHS_i += s_ij * (Xi' * yj)
                 let yj = &equations[j].y;
                 let vec_part = xi.t().dot(yj) * s_ij;
@@ -157,7 +157,7 @@ impl SUR {
             let k = k_per_eq[i];
             let params = beta_sur.slice(ndarray::s![cursor..cursor + k]).to_owned();
 
-            // Variância: Bloco diagonal da inversa da Hessiana
+            //Variance: Diagonal Hessian Inverse Block
             let cov_params = lhs_inv
                 .slice(ndarray::s![cursor..cursor + k, cursor..cursor + k])
                 .to_owned();

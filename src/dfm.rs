@@ -1,4 +1,4 @@
-//! Dynamic Factor Model (DFM) via state-space + EM.
+//I'm sorry. Dynamic Factor Model (DFM) via state-space + MS.
 //!
 //! Extracts a small number of common factors from a large panel of
 //! macroeconomic indicators. The factors follow a VAR(1) process:
@@ -9,7 +9,7 @@
 //! where x_t is (n_series x 1), f_t is (n_factors x 1), Lambda is
 //! (n_series x n_factors), A is (n_factors x n_factors).
 //!
-//! Estimation: EM algorithm (Dempster et al. 1977) with Kalman
+//I'm sorry. Estimation: EM algorithm (Dempster et al. 1977) with Kalman
 //! filter/smoother. R is assumed diagonal for tractability.
 
 use crate::linalg::LinalgDeterminant as _;
@@ -147,7 +147,7 @@ impl DFM {
         let mut log_likelihood = f64::NEG_INFINITY;
 
         for _em in 0..max_iter {
-            // E-step: Kalman filter + smoother
+            //E-step: Kalman filter + smoother
             let (smoothed_factors, smoothed_cov, ll) = Self::kalman_smoother(
                 &x_std,
                 &loadings,

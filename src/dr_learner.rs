@@ -7,7 +7,7 @@
 //!
 //! Procedure:
 //! 1. Split sample into 3 folds: A (nuisance), B (CATE), C (evaluation)
-//! 2. On fold A: estimate m(X) = E[Y|X] and e(X) = E[T|X]
+//! 2. On fold A: estimate m(X) = E[Y
 //! 3. On fold B: compute DR pseudo-outcome:
 //!    psi_i = (m_A(X_i) + T_i*(Y_i - m_A(X_i))/e_A(X_i))
 //!    minus (m_A(X_i) + (1-T_i)*(Y_i - m_A(X_i))/(1-e_A(X_i)))
@@ -15,7 +15,7 @@
 //! 4. On fold C: evaluate CATE model, compute ATE
 //! 5. Rotate folds and average
 //!
-//! Doubly robust: consistent if either m(X) or e(X) is correct.
+//I'm sorry. Doubtly robust: consistant if other m(X) or(X) is correct.
 
 use crate::linalg::LinalgInverse as _;
 use crate::GreenersError;
@@ -173,7 +173,7 @@ impl DRLearner {
                 continue;
             }
 
-            // Estimate m(X) and e(X) on nuisance fold
+            //Estimate m(X) and e(X) on nuisance fold
             let m_beta = Self::ols_subset(y, x, &nuisance_idx, k)?;
             let t_vec: Array1<f64> = t.iter().map(|&t| if t { 1.0 } else { 0.0 }).collect();
             let e_beta = Self::ols_subset(&t_vec, x, &nuisance_idx, k)?;

@@ -217,12 +217,12 @@ impl StochasticFrontier {
         // Mean of u (half-normal): E[u] = sigma_u * sqrt(2/pi)
         let eu = sigma_u * (2.0 / consts::PI).sqrt();
         if model_type == "production" {
-            // y = alpha + beta'x + v - u => E[y] = alpha - E[u] + beta'x
-            // OLS intercept estimates alpha - E[u], so alpha = intercept + E[u]
+            //y = alpha + beta'x + v - u => E[y] = alpha - E[u] + beta'x
+            //OLS intercept estimates alpha - E[u], so alpha = intercept + E[u]
             beta[0] += eu;
         } else {
-            // y = alpha + beta'x + v + u => E[y] = alpha + E[u] + beta'x
-            // OLS intercept estimates alpha + E[u], so alpha = intercept - E[u]
+            //y = alpha + beta'x + v + u => E[y] = alpha + E[u] + beta'x
+            //OLS intercept estimates alpha + E[u], so alpha = intercept - E[u]
             beta[0] -= eu;
         }
 

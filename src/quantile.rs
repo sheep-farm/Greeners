@@ -70,10 +70,10 @@ impl QuantileReg {
         Self::fit_with_names(&y, &x, tau, n_boot, Some(var_names))
     }
 
-    /// Estima a Regressão Quantílica via IRLS.
+    /// Estimate Quantyl Regression via IRLS.
     ///
     /// # Arguments
-    /// * `tau` - O quantil desejado (ex: 0.5 para mediana, 0.9 para decil superior).
+    /// * `tau` - The desired quantil (e.g. 0.5 for median, 0.9 for upper decile).
     /// * `n_boot` - Número de repetições de Bootstrap para erro padrão (rec: 200+).
     pub fn fit(
         y: &Array1<f64>,
@@ -104,17 +104,17 @@ impl QuantileReg {
 
         let k = x.ncols();
 
-        // 1. Estimação Pontual (IRLS)
+        //1. Time Estimation (IRLS)
         let (params, iter) = Self::irls_solver(y, x, tau)?;
 
-        // 2. Erros Padrão via Bootstrap (Pairs Bootstrap), se solicitado
+        //2. Default Errors via Bootstrap, if requested
         let std_errors = if n_boot == 0 {
             Array1::from_elem(k, f64::NAN)
         } else {
             Self::bootstrap_se(y, x, tau, n_boot, &params)?
         };
 
-        // 3. Estatísticas Finais
+        //3. Final Statistics
         let t_values = &params / &std_errors;
         let normal = statrs::distribution::Normal::standard();
         use statrs::distribution::ContinuousCDF;
@@ -122,10 +122,10 @@ impl QuantileReg {
 
         // 4. Pseudo-R2 (Goodness of Fit)
         // R1 = 1 - (Loss(Model) / Loss(Null))
-        // Null Model: Apenas intercepto (quantil da variável Y bruta)
+        //Null Model: Intercept only (quantile of raw variable Y)
         let loss_model = Self::check_loss(y, &x.dot(&params), tau);
 
-        // Null model (apenas constante)
+        //Null model (constant only)
         let n = y.len();
         let ones = Array2::<f64>::ones((n, 1));
         let (params_null, _) = Self::irls_solver(y, &ones, tau)?;
@@ -154,7 +154,7 @@ impl QuantileReg {
         let n = y.len();
         let max_iter = 1000;
         let tol = 1e-6;
-        let epsilon = 1e-6; // Para evitar divisão por zero
+        let epsilon = 1e-6; //To avoid division by zero
 
         // Chute inicial: OLS
         let ols = OLS::fit(y, x, CovarianceType::NonRobust)?;
@@ -165,11 +165,11 @@ impl QuantileReg {
         while diff > tol && iter < max_iter {
             let old_beta = beta.clone();
 
-            // Calcular Resíduos
+            //Calculate Waste
             let pred = x.dot(&beta);
             let residuals = y - &pred;
 
-            // Calcular Pesos IRLS para Quantil
+            //Calculate IRLS Weights for Quantil
             // w_i = tau / |u| se u > 0
             // w_i = (1-tau) / |u| se u < 0
             // Aproximação suave: w_i = 1 / max(epsilon, |u|) * (tau if u>0 else 1-tau)
@@ -189,7 +189,7 @@ impl QuantileReg {
 
             // Rodar WLS (Weighted Least Squares)
             // Beta = (X' W X)^-1 X' W y
-            // Truque algébrico: Multiplicar X e y por sqrt(w) e rodar OLS
+            //Algebraic trick: Multiply X and y by sqrt(w) and run OLS
             let sqrt_w = weights.mapv(f64::sqrt);
             let y_w = y * &sqrt_w;
             let mut x_w = x.clone();
@@ -199,14 +199,14 @@ impl QuantileReg {
 
             let wls_res = OLS::fit(&y_w, &x_w, CovarianceType::NonRobust);
 
-            // Se WLS falhar (matriz singular devido a pesos extremos), retornar erro ou parar
+            //If WLS fails (singular matrix due to extreme weights), regressor error or stop
             if let Ok(res) = wls_res {
                 beta = res.params;
             } else {
                 return Err(GreenersError::OptimizationFailed);
             }
 
-            // Convergência baseada na mudança dos coeficientes
+            //Convergence based on coefficients change
             diff = (&beta - &old_beta).mapv(|v| v.abs()).sum();
             iter += 1;
         }
@@ -214,7 +214,7 @@ impl QuantileReg {
         Ok((beta, iter))
     }
 
-    /// Pairs Bootstrap para Erro Padrão
+    //Bootstrap / Pairs for Default Error
     fn bootstrap_se(
         y: &Array1<f64>,
         x: &Array2<f64>,
@@ -232,7 +232,7 @@ impl QuantileReg {
         let mut rng = rand::thread_rng();
 
         for b in 0..n_boot {
-            // Reamostragem com reposição
+            //Resampling with replacement
             let indices = Array1::from_iter((0..n).map(|_| Uniform::new(0, n).sample(&mut rng)));
 
             let mut y_boot_vec = Vec::with_capacity(n);
@@ -250,13 +250,13 @@ impl QuantileReg {
                 .map_err(|_| GreenersError::ShapeMismatch("Bootstrap shape error".into()))?;
 
             // Estimar no bootstrap
-            // Se falhar (raro), apenas ignoramos essa iteração copiando a anterior (simplificação)
+            //If it fails (rare), we just ignore this iteration by copying the previous (simplification)
             if let Ok((beta_b, _)) = Self::irls_solver(&y_boot, &x_boot, tau) {
                 boot_betas.row_mut(b).assign(&beta_b);
             }
         }
 
-        // Calcular Desvio Padrão das estimativas bootstrap
+        //Calculate Default deviation of bootstrap estimates
         let mut std_errs = Array1::<f64>::zeros(k);
         for j in 0..k {
             let col = boot_betas.column(j);
@@ -268,7 +268,7 @@ impl QuantileReg {
         Ok(std_errs)
     }
 
-    /// Função de Perda (Check Loss)
+    /// Loss Check Function
     fn check_loss(y: &Array1<f64>, y_pred: &Array1<f64>, tau: f64) -> f64 {
         let res = y - y_pred;
         res.mapv(|u| if u >= 0.0 { tau * u } else { (tau - 1.0) * u })

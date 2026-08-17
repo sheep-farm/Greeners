@@ -5,8 +5,8 @@ use std::fmt;
 #[derive(Debug)]
 pub struct ThresholdResult {
     pub threshold_gamma: f64,
-    pub params_regime1: Array1<f64>, // Coeficientes quando q <= gamma
-    pub params_regime2: Array1<f64>, // Coeficientes quando q > gamma
+    pub params_regime1: Array1<f64>, //Coefficients when q <= gamma
+    pub params_regime2: Array1<f64>, //Coefficients when q > gamma
     pub r_squared: f64,
     pub ssr_min: f64,
     pub n_search: usize, // Quantos candidatos testamos
@@ -45,12 +45,12 @@ impl fmt::Display for ThresholdResult {
 pub struct PanelThreshold;
 
 impl PanelThreshold {
-    /// Estima o modelo de limiar (Single Threshold).
-    /// Grid Search sobre 'q' para encontrar o ponto de quebra ótimo.
+    /// Estimates the Single Threshold model.
+    /// Grid Search on 'q' to find the great breakpoint.
     pub fn fit(
         y: &Array1<f64>,
         x: &Array2<f64>,
-        q: &Array1<f64>, // Variável de Limiar (Threshold Variable)
+        q: &Array1<f64>, //Threshold Variable
         entity_ids: &Array1<i64>,
     ) -> Result<ThresholdResult, GreenersError> {
         let n = y.len();
@@ -60,15 +60,15 @@ impl PanelThreshold {
             return Err(GreenersError::ShapeMismatch("Input lengths differ".into()));
         }
 
-        // 1. Definir Grid de Busca (Trimmed)
-        // Precisamos dos valores únicos de q, ordenados
+        //1. Set Search Grid (Trimmed)
+        //We need the unique values of q, ordered
         let mut q_vec: Vec<f64> = q.to_vec();
         q_vec.sort_by(|a, b| a.total_cmp(b));
-        q_vec.dedup(); // Apenas únicos
+        q_vec.dedup(); //Only single
 
         let n_unique = q_vec.len();
         // Hansen recomenda descartar 15% das pontas (trimming parameter)
-        // para evitar regimes com pouquíssimos dados.
+        //to avoid regimes with very little data.
         let trim_idx = (n_unique as f64 * 0.15).ceil() as usize;
 
         if n_unique < 2 * trim_idx + 5 {
@@ -77,7 +77,7 @@ impl PanelThreshold {
 
         let candidates = &q_vec[trim_idx..(n_unique - trim_idx)];
 
-        // Otimização: Se houver muitos candidatos (>300), pular alguns para velocidade
+        //Optimisation: If there are many candidates (>300), skip some to speed
         let step = if candidates.len() > 300 {
             candidates.len() / 100
         } else {
@@ -86,15 +86,15 @@ impl PanelThreshold {
 
         let mut best_gamma = 0.0;
         let mut min_ssr = f64::INFINITY;
-        let mut best_params = Array1::<f64>::zeros(2 * k); // Vai guardar [Beta1, Beta2]
+        let mut best_params = Array1::<f64>::zeros(2 * k); //You'll save [Beta1, Beta2]
         let mut best_r2 = 0.0;
 
-        // IDs cru para o FE
+        //Raw IDs for FE
         let id_slice = entity_ids.as_slice().ok_or_else(|| {
             GreenersError::InvalidOperation("Non-contiguous entity IDs".to_string())
         })?;
 
-        // 2. Loop de Grid Search
+        //2. Grid Search Loop
         for i in (0..candidates.len()).step_by(step) {
             let gamma = candidates[i];
 
@@ -102,7 +102,7 @@ impl PanelThreshold {
             // X_low = X * I(q <= gamma)
             // X_high = X * I(q > gamma)
 
-            // É mais eficiente criar vetores flat e transformar em Array2
+            //It is more efficient to create flat vectors and transform into Array2
             let mut x_expanded_vec = Vec::with_capacity(n * 2 * k);
 
             for row_idx in 0..n {
@@ -139,12 +139,12 @@ impl PanelThreshold {
             let x_expanded = Array2::from_shape_vec((n, 2 * k), x_expanded_vec)
                 .map_err(|e| GreenersError::ShapeMismatch(e.to_string()))?;
 
-            // Rodar Fixed Effects para este Gamma
+            //Rotate Fixed Effects for this Gamma
             // Isso já cuida da remoção das médias individuais (mu_i)
             let fe_res = FixedEffects::fit(y, &x_expanded, id_slice);
 
             if let Ok(model) = fe_res {
-                // Calcular SSR do modelo
+                //Calculate model SSR
                 // SSR = Sigma^2 * df_resid (revertendo a conta do sigma)
                 let ssr = model.sigma.powi(2) * (model.df_resid as f64);
 
@@ -157,7 +157,7 @@ impl PanelThreshold {
             }
         }
 
-        // 3. Separar os parâmetros
+        //3. Separate parameters
         let params_regime1 = best_params.slice(s![0..k]).to_owned();
         let params_regime2 = best_params.slice(s![k..2 * k]).to_owned();
 
