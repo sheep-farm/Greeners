@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.4-dev] - Unreleased
+
+### Changed
+
+- Portuguese user-facing output strings and comments translated to English.
+- Bumped version to `1.6.4-dev`.
+
+## [1.6.3] - 2026-08-17
+
+### Fixed
+
+- Gaussian-process training predictions and variance with observation noise (`greeners#13`).
+  Posterior means now use latent covariance `K_f K_y^-1 y` and posterior variances use `diag(K_f - K_f K_y^-1 K_f)`.
+
 ## [1.6.0] - 2026-08-10
 
 ### Added
@@ -31,4 +45,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All `cargo doc` warnings (broken intra-doc links and unclosed HTML tags).
 - `cargo deny` now passes with an explicit license allowlist and documented ignores for the transitive `paste` and `instant` unmaintained advisories.
 
+[1.6.4-dev]: https://github.com/sheep-farm/Greeners/compare/v1.6.3...develop
+[1.6.3]: https://github.com/sheep-farm/Greeners/compare/v1.6.2...v1.6.3
 [1.6.0]: https://github.com/sheep-farm/Greeners/compare/v1.5.3...v1.6.0
