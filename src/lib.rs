@@ -105,6 +105,7 @@ pub mod panel_robust;
 pub mod panel_tobit;
 pub mod panel_var;
 pub mod poisson;
+pub mod predicate;
 pub mod proportion;
 pub mod psm;
 pub mod pstr;
@@ -178,7 +179,7 @@ pub use conditional::{
 pub use conformal::{ConformalPrediction, ConformalResult};
 pub use copula::{Copula, CopulaResult, CopulaType};
 pub use cuped::{CupedResult, CUPED};
-pub use dataframe::DataFrame;
+pub use dataframe::{ColumnType, DataFrame, TypeInferenceConfig};
 pub use datasets::Datasets;
 pub use dbscan::{DbscanResult, DBSCAN};
 pub use dcc_garch::{DccGarchResult, DCCGARCH};
@@ -276,6 +277,7 @@ pub use panel_robust::{RobustFTest, RobustFTestResult, RobustHausman, RobustHaus
 pub use panel_tobit::{PanelTobit, PanelTobitResult};
 pub use panel_var::{PanelVAR, PanelVarResult};
 pub use poisson::{Poisson, PoissonResult};
+pub use predicate::{DsvRow, RowPredicate};
 pub use proportion::ProportionTests;
 pub use psm::{BalanceRow, PsmResult, PSM};
 pub use pstr::{PstrResult, PSTR};

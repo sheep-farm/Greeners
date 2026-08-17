@@ -1,6 +1,7 @@
 use crate::{column::CategoricalColumn, column::Column, formula::Formula, GreenersError};
 use indexmap::IndexMap;
 use ndarray::{Array1, Array2};
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -22,22 +23,93 @@ pub struct DataFrame {
     n_rows: usize,
 }
 
-/// Configuration for automatic type inference in DataFrame loading
+/// Explicit column type override for CSV loading.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ColumnType {
+    /// 64-bit signed integer
+    Int,
+    /// 64-bit floating point
+    Float,
+    /// Boolean (true/false)
+    Bool,
+    /// String (free text)
+    String,
+    /// Categorical (low cardinality string with integer encoding)
+    Categorical,
+    /// DateTime (ISO-8601 format)
+    DateTime,
+}
+
+/// Configuration for automatic type inference in DataFrame loading.
 #[derive(Debug, Clone)]
-struct TypeInferenceConfig {
-    /// Threshold for categorical vs string (default: 0.5)
-    /// Values with unique_ratio < threshold → Categorical
-    /// Values with unique_ratio >= threshold → String
-    categorical_threshold: f64,
-    /// Enable DateTime detection (default: true)
-    detect_datetime: bool,
+pub struct TypeInferenceConfig {
+    /// Values considered as `true` when parsing booleans.
+    /// Default: ["true", "yes", "y", "1"]
+    pub bool_true_values: Vec<String>,
+    /// Values considered as `false` when parsing booleans.
+    /// Default: ["false", "no", "n", "0"]
+    pub bool_false_values: Vec<String>,
+    /// Enable binary boolean detection (exactly 2 unique non-empty values → Bool).
+    /// Default: true
+    pub enable_binary_bool: bool,
+    /// Enable integer detection (all values parse as i64).
+    /// Default: true
+    pub enable_int: bool,
+    /// Enable float detection (all values parse as f64, empty → NaN).
+    /// Default: true
+    pub enable_float: bool,
+    /// Require at least one finite value for float columns.
+    /// If false, all-NaN columns are allowed.
+    /// Default: true
+    pub require_finite_for_float: bool,
+    /// Enable DateTime detection (ISO-8601 format).
+    /// Default: true
+    pub detect_datetime: bool,
+    /// Custom DateTime formats to try (in order).
+    /// Default: ISO-8601 variants
+    pub datetime_formats: Vec<String>,
+    /// Enable categorical detection (unique_ratio < threshold).
+    /// Default: true
+    pub enable_categorical: bool,
+    /// Threshold for categorical vs string (default: 0.5).
+    /// Values with unique_ratio < threshold → Categorical.
+    pub categorical_threshold: f64,
+    /// Values treated as null/missing.
+    /// Default: ["", "NA", ".", "NaN", "NULL", "null"]
+    pub null_values: Vec<String>,
+    /// Explicit column type overrides (column_name → type).
+    /// Overrides automatic inference for specified columns.
+    pub column_types: HashMap<String, ColumnType>,
 }
 
 impl Default for TypeInferenceConfig {
     fn default() -> Self {
         TypeInferenceConfig {
-            categorical_threshold: 0.5,
+            bool_true_values: vec!["true".into(), "yes".into(), "y".into(), "1".into()],
+            bool_false_values: vec!["false".into(), "no".into(), "n".into(), "0".into()],
+            enable_binary_bool: true,
+            enable_int: true,
+            enable_float: true,
+            require_finite_for_float: true,
             detect_datetime: true,
+            datetime_formats: vec![
+                "%Y-%m-%d %H:%M:%S".into(),
+                "%Y-%m-%dT%H:%M:%S".into(),
+                "%Y-%m-%d %H:%M:%S%.f".into(),
+                "%Y-%m-%dT%H:%M:%S%.f".into(),
+                "%Y-%m-%d".into(),
+            ],
+            enable_categorical: true,
+            categorical_threshold: 0.5,
+            null_values: vec![
+                "".into(),
+                "NA".into(),
+                ".".into(),
+                "NaN".into(),
+                "NULL".into(),
+                "null".into(),
+            ],
+            column_types: HashMap::new(),
         }
     }
 }
@@ -950,139 +1022,215 @@ impl DataFrame {
             return Column::Float(Array1::from(vec![]));
         }
 
-        // 1. Try parsing all values as bool FIRST (before numeric types)
-        // This ensures "1/0" and "yes/no" are detected as Bool, not Int
-        let bool_parse: Result<Vec<bool>, _> = values
-            .iter()
-            .map(|s| {
-                let trimmed = s.trim().to_lowercase();
-                match trimmed.as_str() {
-                    "true" | "t" | "yes" | "y" => Ok(true),
-                    "false" | "f" | "no" | "n" => Ok(false),
-                    "1" => Ok(true),
-                    "0" => Ok(false),
-                    _ => Err(()),
-                }
-            })
-            .collect();
+        // Helper: check if a value is null per config
+        let is_null = |s: &str| -> bool {
+            let t = s.trim();
+            config.null_values.iter().any(|nv| nv == t)
+        };
 
-        if let Ok(bools) = bool_parse {
-            return Column::Bool(Array1::from(bools));
-        }
-
-        // 1.5. Check if column has exactly 2 unique non-empty values → Binary Bool
-        // Examples: ['casado', 'solteiro'], ['aprovado', 'reprovado'], ['M', 'F']
-        let non_empty_values: Vec<&str> = values
+        // Filter out null values for type detection
+        let non_null_values: Vec<&str> = values
             .iter()
             .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
+            .filter(|s| !is_null(s))
             .collect();
 
-        if !non_empty_values.is_empty() {
-            let unique_values: std::collections::HashSet<&str> =
-                non_empty_values.iter().copied().collect();
-
-            if unique_values.len() == 2 {
-                // Binary variable → convert to Bool
-                // Sort to ensure consistent mapping (first alphabetically → false)
-                let mut sorted_values: Vec<&str> = unique_values.into_iter().collect();
-                sorted_values.sort();
-
-                let false_value = sorted_values[0];
-                let true_value = sorted_values[1];
-
-                let binary_bools: Vec<bool> = values
-                    .iter()
-                    .map(|s| {
-                        let trimmed = s.trim();
-                        if trimmed == true_value {
-                            true
-                        } else if trimmed == false_value {
-                            false
-                        } else {
-                            // Empty or unexpected → default to false
-                            false
-                        }
-                    })
-                    .collect();
-
-                return Column::Bool(Array1::from(binary_bools));
-            }
-        }
-
-        // 2. Try parsing all values as i64 (Int) - integers without decimal part
-        let int_parse: Result<Vec<i64>, _> =
-            values.iter().map(|s| s.trim().parse::<i64>()).collect();
-
-        if let Ok(ints) = int_parse {
-            return Column::Int(Array1::from(ints));
-        }
-
-        // 3. Try parsing all values as f64 (Float), treating empty cells as NaN.
-        // This catches both pure floats and integers written as "1.0".
-        let mut float_parse_ok = true;
-        let mut floats: Vec<f64> = Vec::with_capacity(values.len());
-        for s in values {
-            let trimmed = s.trim();
-            if trimmed.is_empty() {
-                floats.push(f64::NAN);
-            } else if let Ok(v) = trimmed.parse::<f64>() {
-                floats.push(v);
-            } else {
-                float_parse_ok = false;
-                break;
-            }
-        }
-
-        if float_parse_ok {
-            // Additional check: if all non-NaN floats have no fractional part, treat as Int
-            let finite_values: Vec<&f64> = floats.iter().filter(|&&f| f.is_finite()).collect();
-            let all_integers =
-                !finite_values.is_empty() && finite_values.iter().all(|&&f| f.fract() == 0.0);
-            if all_integers {
-                // Convert to integers (NaN values become 0, but this should not happen
-                // for a numeric column because an all-NaN column would be all empty).
-                let ints: Vec<i64> = floats
-                    .iter()
-                    .map(|&f| if f.is_nan() { 0 } else { f as i64 })
-                    .collect();
-                return Column::Int(Array1::from(ints));
-            }
+        // If all values are null, default to Float (all NaN)
+        if non_null_values.is_empty() {
+            let floats: Vec<f64> = values.iter().map(|_| f64::NAN).collect();
             return Column::Float(Array1::from(floats));
         }
 
-        // 4. Try parsing as DateTime (ISO-8601 format) if enabled
-        if config.detect_datetime {
-            use chrono::NaiveDateTime;
+        // 1. Explicit type override from config
+        // (Handled at call site per column, not here)
 
-            let datetime_parse: Result<Vec<NaiveDateTime>, _> = values
+        // 2. Bool detection (if enabled)
+        if config.enable_binary_bool {
+            // 2a. Global bool: all non-null values parse as bool
+            let bool_parse: Result<Vec<bool>, _> = non_null_values
                 .iter()
                 .map(|s| {
-                    let trimmed = s.trim();
-                    // Try different datetime formats
-                    NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%d %H:%M:%S")
-                        .or_else(|_| NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%dT%H:%M:%S"))
-                        .or_else(|_| NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%d %H:%M:%S%.f"))
-                        .or_else(|_| NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%dT%H:%M:%S%.f"))
+                    let lower = s.to_lowercase();
+                    if config.bool_true_values.iter().any(|v| v == &lower) {
+                        Ok(true)
+                    } else if config.bool_false_values.iter().any(|v| v == &lower) {
+                        Ok(false)
+                    } else {
+                        Err(())
+                    }
                 })
                 .collect();
 
-            if let Ok(datetimes) = datetime_parse {
-                return Column::DateTime(Array1::from(datetimes));
+            if let Ok(_bools) = bool_parse {
+                // Reconstruct full column with nulls as false
+                let full_bools: Vec<bool> = values
+                    .iter()
+                    .map(|s| {
+                        let t = s.trim();
+                        if is_null(t) {
+                            false
+                        } else {
+                            let lower = t.to_lowercase();
+                            config.bool_true_values.iter().any(|v| v == &lower)
+                        }
+                    })
+                    .collect();
+                return Column::Bool(Array1::from(full_bools));
+            }
+
+            // 2b. Binary bool: exactly 2 unique non-null values
+            let unique_values: std::collections::HashSet<&str> =
+                non_null_values.iter().copied().collect();
+            if unique_values.len() == 2 {
+                let mut sorted_values: Vec<&str> = unique_values.into_iter().collect();
+                sorted_values.sort();
+
+                // Check if the pair looks numeric (e.g., "1.2" and "NaN")
+                let looks_numeric = sorted_values.iter().any(|&v| {
+                    let t = v.trim();
+                    !t.is_empty()
+                        && t.to_lowercase() != "nan"
+                        && t.to_lowercase() != "inf"
+                        && t.to_lowercase() != "infinity"
+                        && t.parse::<f64>().is_ok_and(|x| x.is_finite())
+                });
+
+                if !looks_numeric {
+                    let _false_value = sorted_values[0];
+                    let true_value = sorted_values[1];
+
+                    let binary_bools: Vec<bool> = values
+                        .iter()
+                        .map(|s| {
+                            let trimmed = s.trim();
+                            if is_null(trimmed) {
+                                false
+                            } else {
+                                trimmed == true_value
+                            }
+                        })
+                        .collect();
+                    return Column::Bool(Array1::from(binary_bools));
+                }
             }
         }
 
-        // 5. Decide between Categorical and String based on uniqueness threshold
-        let unique_count: std::collections::HashSet<_> = values.iter().collect();
-        let unique_ratio = unique_count.len() as f64 / values.len() as f64;
+        // 3. Int detection (if enabled)
+        if config.enable_int {
+            let int_parse: Result<Vec<i64>, _> =
+                non_null_values.iter().map(|s| s.parse::<i64>()).collect();
 
-        if unique_ratio < config.categorical_threshold {
-            // Low uniqueness ratio → treat as Categorical
-            Column::from_strings(values.to_vec())
-        } else {
-            // High uniqueness ratio → treat as String
-            Column::from_string_array(Array1::from(values.to_vec()))
+            if let Ok(_ints) = int_parse {
+                // Reconstruct with nulls as 0
+                let full_ints: Vec<i64> = values
+                    .iter()
+                    .map(|s| {
+                        let t = s.trim();
+                        if is_null(t) {
+                            0
+                        } else {
+                            t.parse().unwrap_or(0)
+                        }
+                    })
+                    .collect();
+                return Column::Int(Array1::from(full_ints));
+            }
         }
+
+        // 4. Float detection (if enabled)
+        if config.enable_float {
+            let mut float_parse_ok = true;
+            let mut finite_count = 0;
+            let mut floats: Vec<f64> = Vec::with_capacity(values.len());
+            for s in values {
+                let t = s.trim();
+                if is_null(t) {
+                    floats.push(f64::NAN);
+                } else if let Ok(v) = t.parse::<f64>() {
+                    floats.push(v);
+                    if v.is_finite() {
+                        finite_count += 1;
+                    }
+                } else {
+                    float_parse_ok = false;
+                    break;
+                }
+            }
+
+            if float_parse_ok && (!config.require_finite_for_float || finite_count > 0) {
+                // Check if all finite values are integers
+                let finite_values: Vec<&f64> = floats.iter().filter(|&&f| f.is_finite()).collect();
+                let all_integers =
+                    !finite_values.is_empty() && finite_values.iter().all(|&&f| f.fract() == 0.0);
+                if all_integers && config.enable_int {
+                    let ints: Vec<i64> = floats
+                        .iter()
+                        .map(|&f| if f.is_nan() { 0 } else { f as i64 })
+                        .collect();
+                    return Column::Int(Array1::from(ints));
+                }
+                return Column::Float(Array1::from(floats));
+            }
+        }
+
+        // 5. DateTime detection (if enabled)
+        if config.detect_datetime {
+            #[allow(deprecated)]
+            use chrono::NaiveDateTime;
+
+            let datetime_parse: Result<Vec<NaiveDateTime>, _> = non_null_values
+                .iter()
+                .map(|s| {
+                    let trimmed = s.trim();
+                    for fmt in &config.datetime_formats {
+                        if let Ok(dt) = NaiveDateTime::parse_from_str(trimmed, fmt) {
+                            return Ok(dt);
+                        }
+                    }
+                    Err(())
+                })
+                .collect();
+
+            if let Ok(_datetimes) = datetime_parse {
+                // Reconstruct with nulls as NaT (we'll use a default)
+                let full_datetimes: Vec<NaiveDateTime> = values
+                    .iter()
+                    .map(|s| {
+                        let t = s.trim();
+                        if is_null(t) {
+                            #[allow(deprecated)]
+                            NaiveDateTime::from_timestamp(0, 0)
+                        } else {
+                            for fmt in &config.datetime_formats {
+                                if let Ok(dt) = NaiveDateTime::parse_from_str(t, fmt) {
+                                    return dt;
+                                }
+                            }
+                            #[allow(deprecated)]
+                            NaiveDateTime::from_timestamp(0, 0)
+                        }
+                    })
+                    .collect();
+                return Column::DateTime(Array1::from(full_datetimes));
+            }
+        }
+
+        // 6. Categorical vs String (if enabled)
+        if config.enable_categorical {
+            let unique_count: std::collections::HashSet<_> = non_null_values.iter().collect();
+            let unique_ratio = unique_count.len() as f64 / non_null_values.len() as f64;
+
+            if unique_ratio < config.categorical_threshold {
+                // Low uniqueness ratio → treat as Categorical
+                // Use original values (including nulls) for categorical
+                let cat_values: Vec<String> = values.iter().map(|s| s.trim().to_string()).collect();
+                return Column::from_strings(cat_values);
+            }
+        }
+
+        // 7. Default: String
+        let str_values: Vec<String> = values.iter().map(|s| s.trim().to_string()).collect();
+        Column::from_string_array(Array1::from(str_values))
     }
 
     /// Read a DataFrame from a CSV file with headers.
@@ -1107,23 +1255,76 @@ impl DataFrame {
     /// println!("Columns: {:?}", df.column_names());
     /// ```
     pub fn from_csv<P: AsRef<Path>>(path: P) -> Result<Self, GreenersError> {
+        Self::from_csv_with_config(path, TypeInferenceConfig::default(), None, None, None)
+    }
+
+    /// Read a DataFrame from a CSV file with custom type inference configuration.
+    ///
+    /// This is the main entry point for CSV loading with full control over type inference.
+    ///
+    /// # Arguments
+    /// * `path` - Path to the CSV file
+    /// * `config` - Type inference configuration (see `TypeInferenceConfig`)
+    /// * `columns` - Optional column projection (only load these columns)
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use greeners::{DataFrame, TypeInferenceConfig, ColumnType};
+    /// use std::collections::HashMap;
+    ///
+    /// let mut config = TypeInferenceConfig::default();
+    /// config.column_types.insert("ticker".into(), ColumnType::String);
+    /// config.column_types.insert("price".into(), ColumnType::Float);
+    ///
+    /// let df = DataFrame::from_csv_with_config("data.csv", config, None, None, None).unwrap();
+    /// ```
+    pub fn from_csv_with_config<P: AsRef<Path>>(
+        path: P,
+        config: TypeInferenceConfig,
+        columns: Option<&[String]>,
+        delimiter: Option<u8>,
+        predicate: Option<&crate::predicate::RowPredicate>,
+    ) -> Result<Self, GreenersError> {
         use csv::ReaderBuilder;
 
         let mut reader = ReaderBuilder::new()
             .has_headers(true)
+            .delimiter(delimiter.unwrap_or(b','))
             .from_path(path)
             .map_err(|e| GreenersError::FormulaError(format!("Failed to read CSV: {}", e)))?;
 
-        // Get headers
         let headers = reader
             .headers()
             .map_err(|e| GreenersError::FormulaError(format!("Failed to read headers: {}", e)))?
             .clone();
 
-        // Initialize column vectors for raw string data
+        let all_names: Vec<String> = headers.iter().map(|h| h.to_string()).collect();
+
+        // Determine which columns to keep (projection)
+        let keep_cols: Vec<String> = match columns {
+            Some(cols) if !cols.is_empty() => {
+                for c in cols {
+                    if !all_names.iter().any(|n| n == c) {
+                        return Err(GreenersError::FormulaError(format!(
+                            "Column '{}' not found — available: {}",
+                            c,
+                            all_names.join(", ")
+                        )));
+                    }
+                }
+                cols.to_vec()
+            }
+            _ => all_names.clone(),
+        };
+
+        // Initialize column vectors for raw string data (only kept columns)
+        let keep_idx: Vec<usize> = keep_cols
+            .iter()
+            .map(|c| all_names.iter().position(|n| n == c).unwrap())
+            .collect();
         let mut raw_columns: IndexMap<String, Vec<String>> = IndexMap::new();
-        for header in headers.iter() {
-            raw_columns.insert(header.to_string(), Vec::new());
+        for name in &keep_cols {
+            raw_columns.insert(name.clone(), Vec::new());
         }
 
         // Read all records as strings first
@@ -1132,22 +1333,145 @@ impl DataFrame {
                 GreenersError::FormulaError(format!("Failed to read record: {}", e))
             })?;
 
-            for (i, field) in record.iter().enumerate() {
-                let header = &headers[i];
-                raw_columns
-                    .entry(header.to_string())
-                    .or_default()
-                    .push(field.to_string());
+            // Apply row predicate if provided
+            if let Some(pred) = predicate {
+                // Build row for predicate evaluation
+                let row_data: Vec<String> = record.iter().map(|f| f.to_string()).collect();
+                let pred_cols = pred.referenced_columns();
+                let pred_idx: Vec<usize> = pred_cols
+                    .iter()
+                    .map(|c| all_names.iter().position(|n| n == c).unwrap())
+                    .collect();
+                let pred_layout: Vec<(usize, String)> = pred_idx
+                    .iter()
+                    .copied()
+                    .zip(pred_cols.iter().cloned())
+                    .collect();
+
+                let row = crate::predicate::DsvRow {
+                    fields: &row_data,
+                    layout: &pred_layout,
+                };
+                if !pred.evaluate(&row) {
+                    continue;
+                }
+            }
+
+            // Projection: only keep requested columns
+            for (out_i, &src_i) in keep_idx.iter().enumerate() {
+                if src_i < record.len() {
+                    raw_columns[out_i].push(record[src_i].to_string());
+                } else {
+                    raw_columns[out_i].push(String::new());
+                }
             }
         }
 
         // Infer type for each column and create typed columns
         let mut typed_columns: IndexMap<String, Arc<Column>> = IndexMap::new();
         for (name, values) in raw_columns {
-            typed_columns.insert(name, Arc::new(Self::infer_column_type(&values)));
+            // Check for explicit type override
+            let column = if let Some(override_type) = config.column_types.get(&name) {
+                Self::create_column_with_type(&values, override_type, &config)
+            } else {
+                Arc::new(Self::infer_column_type_with_config(&values, &config))
+            };
+            typed_columns.insert(name, column);
         }
 
         DataFrame::from_arc_columns(typed_columns)
+    }
+
+    /// Create a column with an explicit type override.
+    pub fn create_column_with_type(
+        values: &[String],
+        override_type: &ColumnType,
+        config: &TypeInferenceConfig,
+    ) -> Arc<Column> {
+        use crate::column::Column;
+        use ndarray::Array1;
+
+        let is_null = |s: &str| -> bool {
+            let t = s.trim();
+            config.null_values.iter().any(|nv| nv == t)
+        };
+
+        match override_type {
+            ColumnType::Int => {
+                let ints: Vec<i64> = values
+                    .iter()
+                    .map(|s| {
+                        let t = s.trim();
+                        if is_null(t) {
+                            0
+                        } else {
+                            t.parse().unwrap_or(0)
+                        }
+                    })
+                    .collect();
+                Arc::new(Column::Int(Array1::from(ints)))
+            }
+            ColumnType::Float => {
+                let floats: Vec<f64> = values
+                    .iter()
+                    .map(|s| {
+                        let t = s.trim();
+                        if is_null(t) {
+                            f64::NAN
+                        } else {
+                            t.parse().unwrap_or(f64::NAN)
+                        }
+                    })
+                    .collect();
+                Arc::new(Column::Float(Array1::from(floats)))
+            }
+            ColumnType::Bool => {
+                let bools: Vec<bool> = values
+                    .iter()
+                    .map(|s| {
+                        let t = s.trim();
+                        if is_null(t) {
+                            false
+                        } else {
+                            let lower = t.to_lowercase();
+                            config.bool_true_values.iter().any(|v| v == &lower)
+                        }
+                    })
+                    .collect();
+                Arc::new(Column::Bool(Array1::from(bools)))
+            }
+            ColumnType::String => {
+                let strs: Vec<String> = values.iter().map(|s| s.trim().to_string()).collect();
+                Arc::new(Column::from_string_array(Array1::from(strs)))
+            }
+            ColumnType::Categorical => {
+                let strs: Vec<String> = values.iter().map(|s| s.trim().to_string()).collect();
+                Arc::new(Column::from_strings(strs))
+            }
+            ColumnType::DateTime => {
+                #[allow(deprecated)]
+                use chrono::NaiveDateTime;
+                let datetimes: Vec<NaiveDateTime> = values
+                    .iter()
+                    .map(|s| {
+                        let t = s.trim();
+                        if is_null(t) {
+                            #[allow(deprecated)]
+                            NaiveDateTime::from_timestamp(0, 0)
+                        } else {
+                            for fmt in &config.datetime_formats {
+                                if let Ok(dt) = NaiveDateTime::parse_from_str(t, fmt) {
+                                    return dt;
+                                }
+                            }
+                            #[allow(deprecated)]
+                            NaiveDateTime::from_timestamp(0, 0)
+                        }
+                    })
+                    .collect();
+                Arc::new(Column::DateTime(Array1::from(datetimes)))
+            }
+        }
     }
 
     /// Read a DataFrame from a CSV file via URL.
