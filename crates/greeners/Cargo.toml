@@ -7,9 +7,6 @@ authors = ["Flávio de Vasconcellos Corrêa <contact@greeners.io>"]
 license = "MIT"
 repository = "https://github.com/sheep-farm/Greeners"
 
-[lib]
-crate-type = ["lib", "cdylib"]
-
 [dependencies]
 ndarray = "0.17.1"
 faer = "0.22"
@@ -46,7 +43,6 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 
 [features]
 url = ["dep:reqwest", "greeners-core/url"]
-odre-ffi = []
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

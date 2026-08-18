@@ -2,10 +2,6 @@
 
 #![allow(ambiguous_glob_reexports)]
 
-// FFI exports for Odre plugin system (enabled with --features odre-ffi)
-#[cfg(feature = "odre-ffi")]
-mod odre_ffi {} // placeholder
-
 // Re-export all modules and their public items at the facade root
 
 pub use greeners_bayesian::bayesian_linear;
@@ -180,8 +176,7 @@ pub use greeners_models::gmm;
 pub use greeners_models::gmm::*;
 pub use greeners_models::nls;
 pub use greeners_models::nls::*;
-pub use greeners_models::odre_ffi;
-pub use greeners_models::odre_ffi::*;
+
 pub use greeners_ols::event_study;
 pub use greeners_ols::event_study::*;
 pub use greeners_ols::fmols;
