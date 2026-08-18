@@ -1,4 +1,4 @@
-use greeners::TimeSeries;
+use greeners_timeseries::timeseries::TimeSeries;
 use ndarray::Array1;
 use rand::distributions::Distribution;
 use statrs::distribution::Normal;

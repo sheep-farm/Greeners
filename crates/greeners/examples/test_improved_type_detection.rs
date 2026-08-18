@@ -1,7 +1,7 @@
 // Example demonstrating improved type detection (v1.3.1)
 // Tests Int vs Float distinction, DateTime detection, and configurable thresholds
 
-use greeners::DataFrame;
+use greeners_core::dataframe::DataFrame;
 use std::fs::File;
 use std::io::Write;
 

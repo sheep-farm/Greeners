@@ -1,4 +1,4 @@
-use greeners::DataFrame;
+use greeners_core::dataframe::DataFrame;
 
 fn main() {
     println!("=== STRING FEATURES - v1.7.0 ===\n");

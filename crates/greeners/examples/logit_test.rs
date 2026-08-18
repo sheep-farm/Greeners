@@ -1,4 +1,4 @@
-use greeners::Logit;
+use greeners_glm::discrete::Logit;
 use ndarray::{Array1, Array2};
 use rand::prelude::*;
 use statrs::distribution::Normal;

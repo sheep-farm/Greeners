@@ -1,4 +1,4 @@
-use greeners::DataFrame;
+use greeners_core::dataframe::DataFrame;
 
 fn main() {
     println!("=== MISSING DATA FEATURES - v1.8.0 ===\n");

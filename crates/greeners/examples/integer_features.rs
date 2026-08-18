@@ -1,4 +1,4 @@
-use greeners::DataFrame;
+use greeners_core::dataframe::DataFrame;
 
 fn main() {
     println!("=== INTEGER FEATURES - v1.5.0 ===\n");

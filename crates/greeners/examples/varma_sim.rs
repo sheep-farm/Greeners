@@ -1,4 +1,4 @@
-use greeners::VARMA;
+use greeners_timeseries::varma::VARMA;
 use ndarray::Array2;
 use rand::prelude::*;
 use rand_distr::Normal;

@@ -1,7 +1,7 @@
 // Example demonstrating automatic type detection in CSV/JSON loading
 // Tests that the DataFrame correctly handles mixed types (floats, strings, categoricals)
 
-use greeners::DataFrame;
+use greeners_core::dataframe::DataFrame;
 
 fn main() {
     println!("=== Testing Automatic Type Detection ===\n");

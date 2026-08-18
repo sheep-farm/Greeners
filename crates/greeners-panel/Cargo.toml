@@ -26,6 +26,7 @@ indexmap = { version = "2", features = ["serde"] }
 rayon = "1.10"
 greeners-core = { path = "../greeners-core" }
 greeners-ols = { path = "../greeners-ols" }
+greeners-timeseries = { path = "../greeners-timeseries" }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

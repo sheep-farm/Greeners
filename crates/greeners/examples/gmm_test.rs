@@ -1,4 +1,4 @@
-use greeners::GMM;
+use greeners_models::gmm::GMM;
 use ndarray::{Array1, Array2};
 use rand::prelude::*;
 use statrs::distribution::Normal;

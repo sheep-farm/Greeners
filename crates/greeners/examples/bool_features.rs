@@ -1,4 +1,4 @@
-use greeners::DataFrame;
+use greeners_core::dataframe::DataFrame;
 
 fn main() {
     println!("=== BOOLEAN FEATURES - v1.4.0 ===\n");

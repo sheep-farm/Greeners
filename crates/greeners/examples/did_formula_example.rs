@@ -105,7 +105,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Also demonstrate with robust standard errors using OLS
     println!("\n{:=^78}", " Same Model with Robust SE (HC1) ");
 
-    use greeners::OLS;
+    use greeners_ols::ols::OLS;
     let result_robust = OLS::from_formula(&formula, &df, CovarianceType::HC1)?;
     println!("{}", result_robust);
 

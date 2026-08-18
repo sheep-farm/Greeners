@@ -1,4 +1,4 @@
-use greeners::OLS;
+use greeners_ols::ols::OLS;
 use ndarray::{Array1, Array2, Axis};
 use std::error::Error;
 use std::fs::File;
@@ -55,7 +55,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // ... (CSV reading code same as before) ...
 
     // 6. Run Robust OLS (HC1)
-    use greeners::CovarianceType; // Import the Enum
+    use greeners_core::types::CovarianceType; // Import the Enum
 
     println!("Running OLS with White's Robust Errors (HC1)...");
 

@@ -133,7 +133,7 @@ fn main() {
     println!("Response vector length: {}", y.len());
 
     // You can now use this with OLS or any other model:
-    // use greeners::OLS;
+    // use greeners_ols::ols::OLS;
     // let model = OLS::fit(y, x)?;
     // model.summary();
 

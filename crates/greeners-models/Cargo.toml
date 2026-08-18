@@ -27,6 +27,7 @@ rayon = "1.10"
 greeners-core = { path = "../greeners-core" }
 greeners-glm = { path = "../greeners-glm" }
 greeners-ols = { path = "../greeners-ols" }
+greeners-panel = { path = "../greeners-panel" }
 greeners-timeseries = { path = "../greeners-timeseries" }
 
 [dev-dependencies]

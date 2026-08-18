@@ -1,4 +1,4 @@
-use greeners::DataFrame;
+use greeners_core::dataframe::DataFrame;
 
 fn main() {
     println!("=== CATEGORICAL FEATURES - v1.3.0 ===\n");

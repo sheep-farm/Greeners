@@ -1,7 +1,7 @@
 // Test binary boolean detection for arbitrary two-value columns
 // Examples: ['casado', 'solteiro'], ['M', 'F'], ['aprovado', 'reprovado']
 
-use greeners::DataFrame;
+use greeners_core::dataframe::DataFrame;
 use std::fs::File;
 use std::io::Write;
 

@@ -1,7 +1,7 @@
 // Example demonstrating CSV loading with string columns
 // Shows that from_csv() and from_csv_url() now automatically detect column types
 
-use greeners::DataFrame;
+use greeners_core::dataframe::DataFrame;
 
 fn main() {
     println!("=== CSV with Strings - Automatic Type Detection ===\n");

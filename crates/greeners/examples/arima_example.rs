@@ -1,4 +1,4 @@
-use greeners::ARIMA;
+use greeners_timeseries::arima::ARIMA;
 use ndarray::{Array1, Array2};
 
 fn main() {

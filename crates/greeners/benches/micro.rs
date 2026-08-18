@@ -8,8 +8,8 @@ use ndarray::{Array1, Array2, Axis};
 use rand::{distributions::Distribution, rngs::StdRng, SeedableRng};
 use rand_distr::Normal;
 
-use greeners::linalg::{LinalgCholesky, LinalgInverse, UPLO};
 use greeners::{CovarianceType, DataFrame, Formula, Logit, Probit, QuantileReg, IV, OLS, VAR};
+use greeners_core::linalg::{LinalgCholesky, LinalgInverse, UPLO};
 
 fn rng() -> StdRng {
     StdRng::seed_from_u64(42)

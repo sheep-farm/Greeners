@@ -1,4 +1,4 @@
-use greeners::RandomEffects;
+use greeners_panel::panel::RandomEffects;
 use ndarray::{Array1, Array2};
 use rand::prelude::*;
 use statrs::distribution::Normal;

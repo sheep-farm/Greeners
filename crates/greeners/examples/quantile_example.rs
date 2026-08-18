@@ -1,4 +1,4 @@
-use greeners::QuantileReg;
+use greeners_ols::quantile::QuantileReg;
 use ndarray::{Array1, Array2};
 use rand::prelude::*;
 use statrs::distribution::Normal;

@@ -1,4 +1,4 @@
-use greeners::DataFrame;
+use greeners_core::dataframe::DataFrame;
 use indexmap::IndexMap;
 
 fn main() {

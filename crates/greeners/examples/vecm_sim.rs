@@ -1,4 +1,4 @@
-use greeners::VECM;
+use greeners_timeseries::vecm::VECM;
 use ndarray::Array2;
 use rand::prelude::*;
 use rand_distr::Normal;

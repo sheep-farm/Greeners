@@ -1,4 +1,4 @@
-use greeners::DataFrame;
+use greeners_core::dataframe::DataFrame;
 
 fn main() {
     println!("=== TIME SERIES OPERATIONS - v1.9.0 ===\n");
