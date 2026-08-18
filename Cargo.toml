@@ -17,7 +17,8 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "2.0.0-proposal.1"
+version = "2.0.0"
+description = "High-performance econometrics with R/Python formulas"
 rust-version = "1.84.0"
 edition = "2021"
 authors = ["Flávio de Vasconcellos Corrêa <contact@greeners.io>"]
