@@ -1,8 +1,8 @@
 use crate::glm::{Family, GLM};
-use crate::ols::PredictionResult;
 use greeners_core::error::GreenersError;
 use greeners_core::linalg::LinalgInverse as _;
 use greeners_core::{CovarianceType, DataFrame, Formula, InferenceType};
+use greeners_ols::ols::PredictionResult;
 use ndarray::{Array1, Array2};
 use statrs::distribution::{ContinuousCDF, Normal};
 use std::fmt;
@@ -573,7 +573,7 @@ impl NegBinP {
 
         // Initialize with Poisson (via OLS on log(y+0.5))
         let log_y: Array1<f64> = y.mapv(|v| (v + 0.5).ln());
-        let ols = crate::ols::OLS::fit(&log_y, x, CovarianceType::NonRobust)?;
+        let ols = greeners_ols::ols::OLS::fit(&log_y, x, CovarianceType::NonRobust)?;
         let mut beta = ols.params.clone();
 
         // Estimate initial alpha from method of moments
@@ -745,7 +745,7 @@ impl GenPoisson {
 
         // Initialize beta from Poisson (log-linear)
         let log_y: Array1<f64> = y.mapv(|v| (v + 0.5).ln());
-        let ols = crate::ols::OLS::fit(&log_y, x, CovarianceType::NonRobust)?;
+        let ols = greeners_ols::ols::OLS::fit(&log_y, x, CovarianceType::NonRobust)?;
         let mut beta = ols.params.clone();
         let mut alpha = 0.1_f64;
 

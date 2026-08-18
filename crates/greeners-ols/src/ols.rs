@@ -55,7 +55,7 @@ impl OlsResult {
     ///
     /// # Example
     /// ```no_run
-    /// use greeners_models::ols::{OLS};
+    /// use greeners_ols::ols::{OLS};
     /// use greeners_core::{CovarianceType};
     /// use ndarray::{Array1, Array2};
     ///
@@ -103,7 +103,7 @@ impl OlsResult {
     /// # Examples
     ///
     /// ```rust
-    /// use greeners_models::ols::{OLS};
+    /// use greeners_ols::ols::{OLS};
     /// use greeners_core::{CovarianceType}; // Importe o enum
     /// use ndarray::{Array1, Array2};
     ///
@@ -419,7 +419,7 @@ impl OlsResult {
     ///
     /// # Returns
     /// Tuple of (p_values, conf_lower, conf_upper)
-    pub(crate) fn compute_inference(
+    pub fn compute_inference(
         t_values: &Array1<f64>,
         std_errors: &Array1<f64>,
         params: &Array1<f64>,
@@ -478,7 +478,7 @@ impl OlsResult {
     ///
     /// # Example
     /// ```
-    /// use greeners_models::ols::{OLS};
+    /// use greeners_ols::ols::{OLS};
     /// use greeners_core::{CovarianceType, InferenceType};
     /// use ndarray::{Array1, Array2};
     ///
@@ -655,7 +655,7 @@ impl OLS {
     ///
     /// # Examples
     /// ```no_run
-    /// use greeners_models::ols::{OLS};
+    /// use greeners_ols::ols::{OLS};
     /// use greeners_core::{DataFrame, Formula, CovarianceType};
     /// use ndarray::Array1;
     /// use indexmap::IndexMap;

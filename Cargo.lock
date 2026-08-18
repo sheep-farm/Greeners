@@ -741,7 +741,12 @@ dependencies = [
  "csv",
  "faer",
  "greeners-core",
+ "greeners-glm",
+ "greeners-ml",
  "greeners-models",
+ "greeners-ols",
+ "greeners-panel",
+ "greeners-timeseries",
  "indexmap",
  "ndarray",
  "num-complex",
@@ -781,6 +786,55 @@ dependencies = [
 ]
 
 [[package]]
+name = "greeners-glm"
+version = "2.0.0-proposal.1"
+dependencies = [
+ "argmin",
+ "argmin-math",
+ "chrono",
+ "criterion",
+ "csv",
+ "faer",
+ "greeners-core",
+ "greeners-ols",
+ "indexmap",
+ "ndarray",
+ "num-complex",
+ "rand",
+ "rand_distr",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_json",
+ "statrs",
+ "thiserror",
+]
+
+[[package]]
+name = "greeners-ml"
+version = "2.0.0-proposal.1"
+dependencies = [
+ "argmin",
+ "argmin-math",
+ "chrono",
+ "criterion",
+ "csv",
+ "faer",
+ "greeners-core",
+ "indexmap",
+ "ndarray",
+ "num-complex",
+ "rand",
+ "rand_distr",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_json",
+ "statrs",
+ "thiserror",
+]
+
+[[package]]
 name = "greeners-models"
 version = "2.0.0-proposal.1"
 dependencies = [
@@ -791,6 +845,83 @@ dependencies = [
  "csv",
  "faer",
  "greeners-core",
+ "greeners-glm",
+ "greeners-ols",
+ "greeners-timeseries",
+ "indexmap",
+ "ndarray",
+ "num-complex",
+ "rand",
+ "rand_distr",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_json",
+ "statrs",
+ "thiserror",
+]
+
+[[package]]
+name = "greeners-ols"
+version = "2.0.0-proposal.1"
+dependencies = [
+ "argmin",
+ "argmin-math",
+ "chrono",
+ "criterion",
+ "csv",
+ "faer",
+ "greeners-core",
+ "indexmap",
+ "ndarray",
+ "num-complex",
+ "rand",
+ "rand_distr",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_json",
+ "statrs",
+ "thiserror",
+]
+
+[[package]]
+name = "greeners-panel"
+version = "2.0.0-proposal.1"
+dependencies = [
+ "argmin",
+ "argmin-math",
+ "chrono",
+ "criterion",
+ "csv",
+ "faer",
+ "greeners-core",
+ "greeners-ols",
+ "indexmap",
+ "ndarray",
+ "num-complex",
+ "rand",
+ "rand_distr",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_json",
+ "statrs",
+ "thiserror",
+]
+
+[[package]]
+name = "greeners-timeseries"
+version = "2.0.0-proposal.1"
+dependencies = [
+ "argmin",
+ "argmin-math",
+ "chrono",
+ "criterion",
+ "csv",
+ "faer",
+ "greeners-core",
+ "greeners-ols",
  "indexmap",
  "ndarray",
  "num-complex",

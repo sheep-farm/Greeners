@@ -11,8 +11,8 @@
 //! The fixed effects are removed by within transformation, then
 //! quantile regression is applied to the demeaned data.
 
-use crate::quantile::QuantileReg;
 use greeners_core::error::GreenersError;
+use greeners_ols::quantile::QuantileReg;
 use ndarray::{Array1, Array2};
 use statrs::distribution::{ContinuousCDF, Normal};
 use std::fmt;

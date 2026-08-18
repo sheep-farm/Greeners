@@ -220,7 +220,7 @@ impl IvResult {
     /// # Examples
     ///
     /// ```rust
-    /// use greeners_models::iv::{IV};
+    /// use greeners_ols::iv::{IV};
     /// use greeners_core::{CovarianceType}; // Adicionado CovarianceType
     /// use ndarray::{Array1, Array2};
     ///
@@ -306,7 +306,7 @@ impl IvResult {
     ///
     /// # Example
     /// ```
-    /// use greeners_models::iv::{IV};
+    /// use greeners_ols::iv::{IV};
     /// use greeners_core::{CovarianceType, InferenceType};
     /// use ndarray::{Array1, Array2};
     ///
@@ -346,7 +346,7 @@ impl IV {
     ///
     /// # Examples
     /// ```no_run
-    /// use greeners_models::iv::{IV};
+    /// use greeners_ols::iv::{IV};
     /// use greeners_core::{DataFrame, Formula, CovarianceType};
     /// use ndarray::Array1;
     /// use indexmap::IndexMap;

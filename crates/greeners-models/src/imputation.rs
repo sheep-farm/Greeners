@@ -1,6 +1,6 @@
-use crate::ols::OLS;
 use greeners_core::error::GreenersError;
 use greeners_core::CovarianceType;
+use greeners_ols::ols::OLS;
 use indexmap::IndexMap;
 use ndarray::{Array1, Array2};
 use std::fmt;

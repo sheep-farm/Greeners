@@ -1,6 +1,6 @@
-use crate::ols::OLS;
 use greeners_core::error::GreenersError;
 use greeners_core::{CovarianceType, DataFrame, Formula};
+use greeners_ols::ols::OLS;
 use ndarray::Array1;
 
 /// Result of Fama-MacBeth (1973) cross-sectional regression.

@@ -65,7 +65,7 @@ impl FGLS {
     ///
     /// # Examples
     /// ```
-    /// use greeners_models::gls::{FGLS};
+    /// use greeners_ols::gls::{FGLS};
     /// use greeners_core::{DataFrame, Formula};
     /// use ndarray::Array1;
     /// use indexmap::IndexMap;

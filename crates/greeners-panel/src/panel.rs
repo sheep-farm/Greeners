@@ -1,6 +1,6 @@
-use crate::ols::OLS;
 use greeners_core::linalg::LinalgInverse as _;
 use greeners_core::{CovarianceType, DataFrame, Formula, GreenersError, InferenceType};
+use greeners_ols::ols::OLS;
 use indexmap::IndexMap;
 use ndarray::{Array1, Array2, Axis};
 use std::fmt;
@@ -96,7 +96,7 @@ impl PanelResult {
     /// Modified PanelResult with updated p-values
     pub fn with_inference(mut self, inference_type: InferenceType) -> Result<Self, GreenersError> {
         // Reuse OLS compute_inference helper
-        use crate::ols::OlsResult;
+        use greeners_ols::ols::OlsResult;
 
         let (p_values, _, _) = OlsResult::compute_inference(
             &self.t_values,
@@ -276,7 +276,7 @@ impl FixedEffects {
         let inference_type = ols_result.inference_type.clone();
 
         // Recalculate p-values with corrected df_resid
-        use crate::ols::OlsResult;
+        use greeners_ols::ols::OlsResult;
         let (p_values, _, _) = OlsResult::compute_inference(
             &t_values,
             &std_errors,
@@ -368,7 +368,7 @@ impl fmt::Display for RandomEffectsResult {
 impl RandomEffectsResult {
     /// Change inference type and recompute p-values
     pub fn with_inference(mut self, inference_type: InferenceType) -> Result<Self, GreenersError> {
-        use crate::ols::OlsResult;
+        use greeners_ols::ols::OlsResult;
 
         // Random Effects doesn't have df_resid field, so we compute it
         // df = n - k where n is observations and k is parameters
@@ -629,7 +629,7 @@ impl fmt::Display for BetweenResult {
 impl BetweenResult {
     /// Change inference type and recompute p-values
     pub fn with_inference(mut self, inference_type: InferenceType) -> Result<Self, GreenersError> {
-        use crate::ols::OlsResult;
+        use greeners_ols::ols::OlsResult;
 
         // Between estimator uses n_entities as sample size
         let df_resid = self.n_entities.saturating_sub(self.params.len());

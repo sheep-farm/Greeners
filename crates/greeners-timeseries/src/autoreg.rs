@@ -1,5 +1,5 @@
-use crate::ols::OLS;
 use greeners_core::{CovarianceType, GreenersError};
+use greeners_ols::ols::OLS;
 use ndarray::{s, Array1, Array2};
 use std::fmt;
 

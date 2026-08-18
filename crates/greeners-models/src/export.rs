@@ -123,7 +123,7 @@ pub trait ExportableResult {
 
 // --- Implementations ---
 
-use crate::ols::OlsResult;
+use greeners_ols::ols::OlsResult;
 
 impl ExportableResult for OlsResult {
     fn export_data(&self) -> ExportData {
@@ -164,7 +164,7 @@ impl ExportableResult for OlsResult {
     }
 }
 
-use crate::glm::GlmResult;
+use greeners_glm::glm::GlmResult;
 
 impl ExportableResult for GlmResult {
     fn export_data(&self) -> ExportData {
@@ -203,7 +203,7 @@ impl ExportableResult for GlmResult {
     }
 }
 
-use crate::arima::ArimaResult;
+use greeners_timeseries::arima::ArimaResult;
 
 impl ExportableResult for ArimaResult {
     fn export_data(&self) -> ExportData {
@@ -241,7 +241,7 @@ impl ExportableResult for ArimaResult {
     }
 }
 
-use crate::garch::GarchResult;
+use greeners_timeseries::garch::GarchResult;
 
 impl ExportableResult for GarchResult {
     fn export_data(&self) -> ExportData {

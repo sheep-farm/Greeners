@@ -1,7 +1,7 @@
 use crate::glm::{Family, GLM};
-use crate::ols::PredictionResult;
 use greeners_core::error::GreenersError;
 use greeners_core::{CovarianceType, DataFrame, Formula, InferenceType};
+use greeners_ols::ols::PredictionResult;
 use ndarray::{Array1, Array2};
 use statrs::distribution::{ContinuousCDF, Normal};
 use std::fmt;

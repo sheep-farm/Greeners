@@ -13,10 +13,10 @@
 
 #![allow(warnings, clippy::all)]
 
-use crate::ols::OLS;
 use greeners_core::error::GreenersError;
 use greeners_core::linalg::{LinalgInverse, LinalgPinv};
 use greeners_core::{Column, CovarianceType, DataFrame};
+use greeners_ols::ols::OLS;
 use indexmap::IndexMap;
 use ndarray::{Array1, Array2, Axis};
 use rand::{rngs::StdRng, Rng, SeedableRng};

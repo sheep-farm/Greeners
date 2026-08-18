@@ -348,8 +348,8 @@ impl PanelDiagnostics {
         entity_ids: &[i64],
         time_vals: &[f64],
     ) -> Result<(f64, f64, f64, f64), String> {
-        use crate::ols::OLS;
         use greeners_core::CovarianceType;
+        use greeners_ols::ols::OLS;
         use indexmap::IndexMap;
         use statrs::distribution::{ContinuousCDF, Normal};
 
@@ -494,8 +494,8 @@ impl PanelDiagnostics {
         entity_ids: &[i64],
         time_vals: &[f64],
     ) -> Result<(f64, f64, usize, usize, usize, usize), String> {
-        use crate::ols::OLS;
         use greeners_core::CovarianceType;
+        use greeners_ols::ols::OLS;
         use indexmap::IndexMap;
         use statrs::distribution::{ContinuousCDF, FisherSnedecor};
 
@@ -661,8 +661,8 @@ impl PanelDiagnostics {
         x: &Array2<f64>,
         entity_ids: &[i64],
     ) -> Result<MundlakResult, String> {
-        use crate::ols::OLS;
         use greeners_core::CovarianceType;
+        use greeners_ols::ols::OLS;
         use indexmap::IndexMap;
         use statrs::distribution::{ContinuousCDF, FisherSnedecor};
 
@@ -765,8 +765,8 @@ impl PanelDiagnostics {
         entity_ids: &[i64],
         time_vals: &[f64],
     ) -> Result<(f64, f64, f64, usize), String> {
-        use crate::ols::OLS;
         use greeners_core::CovarianceType;
+        use greeners_ols::ols::OLS;
         use indexmap::IndexMap;
         use statrs::distribution::{ContinuousCDF, StudentsT};
 

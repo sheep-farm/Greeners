@@ -1,7 +1,7 @@
-use crate::ols::OLS;
 #[allow(unused_imports)]
 use greeners_core::linalg::{LinalgEigh as _, LinalgInverse as _, UPLO};
 use greeners_core::{CovarianceType, GreenersError};
+use greeners_ols::ols::OLS;
 use ndarray::{s, Array1, Array2};
 use statrs::distribution::{ChiSquared, ContinuousCDF, FisherSnedecor};
 

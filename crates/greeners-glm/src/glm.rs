@@ -429,7 +429,11 @@ impl GlmResult {
     /// Prediction with standard errors and confidence intervals (on the mean response scale).
     ///
     /// Uses the delta method: SE(mu) = |dmu/deta| * SE(eta)
-    pub fn get_prediction(&self, x_new: &Array2<f64>, alpha: f64) -> crate::ols::PredictionResult {
+    pub fn get_prediction(
+        &self,
+        x_new: &Array2<f64>,
+        alpha: f64,
+    ) -> greeners_ols::ols::PredictionResult {
         let eta = x_new.dot(&self.params);
         let mu = eta.mapv(|e| self.link.linkinv(e));
 
@@ -474,7 +478,7 @@ impl GlmResult {
         let ci_lower = &mu - &margin;
         let ci_upper = &mu + &margin;
 
-        crate::ols::PredictionResult {
+        greeners_ols::ols::PredictionResult {
             mean: mu,
             se: se_mu,
             ci_lower,
@@ -484,7 +488,7 @@ impl GlmResult {
 
     /// Change inference type and recompute p-values and confidence intervals.
     pub fn with_inference(mut self, inference_type: InferenceType) -> Result<Self, GreenersError> {
-        let (p_values, conf_lower, conf_upper) = crate::ols::OlsResult::compute_inference(
+        let (p_values, conf_lower, conf_upper) = greeners_ols::ols::OlsResult::compute_inference(
             &self.z_values,
             &self.std_errors,
             &self.params,

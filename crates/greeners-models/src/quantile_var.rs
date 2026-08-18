@@ -12,8 +12,8 @@
 //! Estimation: equation-by-equation quantile regression with
 //! bootstrap standard errors.
 
-use crate::quantile::QuantileReg;
 use greeners_core::error::GreenersError;
+use greeners_ols::quantile::QuantileReg;
 use ndarray::{Array1, Array2, Array3};
 use std::fmt;
 

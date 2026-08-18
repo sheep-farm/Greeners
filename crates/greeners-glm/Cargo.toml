@@ -1,5 +1,5 @@
 [package]
-name = "greeners-models"
+name = "greeners-glm"
 version = "2.0.0-proposal.1"
 rust-version = "1.84.0"
 edition = "2021"
@@ -25,9 +25,7 @@ argmin-math = { version = "0.4", default-features = false, features = ["primitiv
 indexmap = { version = "2", features = ["serde"] }
 rayon = "1.10"
 greeners-core = { path = "../greeners-core" }
-greeners-glm = { path = "../greeners-glm" }
 greeners-ols = { path = "../greeners-ols" }
-greeners-timeseries = { path = "../greeners-timeseries" }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

@@ -1,8 +1,8 @@
 //! Diagnostics for binary choice models (logit/probit):
 //! classification table, ROC/AUC, Hosmer-Lemeshow goodness-of-fit, linktest.
 
-use crate::discrete::Logit;
 use greeners_core::GreenersError;
+use greeners_glm::discrete::Logit;
 use ndarray::{Array1, Array2};
 use statrs::distribution::{ChiSquared, ContinuousCDF, Normal};
 

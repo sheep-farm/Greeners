@@ -25,6 +25,11 @@ argmin-math = { version = "0.4", default-features = false, features = ["primitiv
 indexmap = { version = "2", features = ["serde"] }
 rayon = "1.10"
 greeners-core = { path = "../greeners-core" }
+greeners-ols = { path = "../greeners-ols" }
+greeners-glm = { path = "../greeners-glm" }
+greeners-panel = { path = "../greeners-panel" }
+greeners-timeseries = { path = "../greeners-timeseries" }
+greeners-ml = { path = "../greeners-ml" }
 greeners-models = { path = "../greeners-models" }
 
 [dev-dependencies]

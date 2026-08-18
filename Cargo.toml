@@ -2,6 +2,11 @@
 members = [
     "crates/greeners",
     "crates/greeners-core",
+    "crates/greeners-ols",
+    "crates/greeners-glm",
+    "crates/greeners-panel",
+    "crates/greeners-timeseries",
+    "crates/greeners-ml",
     "crates/greeners-models",
 ]
 resolver = "2"

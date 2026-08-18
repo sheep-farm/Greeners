@@ -11,8 +11,8 @@ use std::os::raw::c_char;
 use ndarray::{Array1, Array2};
 use serde::{Deserialize, Serialize};
 
-use crate::ols::{OlsResult, OLS};
 use greeners_core::CovarianceType;
+use greeners_ols::ols::{OlsResult, OLS};
 
 /// Data types that flow between Odre nodes (must match Odre's PluginData)
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,7 +1,7 @@
-use crate::ols::OLS; // We reuse OLS for the Breusch-Pagan auxiliary regression
 use greeners_core::error::GreenersError;
 use greeners_core::linalg::{LinalgInverse as _, LinalgSVD as _};
 use greeners_core::types::CovarianceType; // Needed to call OLS fit
+use greeners_ols::ols::OLS; // We reuse OLS for the Breusch-Pagan auxiliary regression
 use ndarray::{Array1, Array2};
 use statrs::distribution::{ChiSquared, ContinuousCDF, Normal};
 
