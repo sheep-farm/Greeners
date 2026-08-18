@@ -94,8 +94,12 @@ def collect_crate_reexports():
             continue
         with open(lib, "r", encoding="utf-8") as f:
             content = f.read()
-        pattern = r"^pub\s+use\s+[a-zA-Z_][a-zA-Z0-9_]*::\{([^}]+)\};"
-        for m in re.finditer(pattern, content, re.M):
+        # both `pub use module::Item;` and `pub use module::{A, B};`
+        pattern_single = r"^pub\s+use\s+[a-zA-Z_][a-zA-Z0-9_]*::([A-Za-z_][A-Za-z0-9_]*)[;,]?\s*$"
+        pattern_multi = r"^pub\s+use\s+[a-zA-Z_][a-zA-Z0-9_]*::\{([^}]+)\};"
+        for m in re.finditer(pattern_single, content, re.M):
+            crate_items[m.group(1)] = crate
+        for m in re.finditer(pattern_multi, content, re.M):
             for name in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", m.group(1)):
                 crate_items[name] = crate
     return crate_items
@@ -162,6 +166,15 @@ def generate_facade():
     return "\n".join(lines) + "\n"
 
 
+def reexports(text):
+    """Extract the set of re-export statements, ignoring comments and blanks."""
+    return set(
+        line.strip()
+        for line in text.splitlines()
+        if line.strip().startswith("pub use ") or line.strip().startswith("pub mod ")
+    )
+
+
 def main():
     generated = generate_facade()
     facade_path = os.path.join(ROOT, "crates", "greeners", "src", "lib.rs")
@@ -169,22 +182,24 @@ def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--fix":
         with open(facade_path, "w", encoding="utf-8") as f:
             f.write(generated)
-        print("Facade regenerated.")
+        print("Facade regenerated. Run `cargo fmt` to format.")
         return 0
 
     with open(facade_path, "r", encoding="utf-8") as f:
         current = f.read()
 
-    if generated == current:
+    if reexports(generated) == reexports(current):
         print("Facade is up to date.")
         return 0
 
     print("Facade is out of date. Differences:")
     import difflib
 
+    current_re = sorted(reexports(current))
+    generated_re = sorted(reexports(generated))
     diff = difflib.unified_diff(
-        current.splitlines(keepends=True),
-        generated.splitlines(keepends=True),
+        [l + "\n" for l in current_re],
+        [l + "\n" for l in generated_re],
         fromfile=facade_path,
         tofile="<generated>",
     )

@@ -55,8 +55,16 @@ from the sub-crates and a selected set of the most common items at the root.
 There are no glob re-exports (`pub use ...::*`) and no
 `#[allow(ambiguous_glob_reexports)]`.
 
+Whenever a sub-crate re-exports an item at its own root, the facade imports
+from the crate root:
+
 ```rust
-pub use greeners_ols::ols;
+pub use greeners_ols::OLS;
+```
+
+otherwise it falls back to the module path:
+
+```rust
 pub use greeners_ols::ols::OLS;
 ```
 
@@ -69,15 +77,20 @@ use greeners::OLS;
 or the namespaced version:
 
 ```rust
-use greeners_ols::ols::OLS;
+use greeners_ols::OLS;
 ```
 
 The facade contains:
 
 - `pub mod export;` for the cross-cutting I/O utility.
 - `pub use crate_name::module;` for every module of every sub-crate.
-- `pub use crate_name::module::{Item};` for curated top-level items.
+- `pub use crate_name::{Item};` or `pub use crate_name::module::{Item};` for
+  curated top-level items.
 - a small set of smoke / cross-cutting tests in `greeners/tests/`.
+
+Each sub-crate also re-exports public items that are unique within the crate
+at its own root `lib.rs`. Items whose names appear in more than one module
+remain namespaced.
 
 ### Keeping the facade in sync
 
@@ -97,12 +110,32 @@ script and/or adjust the facade imports, then rerun the check until it passes.
 Before committing, run:
 
 ```bash
-cargo fmt
+cargo fmt --check
 cargo clippy -- -D warnings
-cargo test
+python3 scripts/check_facade.py
 cargo doc
+cargo test
 cargo deny check
 cargo build --release
 ```
+
+A GitHub Actions workflow in `.github/workflows/ci.yml` runs the same checks on
+push and pull request. A local pre-commit hook is also available in
+`.githooks/pre-commit`.
+
+## Known architectural trade-offs
+
+- `greeners-core` is still the largest crate. It mixes data structures
+  (`DataFrame`, `Column`, `Formula`), error types, I/O, and numerical
+  utilities (`linalg`, `stats`, `multivariate`, `nonparametric`). A future step
+  could split it into `greeners-data`, `greeners-linalg`, `greeners-stats`, and
+  `greeners-ml-core`, but this requires untangling the `linalg`/`GreenersError`
+  dependency cycle first.
+- `greeners-timeseries` contains 39 modules. It could become a small sub-workspace
+  (`greeners-arima`, `greeners-garch`, `greeners-var`, etc.) once the core crate
+  is further split.
+- The facade root re-exports ~100 items. This is a compromise between
+  convenience and namespace pollution. New common items should be added to
+  `BASE` in `scripts/check_facade.py` explicitly.
 
 Keep this file updated when adding, removing or renaming crates.
