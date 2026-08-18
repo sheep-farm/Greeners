@@ -6,9 +6,11 @@ Run from the repository root:
     python3 scripts/check_facade.py
 
 The script rebuilds the facade from the public items used in the facade tests
-and examples plus a base list of core types. It then compares the result with
-the current crates/greeners/src/lib.rs. If they differ, it exits with a
-non-zero status and prints a diff.
+and examples plus a base list of core types. If an item is re-exported at the
+root of its sub-crate lib.rs, the facade uses `pub use crate::Item;`;
+otherwise it falls back to `pub use crate::module::Item;`. The script then
+compares the result with the current crates/greeners/src/lib.rs and exits
+non-zero if they differ.
 """
 
 import os
@@ -18,9 +20,6 @@ from collections import defaultdict
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Base set of items that are always re-exported at the facade root, even if
-# they are not used directly by the facade tests/examples. Add new names here
-# when you want them exposed at the top level.
 BASE = {
     "ARDL", "ARIMA", "ArellanoBond", "AutoReg", "BSplineBasis", "BayesGaussMI",
     "BayesMixedGLM", "BetaLink", "BetaModel", "BetweenEstimator",
@@ -84,6 +83,24 @@ def collect_modules():
     return mods
 
 
+def collect_crate_reexports():
+    """Map item name -> crate for items re-exported at a sub-crate root."""
+    crate_items = {}
+    for crate in os.listdir(os.path.join(ROOT, "crates")):
+        if crate == "greeners":
+            continue
+        lib = os.path.join(ROOT, "crates", crate, "src", "lib.rs")
+        if not os.path.exists(lib):
+            continue
+        with open(lib, "r", encoding="utf-8") as f:
+            content = f.read()
+        pattern = r"^pub\s+use\s+[a-zA-Z_][a-zA-Z0-9_]*::\{([^}]+)\};"
+        for m in re.finditer(pattern, content, re.M):
+            for name in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", m.group(1)):
+                crate_items[name] = crate
+    return crate_items
+
+
 def collect_used_names():
     used = set()
     for sub in ["tests", "examples"]:
@@ -102,15 +119,28 @@ def collect_used_names():
 def generate_facade():
     item_map = build_public_item_map()
     mods = collect_modules()
+    crate_items = collect_crate_reexports()
     used = collect_used_names()
 
     selected = set(BASE)
     selected.update(used)
 
-    root_items = {}
+    # Determine where each selected item should be imported from.
+    # Prefer crate root re-export; fall back to module path.
+    root_items = []
     for name in selected:
-        if name in item_map and len(item_map[name]) == 1:
-            root_items[name] = item_map[name][0]
+        if name not in item_map:
+            continue
+        if len(item_map[name]) > 1:
+            # Ambiguous across crates: only allow if a crate root re-exports it.
+            if name in crate_items:
+                root_items.append((name, crate_items[name], None))
+            continue
+        crate, mod = item_map[name][0]
+        if name in crate_items and crate_items[name] == crate:
+            root_items.append((name, crate, None))
+        else:
+            root_items.append((name, crate, mod))
 
     lines = ["//! greeners facade crate.", "", "pub mod export;", ""]
     lines.append("// Re-export all modules from sub-crates.")
@@ -122,10 +152,12 @@ def generate_facade():
     lines.append("")
     lines.append("// Curated root re-exports.")
     lines.append("")
-    for name in sorted(root_items):
-        crate, mod = root_items[name]
+    for name, crate, mod in sorted(root_items, key=lambda x: x[0]):
         cname = crate.replace("-", "_")
-        lines.append(f"pub use {cname}::{mod}::{name};")
+        if mod:
+            lines.append(f"pub use {cname}::{mod}::{name};")
+        else:
+            lines.append(f"pub use {cname}::{name};")
 
     return "\n".join(lines) + "\n"
 
@@ -133,6 +165,13 @@ def generate_facade():
 def main():
     generated = generate_facade()
     facade_path = os.path.join(ROOT, "crates", "greeners", "src", "lib.rs")
+
+    if len(sys.argv) > 1 and sys.argv[1] == "--fix":
+        with open(facade_path, "w", encoding="utf-8") as f:
+            f.write(generated)
+        print("Facade regenerated.")
+        return 0
+
     with open(facade_path, "r", encoding="utf-8") as f:
         current = f.read()
 
