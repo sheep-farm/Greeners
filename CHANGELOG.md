@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.4] - 2026-08-18
+
+### Changed
+
+- Bumped version to `1.6.4`.
+
 ## [1.6.3] - 2026-08-17
 
 ### Fixed
@@ -38,5 +44,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All `cargo doc` warnings (broken intra-doc links and unclosed HTML tags).
 - `cargo deny` now passes with an explicit license allowlist and documented ignores for the transitive `paste` and `instant` unmaintained advisories.
 
+[1.6.4]: https://github.com/sheep-farm/Greeners/compare/v1.6.3...v1.6.4
 [1.6.3]: https://github.com/sheep-farm/Greeners/compare/v1.6.2...v1.6.3
 [1.6.0]: https://github.com/sheep-farm/Greeners/compare/v1.5.3...v1.6.0
