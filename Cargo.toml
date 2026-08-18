@@ -1,6 +1,6 @@
 [package]
 name = "greeners"
-version = "1.6.4-dev"
+version = "1.6.5-dev"
 rust-version = "1.84.0"
 edition = "2021"
 authors = ["Flávio de Vasconcellos Corrêa <contact@greeners.io>"]
