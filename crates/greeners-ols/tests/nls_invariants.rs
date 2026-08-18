@@ -1,7 +1,7 @@
 use greeners_core::error::GreenersError;
-use greeners_models::nls::predict_exp;
-use greeners_models::nls::predict_power;
-use greeners_models::nls::NLS;
+use greeners_ols::nls::predict_exp;
+use greeners_ols::nls::predict_power;
+use greeners_ols::nls::NLS;
 use ndarray::{Array1, Array2};
 use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};

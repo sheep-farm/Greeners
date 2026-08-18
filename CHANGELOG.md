@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-proposal.1] - Unreleased
+
+### Changed
+
+- Workspace inheritance: centralized `version`, `rust-version`, `edition`, `authors`, `license`, `repository` and common dependency versions in the root `Cargo.toml`.
+- Removed the catch-all `greeners-models` crate.
+  - `gmm` and `nls` moved to `greeners-ols`.
+  - `dfm` moved to `greeners-timeseries`.
+  - `export` moved to the `greeners` facade (cross-cutting I/O utility).
+- Reorganized the `greeners` facade to re-export all sub-crate modules and their public items, with `pub mod export` for the cross-cutting export module.
+- Resolved test-only dependency cycles (e.g. removed `greeners-timeseries` from `greeners-panel` dependencies by splitting the `LocalLevel` test into `greeners-timeseries`).
+- Added `ARCHITECTURE.md` documenting crate responsibilities, dependency rules and the facade design.
+
 ## [1.6.5-dev] - Unreleased
 
 ### Changed

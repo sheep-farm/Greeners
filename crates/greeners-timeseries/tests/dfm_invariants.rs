@@ -1,4 +1,4 @@
-use greeners_models::dfm::DFM;
+use greeners_timeseries::dfm::DFM;
 use ndarray::Array2;
 use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};

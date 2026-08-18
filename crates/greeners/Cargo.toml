@@ -1,29 +1,29 @@
 [package]
 name = "greeners"
-version = "2.0.0-proposal.1"
-rust-version = "1.84.0"
-edition = "2021"
-authors = ["Flávio de Vasconcellos Corrêa <contact@greeners.io>"]
-license = "MIT"
-repository = "https://github.com/sheep-farm/Greeners"
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
 
 [dependencies]
-ndarray = "0.17.1"
-faer = "0.22"
-thiserror = "1"
-statrs = "0.18.0"
-csv = "1.3"
-regex = "1"
-serde = { version = "=1.0.228", features = ["derive"] }
-serde_json = "1.0"
-rand = "0.8"
-rand_distr = "0.4"
-num-complex = "0.4.6"
-chrono = { version = "0.4", features = ["serde"] }
-argmin = "0.10.0"
-argmin-math = { version = "0.4", default-features = false, features = ["primitives", "vec"] }
-indexmap = { version = "2", features = ["serde"] }
-rayon = "1.10"
+ndarray = { workspace = true }
+faer = { workspace = true }
+thiserror = { workspace = true }
+statrs = { workspace = true }
+csv = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rand = { workspace = true }
+rand_distr = { workspace = true }
+num-complex = { workspace = true }
+chrono = { workspace = true }
+argmin = { workspace = true }
+argmin-math = { workspace = true }
+indexmap = { workspace = true }
+rayon = { workspace = true }
 greeners-core = { path = "../greeners-core" }
 greeners-ols = { path = "../greeners-ols" }
 greeners-glm = { path = "../greeners-glm" }
@@ -36,17 +36,15 @@ greeners-diagnostics = { path = "../greeners-diagnostics" }
 greeners-imputation = { path = "../greeners-imputation" }
 greeners-spatial = { path = "../greeners-spatial" }
 greeners-survival = { path = "../greeners-survival" }
-greeners-models = { path = "../greeners-models" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "json"], optional = true }
+reqwest = { workspace = true, optional = true }
 
 [features]
 url = ["dep:reqwest", "greeners-core/url"]
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
-
+criterion = { workspace = true }
 [[example]]
 name = "dataframe_loading"
 required-features = ["url"]

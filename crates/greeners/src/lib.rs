@@ -2,7 +2,9 @@
 
 #![allow(ambiguous_glob_reexports)]
 
-// Re-export all modules and their public items at the facade root
+pub mod export;
+
+// Re-export all modules and their public items at the facade root.
 
 pub use greeners_bayesian::bayesian_linear;
 pub use greeners_bayesian::bayesian_linear::*;
@@ -168,15 +170,6 @@ pub use greeners_ml::umap;
 pub use greeners_ml::umap::*;
 pub use greeners_ml::xgboost;
 pub use greeners_ml::xgboost::*;
-pub use greeners_models::dfm;
-pub use greeners_models::dfm::*;
-pub use greeners_models::export;
-pub use greeners_models::export::*;
-pub use greeners_models::gmm;
-pub use greeners_models::gmm::*;
-pub use greeners_models::nls;
-pub use greeners_models::nls::*;
-
 pub use greeners_ols::event_study;
 pub use greeners_ols::event_study::*;
 pub use greeners_ols::fmols;
@@ -185,10 +178,14 @@ pub use greeners_ols::gls;
 pub use greeners_ols::gls::*;
 pub use greeners_ols::glsar;
 pub use greeners_ols::glsar::*;
+pub use greeners_ols::gmm;
+pub use greeners_ols::gmm::*;
 pub use greeners_ols::heckman;
 pub use greeners_ols::heckman::*;
 pub use greeners_ols::iv;
 pub use greeners_ols::iv::*;
+pub use greeners_ols::nls;
+pub use greeners_ols::nls::*;
 pub use greeners_ols::ols;
 pub use greeners_ols::ols::*;
 pub use greeners_ols::quantile;
@@ -247,6 +244,8 @@ pub use greeners_timeseries::dcc_garch;
 pub use greeners_timeseries::dcc_garch::*;
 pub use greeners_timeseries::decomposition;
 pub use greeners_timeseries::decomposition::*;
+pub use greeners_timeseries::dfm;
+pub use greeners_timeseries::dfm::*;
 pub use greeners_timeseries::dynamic_factor;
 pub use greeners_timeseries::dynamic_factor::*;
 pub use greeners_timeseries::ets;
@@ -305,7 +304,3 @@ pub use greeners_timeseries::vecm;
 pub use greeners_timeseries::vecm::*;
 pub use greeners_timeseries::wavelet;
 pub use greeners_timeseries::wavelet::*;
-
-// Specific aliases that glob re-exports do not preserve
-pub use greeners_causal::dml_crossfit::DML as DMLCrossfit;
-pub use greeners_core::gmm_clustering::GmmResult as GmmClusteringResult;

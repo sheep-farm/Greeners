@@ -4,6 +4,7 @@ pub mod arima;
 pub mod autoreg;
 pub mod dcc_garch;
 pub mod decomposition;
+pub mod dfm;
 pub mod dynamic_factor;
 pub mod ets;
 pub mod garch;
