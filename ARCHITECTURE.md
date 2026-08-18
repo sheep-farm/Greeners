@@ -50,12 +50,14 @@ Ask these questions:
 
 ## Fachada `greeners`
 
-The `greeners` crate intentionally re-exports every public module and its
-public items:
+The `greeners` crate is a curated facade. It re-exports every public module
+from the sub-crates and a selected set of the most common items at the root.
+There are no glob re-exports (`pub use ...::*`) and no
+`#[allow(ambiguous_glob_reexports)]`.
 
 ```rust
 pub use greeners_ols::ols;
-pub use greeners_ols::ols::*;
+pub use greeners_ols::ols::OLS;
 ```
 
 This allows users to write either:
@@ -70,11 +72,25 @@ or the namespaced version:
 use greeners_ols::ols::OLS;
 ```
 
-The facade contains only:
+The facade contains:
 
 - `pub mod export;` for the cross-cutting I/O utility.
-- re-exports from sub-crates.
+- `pub use crate_name::module;` for every module of every sub-crate.
+- `pub use crate_name::module::{Item};` for curated top-level items.
 - a small set of smoke / cross-cutting tests in `greeners/tests/`.
+
+### Keeping the facade in sync
+
+`scripts/check_facade.py` regenerates the facade from the public items used by
+`greeners/tests/` and `greeners/examples/` plus a base list of common types.
+Run it before committing facade changes:
+
+```bash
+python3 scripts/check_facade.py
+```
+
+If the script reports the facade is out of date, update the `BASE` set in the
+script and/or adjust the facade imports, then rerun the check until it passes.
 
 ## Committing changes
 
