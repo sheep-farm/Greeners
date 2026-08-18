@@ -112,7 +112,7 @@ impl ModelSelection {
     ///
     /// # Example
     /// ```no_run
-    /// use greeners_models::model_selection::ModelSelection;
+    /// use greeners_diagnostics::model_selection::ModelSelection;
     ///
     /// let models = vec![
     ///     ("Model 1", -100.0, 3, 100),

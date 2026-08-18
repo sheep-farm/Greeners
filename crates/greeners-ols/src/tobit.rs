@@ -1,6 +1,6 @@
+use crate::ols::OLS;
 use greeners_core::error::GreenersError;
 use greeners_core::linalg::LinalgInverse as _;
-use greeners_ols::ols::OLS;
 use ndarray::{Array1, Array2};
 use statrs::distribution::{ContinuousCDF, Normal};
 use std::fmt;
@@ -157,7 +157,7 @@ impl Tobit {
         let mut beta = ols_init.params.clone();
         let init_sigma = {
             let resid = &y_unc - &x_unc.dot(&beta);
-            let ssr = resid.dot(&resid);
+            let ssr = resid.mapv(|r| r * r).sum();
             (ssr / (y_unc.len().saturating_sub(k)) as f64)
                 .sqrt()
                 .max(1e-6)

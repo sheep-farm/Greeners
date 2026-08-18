@@ -13,4 +13,5 @@ pub mod rlm;
 pub mod rolling;
 pub mod sur;
 pub mod three_sls;
+pub mod tobit;
 pub mod wls;

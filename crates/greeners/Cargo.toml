@@ -7,6 +7,9 @@ authors = ["Flávio de Vasconcellos Corrêa <contact@greeners.io>"]
 license = "MIT"
 repository = "https://github.com/sheep-farm/Greeners"
 
+[lib]
+crate-type = ["lib", "cdylib"]
+
 [dependencies]
 ndarray = "0.17.1"
 faer = "0.22"
@@ -30,14 +33,13 @@ greeners-glm = { path = "../greeners-glm" }
 greeners-panel = { path = "../greeners-panel" }
 greeners-timeseries = { path = "../greeners-timeseries" }
 greeners-ml = { path = "../greeners-ml" }
+greeners-bayesian = { path = "../greeners-bayesian" }
+greeners-causal = { path = "../greeners-causal" }
+greeners-diagnostics = { path = "../greeners-diagnostics" }
+greeners-imputation = { path = "../greeners-imputation" }
+greeners-spatial = { path = "../greeners-spatial" }
+greeners-survival = { path = "../greeners-survival" }
 greeners-models = { path = "../greeners-models" }
-
-[dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
-
-[[example]]
-name = "dataframe_loading"
-required-features = ["url"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json"], optional = true }
@@ -45,3 +47,10 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 [features]
 url = ["dep:reqwest", "greeners-core/url"]
 odre-ffi = []
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[example]]
+name = "dataframe_loading"
+required-features = ["url"]

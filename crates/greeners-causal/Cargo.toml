@@ -1,0 +1,31 @@
+[package]
+name = "greeners-causal"
+version = "2.0.0-proposal.1"
+rust-version = "1.84.0"
+edition = "2021"
+authors = ["Flávio de Vasconcellos Corrêa <contact@greeners.io>"]
+license = "MIT"
+repository = "https://github.com/sheep-farm/Greeners"
+
+[dependencies]
+ndarray = "0.17.1"
+faer = "0.22"
+thiserror = "1"
+statrs = "0.18.0"
+csv = "1.3"
+regex = "1"
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "1.0"
+rand = "0.8"
+rand_distr = "0.4"
+num-complex = "0.4.6"
+chrono = { version = "0.4", features = ["serde"] }
+argmin = "0.10.0"
+argmin-math = { version = "0.4", default-features = false, features = ["primitives", "vec"] }
+indexmap = { version = "2", features = ["serde"] }
+rayon = "1.10"
+greeners-core = { path = "../greeners-core" }
+greeners-ols = { path = "../greeners-ols" }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }

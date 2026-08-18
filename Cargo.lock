@@ -740,12 +740,18 @@ dependencies = [
  "criterion",
  "csv",
  "faer",
+ "greeners-bayesian",
+ "greeners-causal",
  "greeners-core",
+ "greeners-diagnostics",
  "greeners-glm",
+ "greeners-imputation",
  "greeners-ml",
  "greeners-models",
  "greeners-ols",
  "greeners-panel",
+ "greeners-spatial",
+ "greeners-survival",
  "greeners-timeseries",
  "indexmap",
  "ndarray",
@@ -755,6 +761,55 @@ dependencies = [
  "rayon",
  "regex",
  "reqwest",
+ "serde",
+ "serde_json",
+ "statrs",
+ "thiserror",
+]
+
+[[package]]
+name = "greeners-bayesian"
+version = "2.0.0-proposal.1"
+dependencies = [
+ "argmin",
+ "argmin-math",
+ "chrono",
+ "criterion",
+ "csv",
+ "faer",
+ "greeners-core",
+ "indexmap",
+ "ndarray",
+ "num-complex",
+ "rand",
+ "rand_distr",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_json",
+ "statrs",
+ "thiserror",
+]
+
+[[package]]
+name = "greeners-causal"
+version = "2.0.0-proposal.1"
+dependencies = [
+ "argmin",
+ "argmin-math",
+ "chrono",
+ "criterion",
+ "csv",
+ "faer",
+ "greeners-core",
+ "greeners-ols",
+ "indexmap",
+ "ndarray",
+ "num-complex",
+ "rand",
+ "rand_distr",
+ "rayon",
+ "regex",
  "serde",
  "serde_json",
  "statrs",
@@ -786,7 +841,58 @@ dependencies = [
 ]
 
 [[package]]
+name = "greeners-diagnostics"
+version = "2.0.0-proposal.1"
+dependencies = [
+ "argmin",
+ "argmin-math",
+ "chrono",
+ "criterion",
+ "csv",
+ "faer",
+ "greeners-core",
+ "greeners-glm",
+ "greeners-ols",
+ "indexmap",
+ "ndarray",
+ "num-complex",
+ "rand",
+ "rand_distr",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_json",
+ "statrs",
+ "thiserror",
+]
+
+[[package]]
 name = "greeners-glm"
+version = "2.0.0-proposal.1"
+dependencies = [
+ "argmin",
+ "argmin-math",
+ "chrono",
+ "criterion",
+ "csv",
+ "faer",
+ "greeners-core",
+ "greeners-ols",
+ "indexmap",
+ "ndarray",
+ "num-complex",
+ "rand",
+ "rand_distr",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_json",
+ "statrs",
+ "thiserror",
+]
+
+[[package]]
+name = "greeners-imputation"
 version = "2.0.0-proposal.1"
 dependencies = [
  "argmin",
@@ -897,6 +1003,54 @@ dependencies = [
  "faer",
  "greeners-core",
  "greeners-ols",
+ "indexmap",
+ "ndarray",
+ "num-complex",
+ "rand",
+ "rand_distr",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_json",
+ "statrs",
+ "thiserror",
+]
+
+[[package]]
+name = "greeners-spatial"
+version = "2.0.0-proposal.1"
+dependencies = [
+ "argmin",
+ "argmin-math",
+ "chrono",
+ "criterion",
+ "csv",
+ "faer",
+ "greeners-core",
+ "indexmap",
+ "ndarray",
+ "num-complex",
+ "rand",
+ "rand_distr",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_json",
+ "statrs",
+ "thiserror",
+]
+
+[[package]]
+name = "greeners-survival"
+version = "2.0.0-proposal.1"
+dependencies = [
+ "argmin",
+ "argmin-math",
+ "chrono",
+ "criterion",
+ "csv",
+ "faer",
+ "greeners-core",
  "indexmap",
  "ndarray",
  "num-complex",

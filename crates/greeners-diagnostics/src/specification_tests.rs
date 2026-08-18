@@ -22,7 +22,7 @@ impl SpecificationTests {
     /// - If p > 0.05: Fail to reject H₀, homoskedasticity is plausible
     ///
     /// ```rust
-    /// use greeners_models::specification_tests::SpecificationTests;
+    /// use greeners_diagnostics::specification_tests::SpecificationTests;
     /// use ndarray::{Array1, Array2};
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -126,7 +126,7 @@ impl SpecificationTests {
     /// - If p > 0.05: Fail to reject H₀, functional form appears adequate
     ///
     /// ```rust
-    /// use greeners_models::specification_tests::SpecificationTests;
+    /// use greeners_diagnostics::specification_tests::SpecificationTests;
     /// use ndarray::{Array1, Array2};
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -220,7 +220,7 @@ impl SpecificationTests {
     /// # Examples
     ///
     /// ```rust
-    /// use greeners_models::specification_tests::SpecificationTests;
+    /// use greeners_diagnostics::specification_tests::SpecificationTests;
     /// use ndarray::{Array1, Array2};
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {

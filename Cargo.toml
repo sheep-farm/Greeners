@@ -7,6 +7,12 @@ members = [
     "crates/greeners-panel",
     "crates/greeners-timeseries",
     "crates/greeners-ml",
+    "crates/greeners-bayesian",
+    "crates/greeners-causal",
+    "crates/greeners-spatial",
+    "crates/greeners-survival",
+    "crates/greeners-imputation",
+    "crates/greeners-diagnostics",
     "crates/greeners-models",
 ]
 resolver = "2"

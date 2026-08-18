@@ -98,7 +98,7 @@ impl DiffInDiff {
     ///
     /// # Examples
     /// ```no_run
-    /// use greeners_models::did::{DiffInDiff};
+    /// use greeners_causal::did::{DiffInDiff};
     /// use greeners_core::{DataFrame, Formula, CovarianceType};
     /// use ndarray::Array1;
     /// use indexmap::IndexMap;
