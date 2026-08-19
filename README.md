@@ -3,7 +3,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-2021-orange.svg)](https://www.rust-lang.org)
-[![Version](https://img.shields.io/badge/version-1.6.5--dev-blue.svg)](Cargo.toml)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](Cargo.toml)
 [![Examples](https://img.shields.io/badge/examples-59-green.svg)](examples/)
 
 > High-performance econometrics in Rust — statsmodels-grade coverage,
@@ -59,7 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```toml
 [dependencies]
-greeners = "1.5"
+greeners = "2.0.0"
 ```
 
 No system dependencies required.

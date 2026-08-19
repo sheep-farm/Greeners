@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0-proposal.1] - Unreleased
+## [2.0.0] - 2026-08-19
 
 ### Changed
 
@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `export` moved to the `greeners` facade (cross-cutting I/O utility).
 - Reorganized the `greeners` facade to re-export all sub-crate modules and their public items, with `pub mod export` for the cross-cutting export module.
 - Resolved test-only dependency cycles (e.g. removed `greeners-timeseries` from `greeners-panel` dependencies by splitting the `LocalLevel` test into `greeners-timeseries`).
+- Split the monolithic crate into a workspace of 13 published crates on crates.io, with the `greeners` facade crate aggregating them all.
+- Added `version` to internal path dependencies so each workspace crate can be published independently.
+- Added `description` metadata to all workspace crates.
 - Added `ARCHITECTURE.md` documenting crate responsibilities, dependency rules and the facade design.
 
 ## [1.6.5-dev] - Unreleased
@@ -58,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All `cargo doc` warnings (broken intra-doc links and unclosed HTML tags).
 - `cargo deny` now passes with an explicit license allowlist and documented ignores for the transitive `paste` and `instant` unmaintained advisories.
 
+[2.0.0]: https://github.com/sheep-farm/Greeners/releases/tag/v2.0.0
 [1.6.5-dev]: https://github.com/sheep-farm/Greeners/compare/v1.6.4...develop
 [1.6.3]: https://github.com/sheep-farm/Greeners/compare/v1.6.2...v1.6.3
 [1.6.0]: https://github.com/sheep-farm/Greeners/compare/v1.5.3...v1.6.0
