@@ -1585,6 +1585,12 @@ minimizes the SSR of a Fixed-Effects regression on the expanded design.
 - `pacf(k)` is computed via the Durbin-Levinson recursion.
 - ADF tests the null of a unit root by regressing `Δy_t` on `y_{t-1}` plus lagged
   differences and comparing the t-statistic to Dickey-Fuller critical values.
+- The asymmetric Christiano-Fitzgerald filter uses ideal band-pass weights
+  `B_0 = (b-a)/π` and `B_j = (sin(jb)-sin(ja))/(πj)`, where `a = 2π/high`
+  and `b = 2π/low`. At each observation, the unavailable tails are assigned
+  to the first and final sample observations using the random-walk endpoint
+  weights. If requested, the endpoint-to-endpoint linear drift is removed
+  before filtering.
 
 ### Invariants verified in `tests/timeseries_invariants.rs`
 
@@ -1595,7 +1601,10 @@ minimizes the SSR of a Fixed-Effects regression on the expanded design.
    lags.
 4. ADF rejects the unit-root null for a stationary AR(1) and fails to reject it
    for a random walk.
-5. Input validation: `nlags >= n` and too-short series are rejected.
+5. The Christiano-Fitzgerald cycle matches full-sample reference vectors from
+   statsmodels 0.14.6 and R mFilter 0.1-5 (`root=TRUE`, asymmetric filter),
+   both with and without drift removal.
+6. Input validation: `nlags >= n` and too-short series are rejected.
 
 ---
 
