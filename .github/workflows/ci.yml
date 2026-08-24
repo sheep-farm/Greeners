@@ -20,9 +20,6 @@ jobs:
         with:
           toolchain: 1.84.0
 
-      - name: Install cargo-deny
-        run: cargo install cargo-deny --locked
-
       - name: Check formatting
         run: cargo fmt --check
 
@@ -39,7 +36,7 @@ jobs:
         run: cargo test
 
       - name: Dependency / license / advisory audit
-        run: cargo deny check
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
 
       - name: Release build sanity check
         run: cargo build --release
