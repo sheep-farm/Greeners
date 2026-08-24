@@ -841,51 +841,47 @@ impl TimeSeries {
         let omega_high = 2.0 * std::f64::consts::PI / low as f64;
         let omega_low = 2.0 * std::f64::consts::PI / high as f64;
 
-        // Remove drift if requested
+        // Remove the sample endpoint drift before filtering, as specified by
+        // the random-walk-with-drift variant of the CF filter.
         let y = if drift {
             let drift_val = (series[n - 1] - series[0]) / (n - 1) as f64;
-            Array1::from_vec(
-                (0..n)
-                    .map(|t| series[t] - series[0] - drift_val * t as f64)
-                    .collect(),
-            )
+            Array1::from_vec((0..n).map(|t| series[t] - drift_val * t as f64).collect())
         } else {
             series.clone()
         };
 
-        // Ideal filter weights (for interior points, same as BK ideal)
-        // b_j = (sin(omega_high * j) - sin(omega_low * j)) / (pi * j), j != 0
-        // b_0 = (omega_high - omega_low) / pi
-        let compute_b = |j: i64| -> f64 {
-            if j == 0 {
-                (omega_high - omega_low) / std::f64::consts::PI
-            } else {
-                let jf = j as f64;
-                ((omega_high * jf).sin() - (omega_low * jf).sin()) / (std::f64::consts::PI * jf)
-            }
-        };
-
-        // For each time t, compute asymmetric CF weights
-        let mut cycle = Array1::<f64>::zeros(n);
-
-        for t in 0..n {
-            let mut val = 0.0;
-            // Weights for observations j = 0..n-1
-            // For the full CF filter under random walk:
-            // Use the recommended approach: compute B(t,s) for each t
-            // Simplified: use the symmetric ideal weights and adjust endpoints
-            for s in 0..n {
-                let j = (s as i64) - (t as i64);
-                let b = compute_b(j);
-                val += b * y[s];
-            }
-            // Normalize: subtract mean weight * mean(y) to ensure zero-frequency removal
-            cycle[t] = val;
+        // Ideal band-pass weights. The asymmetric finite-sample filter uses
+        // the available ideal weights at each observation and assigns the
+        // omitted tails to the two sample endpoints.
+        let b0 = (omega_high - omega_low) / std::f64::consts::PI;
+        let mut bj = Vec::with_capacity(n);
+        bj.push(b0);
+        for j in 1..n {
+            let jf = j as f64;
+            bj.push(
+                ((omega_high * jf).sin() - (omega_low * jf).sin()) / (std::f64::consts::PI * jf),
+            );
         }
 
-        // Apply endpoint correction: ensure cycle sums approximately to zero
-        let cycle_mean = cycle.mean().unwrap_or(0.0);
-        cycle.mapv_inplace(|v| v - cycle_mean);
+        let mut cycle = Array1::<f64>::zeros(n);
+        for t in 0..n {
+            let forward_count = n.saturating_sub(t + 2);
+            let backward_count = t.saturating_sub(1);
+
+            let forward_sum: f64 = bj[1..1 + forward_count].iter().sum();
+            let backward_sum: f64 = bj[1..1 + backward_count].iter().sum();
+            let last_weight = -0.5 * b0 - forward_sum;
+            let first_weight = -b0 - forward_sum - backward_sum - last_weight;
+
+            let mut value = b0 * y[t] + last_weight * y[n - 1] + first_weight * y[0];
+            for j in 1..=forward_count {
+                value += bj[j] * y[t + j];
+            }
+            for j in 1..=backward_count {
+                value += bj[j] * y[t - j];
+            }
+            cycle[t] = value;
+        }
 
         Ok(cycle)
     }
