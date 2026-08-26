@@ -784,10 +784,7 @@ impl DataFrame {
 
                 // Parse simple expressions: var^power or var**power
                 if expr.find('^').or_else(|| expr.find("**")).is_some() {
-                    let var_part;
-                    let power_part;
-
-                    if expr.contains("**") {
+                    let (var_part, power_part) = if expr.contains("**") {
                         let parts: Vec<&str> = expr.split("**").collect();
                         if parts.len() != 2 {
                             return Err(GreenersError::FormulaError(format!(
@@ -795,8 +792,7 @@ impl DataFrame {
                                 expr
                             )));
                         }
-                        var_part = parts[0].trim();
-                        power_part = parts[1].trim();
+                        (parts[0].trim(), parts[1].trim())
                     } else {
                         let parts: Vec<&str> = expr.split('^').collect();
                         if parts.len() != 2 {
@@ -805,9 +801,8 @@ impl DataFrame {
                                 expr
                             )));
                         }
-                        var_part = parts[0].trim();
-                        power_part = parts[1].trim();
-                    }
+                        (parts[0].trim(), parts[1].trim())
+                    };
 
                     let column = self.get_column(var_part)?;
                     let col_data = column.to_float();
