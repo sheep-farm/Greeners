@@ -1,0 +1,35 @@
+[package]
+name = "greeners-core"
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+description = { workspace = true }
+
+[dependencies]
+ndarray = { workspace = true }
+faer = { workspace = true }
+thiserror = { workspace = true }
+statrs = { workspace = true }
+csv = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rand = { workspace = true }
+rand_distr = { workspace = true }
+num-complex = { workspace = true }
+chrono = { workspace = true }
+argmin = { workspace = true }
+argmin-math = { workspace = true }
+indexmap = { workspace = true }
+rayon = { workspace = true }
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json"], optional = true }
+
+[features]
+url = ["dep:reqwest"]
+
+[dev-dependencies]
+criterion = { workspace = true }

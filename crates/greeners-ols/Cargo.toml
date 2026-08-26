@@ -1,0 +1,31 @@
+[package]
+name = "greeners-ols"
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+description = { workspace = true }
+
+[dependencies]
+ndarray = { workspace = true }
+faer = { workspace = true }
+thiserror = { workspace = true }
+statrs = { workspace = true }
+csv = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rand = { workspace = true }
+rand_distr = { workspace = true }
+num-complex = { workspace = true }
+chrono = { workspace = true }
+argmin = { workspace = true }
+argmin-math = { workspace = true }
+indexmap = { workspace = true }
+rayon = { workspace = true }
+greeners-core = { path = "../greeners-core", version = "2.0.0" }
+
+[dev-dependencies]
+criterion = { workspace = true }

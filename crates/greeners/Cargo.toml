@@ -1,0 +1,51 @@
+[package]
+name = "greeners"
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+description = { workspace = true }
+
+[dependencies]
+ndarray = { workspace = true }
+faer = { workspace = true }
+thiserror = { workspace = true }
+statrs = { workspace = true }
+csv = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rand = { workspace = true }
+rand_distr = { workspace = true }
+num-complex = { workspace = true }
+chrono = { workspace = true }
+argmin = { workspace = true }
+argmin-math = { workspace = true }
+indexmap = { workspace = true }
+rayon = { workspace = true }
+greeners-core = { path = "../greeners-core", version = "2.0.0" }
+greeners-ols = { path = "../greeners-ols", version = "2.0.0" }
+greeners-glm = { path = "../greeners-glm", version = "2.0.0" }
+greeners-panel = { path = "../greeners-panel", version = "2.0.0" }
+greeners-timeseries = { path = "../greeners-timeseries", version = "2.0.0" }
+greeners-ml = { path = "../greeners-ml", version = "2.0.0" }
+greeners-bayesian = { path = "../greeners-bayesian", version = "2.0.0" }
+greeners-causal = { path = "../greeners-causal", version = "2.0.0" }
+greeners-diagnostics = { path = "../greeners-diagnostics", version = "2.0.0" }
+greeners-imputation = { path = "../greeners-imputation", version = "2.0.0" }
+greeners-spatial = { path = "../greeners-spatial", version = "2.0.0" }
+greeners-survival = { path = "../greeners-survival", version = "2.0.0" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+reqwest = { workspace = true, optional = true }
+
+[features]
+url = ["dep:reqwest", "greeners-core/url"]
+
+[dev-dependencies]
+criterion = { workspace = true }
+[[example]]
+name = "dataframe_loading"
+required-features = ["url"]

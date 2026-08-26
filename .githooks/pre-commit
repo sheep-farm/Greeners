@@ -1,0 +1,26 @@
+#!/bin/sh
+# Local pre-commit hook for Greeners.
+# Run the same checks as the CI workflow before allowing a commit.
+
+set -e
+
+echo "Running cargo fmt --check..."
+cargo fmt --check
+
+echo "Running cargo clippy..."
+cargo clippy -- -D warnings
+
+echo "Checking facade is up to date..."
+python3 scripts/check_facade.py
+
+echo "Running cargo doc..."
+cargo doc
+
+echo "Running cargo test..."
+cargo test
+
+echo "Running cargo deny check..."
+cargo deny check
+
+echo "Running cargo build --release..."
+cargo build --release
