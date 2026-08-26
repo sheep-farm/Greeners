@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, "2.0-proposal/*"]
+    branches: [main, develop, "2.0-proposal/*"]
   pull_request:
-    branches: [main, "2.0-proposal/*"]
+    branches: [main, develop, "2.0-proposal/*"]
 
 env:
   CARGO_TERM_COLOR: always
@@ -13,13 +13,13 @@ jobs:
   lint-and-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: 1.84.0
-          components: rustfmt, clippy
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
 
       - name: Check formatting
         run: cargo fmt --check
@@ -37,7 +37,7 @@ jobs:
         run: cargo test
 
       - name: Dependency / license / advisory audit
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        run: cargo deny check
 
       - name: Release build sanity check
         run: cargo build --release
