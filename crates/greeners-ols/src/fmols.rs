@@ -98,7 +98,7 @@ impl FMOLS {
     ///
     /// # Arguments
     /// * `y` - Dependent variable I(1) (T)
-    /// * `x` - Regressors I(1) (T x k)
+    /// * `x` - Regressors I(1) (T x k), optionally containing a constant column
     /// * `variable_names` - Optional names
     pub fn fit(
         y: &Array1<f64>,
@@ -118,37 +118,76 @@ impl FMOLS {
             ));
         }
 
-        let names = variable_names.unwrap_or_else(|| (0..k).map(|i| format!("x{}", i)).collect());
-
-        // Step 1: OLS regression to get residuals
-        let mut z = Array2::zeros((t, k + 1));
-        for i in 0..t {
-            z[(i, 0)] = 1.0;
-            for j in 0..k {
-                z[(i, j + 1)] = x[(i, j)];
+        // Detect an existing constant column in x so we do not add a second one.
+        let mut has_const: bool = false;
+        let mut const_col: usize = 0;
+        for col in 0..k {
+            if x.column(col).iter().all(|v| (v - 1.0).abs() < 1e-9) {
+                has_const = true;
+                const_col = col;
+                break;
             }
         }
+
+        // x_i1 holds only the I(1) regressors (no constant).
+        let x_i1: Array2<f64> = if has_const {
+            let indices: Vec<usize> = (0..k).filter(|&i| i != const_col).collect();
+            x.select(ndarray::Axis(1), &indices)
+        } else {
+            x.clone()
+        };
+        let k_i1 = x_i1.ncols();
+
+        // Base names provided by the caller.
+        let base_names =
+            variable_names.unwrap_or_else(|| (0..k).map(|i| format!("x{}", i)).collect());
+
+        // Names for the I(1) regressors.
+        let names_i1: Vec<String> = if has_const {
+            if base_names.len() == k {
+                base_names
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| *i != const_col)
+                    .map(|(_, s)| s.clone())
+                    .collect()
+            } else if base_names.len() == k_i1 {
+                base_names
+            } else {
+                (0..k_i1).map(|i| format!("x{}", i)).collect()
+            }
+        } else {
+            base_names
+        };
+
+        // Design matrix z always has one constant column first, followed by I(1) x.
+        let mut z = Array2::zeros((t, k_i1 + 1));
+        for i in 0..t {
+            z[(i, 0)] = 1.0;
+            for j in 0..k_i1 {
+                z[(i, j + 1)] = x_i1[(i, j)];
+            }
+        }
+
         let zt = z.t();
         let ztz = zt.dot(&z);
-        let ztz_reg = &ztz + Array2::<f64>::eye(k + 1) * 1e-8;
+        let ztz_reg = &ztz + Array2::<f64>::eye(k_i1 + 1) * 1e-8;
         let ztz_inv = ztz_reg.inv()?;
         let zty = zt.dot(y);
         let ols_beta: Array1<f64> = ztz_inv.dot(&zty);
 
         let residuals = y - z.dot(&ols_beta);
 
-        // Step 2: Compute long-run covariance (Omega) via Bartlett kernel
         // Bandwidth: Newey-West automatic = floor(4 * (T/100)^(2/9))
         let bw = (4.0 * (t as f64 / 100.0).powf(2.0 / 9.0)) as usize;
         let bandwidth = bw.max(1);
 
-        // Combined residual + delta_x for long-run covariance
-        // u_t = [residual_t, delta_x_t']'
-        let mut combined = Array2::zeros((t - 1, k + 1));
+        // Long-run covariance of [residual_t, delta_x_i1_t']'
+        let mut combined = Array2::zeros((t - 1, k_i1 + 1));
         for i in 0..t - 1 {
             combined[(i, 0)] = residuals[i + 1]; // u_t (use t=1..T-1)
-            for j in 0..k {
-                combined[(i, j + 1)] = x[(i + 1, j)] - x[(i, j)]; // delta_x_t
+            for j in 0..k_i1 {
+                combined[(i, j + 1)] = x_i1[(i + 1, j)] - x_i1[(i, j)]; // delta_x_t
             }
         }
 
@@ -157,39 +196,38 @@ impl FMOLS {
         // Partition Omega:
         // Omega = [[Omega_uu, Omega_ux], [Omega_xu, Omega_xx]]
         let omega_uu = omega[(0, 0)];
-        let omega_ux: Array1<f64> = (0..k).map(|j| omega[(0, j + 1)]).collect();
-        let _omega_xu: Array1<f64> = (0..k).map(|j| omega[(j + 1, 0)]).collect();
-        let omega_xx: Array2<f64> = omega.slice(ndarray::s![1..k + 1, 1..k + 1]).to_owned();
+        let omega_ux: Array1<f64> = (0..k_i1).map(|j| omega[(0, j + 1)]).collect();
+        let _omega_xu: Array1<f64> = (0..k_i1).map(|j| omega[(j + 1, 0)]).collect();
+        let omega_xx: Array2<f64> = omega
+            .slice(ndarray::s![1..k_i1 + 1, 1..k_i1 + 1])
+            .to_owned();
 
-        let omega_xx_inv = (&omega_xx + Array2::<f64>::eye(k) * 1e-10).inv()?;
+        let omega_xx_inv = (&omega_xx + Array2::<f64>::eye(k_i1) * 1e-10).inv()?;
 
-        // Step 3: Compute correction term
-        // Delta_plus = Omega_ux - Omega_uu * 0 (simplified for no trend)
-        // y_t^+ = y_t - Omega_ux * Omega_xx^{-1} * delta_x_t (correction)
-        let correction_coef = omega_ux.insert_axis(ndarray::Axis(0)).dot(&omega_xx_inv); // (1 x k)
+        // Compute correction term
+        let correction_coef = omega_ux.insert_axis(ndarray::Axis(0)).dot(&omega_xx_inv); // (1 x k_i1)
 
         // Build corrected y
         let mut y_plus = y.clone();
         for i in 1..t {
-            let delta_x = x.row(i).to_owned() - x.row(i - 1);
+            let delta_x = x_i1.row(i).to_owned() - x_i1.row(i - 1);
             let corr = correction_coef.dot(&delta_x);
             y_plus[i] -= corr[0];
         }
 
-        // Step 4: FMOLS regression on corrected y
+        // FMOLS regression on corrected y
         let zty_plus = zt.dot(&y_plus);
         let fmols_beta: Array1<f64> = ztz_inv.dot(&zty_plus);
 
         let alpha = fmols_beta[0];
-        let beta = fmols_beta.slice(ndarray::s![1..k + 1]).to_owned();
+        let beta = fmols_beta.slice(ndarray::s![1..k_i1 + 1]).to_owned();
 
-        // Step 5: Standard errors
-        // FMOLS variance: Omega_uu * (Z'Z)^{-1} (simplified)
+        // Standard errors
         let sigma_uu = omega_uu;
         let cov = &ztz_inv * sigma_uu;
         let std_errors = cov.diag().mapv(|v| v.sqrt());
         let alpha_se = std_errors[0];
-        let beta_se = std_errors.slice(ndarray::s![1..k + 1]).to_owned();
+        let beta_se = std_errors.slice(ndarray::s![1..k_i1 + 1]).to_owned();
 
         let t_values = &beta / &beta_se;
         let normal =
@@ -212,9 +250,9 @@ impl FMOLS {
             omega,
             r_squared,
             n_obs: t,
-            n_regressors: k,
+            n_regressors: k_i1,
             bandwidth,
-            variable_names: names,
+            variable_names: names_i1,
         })
     }
 
