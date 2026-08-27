@@ -4,6 +4,7 @@
 // Items with names duplicated across modules remain namespaced.
 
 pub use dynamic_panel::{ArellanoBond, ArellanoBondResult, SystemGmm, SystemGmmResult};
+#[cfg(feature = "experimental")]
 pub use fa_panel::{FAPanel, FaPanelResult};
 pub use hausman::HausmanTest;
 pub use panel::{
@@ -19,6 +20,7 @@ pub use pstr::{PstrResult, PSTR};
 pub use threshold::{PanelThreshold, ThresholdResult};
 
 pub mod dynamic_panel;
+#[cfg(feature = "experimental")]
 pub mod fa_panel;
 pub mod hausman;
 pub mod panel;

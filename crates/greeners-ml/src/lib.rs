@@ -15,6 +15,7 @@ pub use orthogonal_forest::{OrfResult, OrthogonalForest};
 pub use qrf::{QrfResult, QRF};
 pub use qrf_inference::{QrfInference, QrfInferenceResult};
 pub use random_forest::{RandomForest, RandomForestResult};
+#[cfg(feature = "experimental")]
 pub use transformer::{Transformer, TransformerResult};
 pub use tsne::{TsneResult, TSNE};
 pub use umap::{UmapResult, UMAP};
@@ -32,6 +33,7 @@ pub mod orthogonal_forest;
 pub mod qrf;
 pub mod qrf_inference;
 pub mod random_forest;
+#[cfg(feature = "experimental")]
 pub mod transformer;
 pub mod tsne;
 pub mod umap;

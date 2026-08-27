@@ -29,6 +29,7 @@ rayon = { workspace = true }
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json"], optional = true }
 
 [features]
+experimental = []
 url = ["dep:reqwest"]
 
 [dev-dependencies]

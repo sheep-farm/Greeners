@@ -14,7 +14,9 @@ pub use ets::{
 };
 pub use garch::{GarchDist, GarchModelType, GarchResult, EGARCH, GARCH, GJRGARCH};
 pub use hawkes::{Hawkes, HawkesResult};
+#[cfg(feature = "experimental")]
 pub use johansen_break::{JohansenBreak, JohansenBreakResult};
+#[cfg(feature = "experimental")]
 pub use lstm::{LstmResult, LSTM};
 pub use markov::{MarkovSwitching, MarkovSwitchingResult};
 pub use markov_autoreg::{MarkovAutoregResult, MarkovAutoregression};
@@ -24,6 +26,7 @@ pub use mstl::{MSTLResult, MSTL};
 pub use nardl::{NardlResult, NARDL};
 pub use quantile_var::{QuantileVAR, QuantileVarResult};
 pub use setar::{SetarResult, SETAR};
+#[cfg(feature = "experimental")]
 pub use spectral::{SpectralClustering, SpectralResult};
 pub use statespace::{
     state_space_estimate, KalmanFilter, KalmanResult, KalmanSmoother, LocalLevel, LocalLevelResult,
@@ -36,9 +39,11 @@ pub use timeseries::{
     AdfResult, ArchTestResult, EngleGrangerResult, GrangerResult, JohansenResult, KpssResult,
     LjungBoxResult, PhillipsPerronResult, TimeSeries, ZivotAndrewsResult,
 };
+#[cfg(feature = "experimental")]
 pub use tv_copula::{TvCopula, TvCopulaResult, TvCopulaType};
 pub use tvar::{TvarResult, TVAR};
 pub use tvp::{TvpResult, TVP};
+#[cfg(feature = "experimental")]
 pub use tvp_var::{TvpVar, TvpVarResult};
 pub use unobserved_components::{UCLevel, UCResult, UCSeasonal, UnobservedComponents};
 pub use var::{VarResult, VAR};
@@ -55,7 +60,9 @@ pub mod dynamic_factor;
 pub mod ets;
 pub mod garch;
 pub mod hawkes;
+#[cfg(feature = "experimental")]
 pub mod johansen_break;
+#[cfg(feature = "experimental")]
 pub mod lstm;
 pub mod markov;
 pub mod markov_autoreg;
@@ -65,15 +72,18 @@ pub mod mstl;
 pub mod nardl;
 pub mod quantile_var;
 pub mod setar;
+#[cfg(feature = "experimental")]
 pub mod spectral;
 pub mod statespace;
 pub mod stochastic_frontier;
 pub mod sv;
 pub mod svar;
 pub mod timeseries;
+#[cfg(feature = "experimental")]
 pub mod tv_copula;
 pub mod tvar;
 pub mod tvp;
+#[cfg(feature = "experimental")]
 pub mod tvp_var;
 pub mod unobserved_components;
 pub mod var;

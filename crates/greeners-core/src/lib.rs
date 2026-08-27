@@ -14,6 +14,7 @@ pub use descrstatsw::DescrStatsW;
 pub use distributions::{chi2_pvalue, f_pvalue, logistic, norm_pdf, t_pvalue_two, t_quantile};
 pub use error::GreenersError;
 pub use formula::Formula;
+#[cfg(feature = "experimental")]
 pub use functional_coef::{FunctionalCoef, FunctionalCoefResult, KernelType};
 pub use gmm_clustering::{GmmClustering, GmmResult};
 pub use isotonic::{IsotonicRegression, IsotonicResult};
@@ -50,6 +51,7 @@ pub mod descrstatsw;
 pub mod distributions;
 pub mod error;
 pub mod formula;
+#[cfg(feature = "experimental")]
 pub mod functional_coef;
 pub mod gmm_clustering;
 pub mod isotonic;
