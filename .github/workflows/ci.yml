@@ -25,7 +25,7 @@ jobs:
         run: cargo fmt --check
 
       - name: Run clippy
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --locked -- -D warnings
 
       - name: Check facade is up to date
         run: python3 scripts/check_facade.py
@@ -34,10 +34,21 @@ jobs:
         run: cargo doc
 
       - name: Run tests
-        run: cargo test
+        run: cargo test --locked
 
       - name: Dependency / license / advisory audit
         run: cargo deny check
 
       - name: Release build sanity check
-        run: cargo build --release
+        run: cargo build --release --locked
+
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install MSRV toolchain
+        uses: dtolnay/rust-toolchain@1.85.0
+
+      - name: Check the declared rust-version still builds
+        run: cargo check --workspace --locked

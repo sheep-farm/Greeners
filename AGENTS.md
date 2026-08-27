@@ -49,39 +49,56 @@ cargo test --test smoke
 The Hayashi smoke suite contains many model-specific smoke tests that
 exercise the same estimators through the `hay` language.
 
-## Freeze mode (from 1.6.0)
+## Release model (from 2.0.0)
 
-Greeners is in **multi-year freeze** after the `v1.6.0` release. The goal is
-for the numerical engine to remain stable while Hayashi matures on its side.
+The `1.6.x` freeze ended with the 2.0 workspace restructure. Greeners now moves
+on its own release train and Hayashi follows it deliberately, so development
+speed here never changes Hayashi's numbers by accident.
 
-### What the freeze means
+### Branches
 
-- `main` is release-only. Only critical bug fixes and security/dependency
-  updates may be merged through short-lived `hotfix/*` branches and released
-  as `1.6.x` patch versions.
-- No new estimators, no breaking API changes, and no MSRV changes on the
-  `1.6.x` line. This freeze is expected to last for years.
-- Work that would require new mathematics in Greeners should be deferred to
-  a future `2.0` release, not squeezed into `1.6.x`.
+- `develop`: integration branch, where all work lands. Ships as the next minor
+  (`2.1.0`, `2.2.0`).
+- `main`: release-only. Every release is tagged (`vX.Y.Z`) from its tip.
+- `release/2.x`: maintenance line for whatever Hayashi is pinned to. Receives
+  cherry-picks only, released as `2.x.Z` patches.
 
-### What Hayashi can still do without unfreezing Greeners
+### Versioning rules
 
-Most remaining Hayashi work lives in the interpreter layer and does not need
-Greeners changes:
+- **A change that alters numerical output is a minor, never a patch.** It keeps
+  the API intact but breaks goldens and published results downstream, so it must
+  never arrive through a `cargo update`. The Christiano-Fitzgerald filter fix is
+  the reference case.
+- Patches (`2.x.Z`) are for changes that cannot move a coefficient: build fixes,
+  advisories, docs. Cherry-pick a numerical fix into a patch only when a
+  consumer is actively hurt by the bug, and say so in the CHANGELOG.
+- `rust-version` is part of the published contract: raise it in its own PR, with
+  the new floor verified (`cargo +<msrv> check --workspace --locked`), and treat
+  it as at least a minor. Current MSRV is `1.85.0` — the resolved graph pulls
+  `edition2024` manifests, which Cargo 1.84 cannot parse.
+- Inside `2.x`, do not change the signatures of the public `*Result` types and
+  facade items Hayashi consumes; add fields/items instead. Breaking them is 3.0.
 
-- Add or fix Hayashi dispatch for estimators that already exist in Greeners
-  (e.g. `be` / `BetweenEstimator` is already in `src/panel.rs`).
-- Add validation cases, documentation, and smoke tests.
-- Extend post-estimation commands that only re-use existing `*Result` fields.
+### Consumer contract (Hayashi)
 
-### What would break the freeze
+- Hayashi pins the facade exactly (`greeners = "=2.0.0"`) with a committed
+  `Cargo.lock` and `--locked` in CI, so nothing here reaches it until someone
+  bumps the pin.
+- To get a fix into Hayashi without touching its version: release the sub-crate
+  patch from `release/2.x` and let Hayashi run
+  `cargo update -p greeners-<crate> --precise <version>`.
+- For QA against unreleased work, do not spend a version number: patch the
+  source in Hayashi's checkout with
+  `[patch.crates-io] greeners = { path = "../Greeners/crates/greeners" }` and run
+  `cargo test --test smoke`. A `[patch]`-resolved crate cannot be published, so
+  this is a testing tool only. Pre-releases (`2.1.0-rc.N`) are the option when
+  Hayashi needs to consume unreleased work for longer; they are never selected by
+  a caret requirement, and must never appear in a published Hayashi release.
 
-- New algorithms or new estimator families (e.g. non-Cholesky SVAR
-  identification, richer structural Kalman models).
-- Changes to public `struct`/`Result` signatures consumed by Hayashi.
-- Raising or lowering `rust-version`.
-- Removing or replacing existing dependencies in a way that changes the public
-  API or MSRV.
+### Reference values belong here
 
-If a change falls into the second list, open a `2.0` proposal instead of a
-`1.6.x` pull request.
+The mathematics lives in Greeners, so the reference vectors (statsmodels/R) live
+next to the estimator, in `crates/<crate>/tests/`. Algebraic invariants alone do
+not catch "implemented a different algorithm than documented" — that is exactly
+how the CF filter bug survived. Hayashi's tests cover the bridge (formula →
+design matrix → display), not numerical accuracy.

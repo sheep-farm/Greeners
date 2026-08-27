@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced the obsolete `1.6.x` freeze section of `AGENTS.md` with the 2.x release
+  model: branch roles, "a numerical change is a minor, never a patch", the MSRV
+  policy, and how a fix reaches Hayashi without moving its version.
+- CI: added `--locked` to clippy/test/release build and a dedicated MSRV job that
+  checks the workspace with the declared toolchain.
 - MSRV raised to `1.85.0`: the resolved dependency graph (`hashbrown 0.17`) ships
   `edition2024` manifests, which Cargo 1.84 cannot parse. Verified by building the
   workspace and its test targets with the 1.85.0 toolchain.
