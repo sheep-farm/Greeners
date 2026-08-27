@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- MSRV raised to `1.85.0`: the resolved dependency graph (`hashbrown 0.17`) ships
+  `edition2024` manifests, which Cargo 1.84 cannot parse. Verified by building the
+  workspace and its test targets with the 1.85.0 toolchain.
 - Workspace inheritance: centralized `version`, `rust-version`, `edition`, `authors`, `license`, `repository` and common dependency versions in the root `Cargo.toml`.
 - Removed the catch-all `greeners-models` crate.
   - `gmm` and `nls` moved to `greeners-ols`.
