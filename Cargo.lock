@@ -732,7 +732,7 @@ dependencies = [
 
 [[package]]
 name = "greeners"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "argmin",
  "argmin-math",
@@ -768,7 +768,7 @@ dependencies = [
 
 [[package]]
 name = "greeners-bayesian"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "argmin",
  "argmin-math",
@@ -792,7 +792,7 @@ dependencies = [
 
 [[package]]
 name = "greeners-causal"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "argmin",
  "argmin-math",
@@ -817,7 +817,7 @@ dependencies = [
 
 [[package]]
 name = "greeners-core"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "argmin",
  "argmin-math",
@@ -841,7 +841,7 @@ dependencies = [
 
 [[package]]
 name = "greeners-diagnostics"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "argmin",
  "argmin-math",
@@ -867,7 +867,7 @@ dependencies = [
 
 [[package]]
 name = "greeners-glm"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "argmin",
  "argmin-math",
@@ -892,7 +892,7 @@ dependencies = [
 
 [[package]]
 name = "greeners-imputation"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "argmin",
  "argmin-math",
@@ -917,7 +917,7 @@ dependencies = [
 
 [[package]]
 name = "greeners-ml"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "argmin",
  "argmin-math",
@@ -941,7 +941,7 @@ dependencies = [
 
 [[package]]
 name = "greeners-ols"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "argmin",
  "argmin-math",
@@ -965,7 +965,7 @@ dependencies = [
 
 [[package]]
 name = "greeners-panel"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "argmin",
  "argmin-math",
@@ -990,7 +990,7 @@ dependencies = [
 
 [[package]]
 name = "greeners-spatial"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "argmin",
  "argmin-math",
@@ -1014,7 +1014,7 @@ dependencies = [
 
 [[package]]
 name = "greeners-survival"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "argmin",
  "argmin-math",
@@ -1038,7 +1038,7 @@ dependencies = [
 
 [[package]]
 name = "greeners-timeseries"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "argmin",
  "argmin-math",
