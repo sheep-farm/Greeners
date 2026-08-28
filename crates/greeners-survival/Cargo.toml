@@ -25,7 +25,7 @@ argmin = { workspace = true }
 argmin-math = { workspace = true }
 indexmap = { workspace = true }
 rayon = { workspace = true }
-greeners-core = { path = "../greeners-core", version = "2.0.1" }
+greeners-core = { path = "../greeners-core", version = "2.0.2-dev" }
 
 [dev-dependencies]
 criterion = { workspace = true }

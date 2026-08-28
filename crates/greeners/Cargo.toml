@@ -25,18 +25,18 @@ argmin = { workspace = true }
 argmin-math = { workspace = true }
 indexmap = { workspace = true }
 rayon = { workspace = true }
-greeners-core = { path = "../greeners-core", version = "2.0.1" }
-greeners-ols = { path = "../greeners-ols", version = "2.0.1" }
-greeners-glm = { path = "../greeners-glm", version = "2.0.1" }
-greeners-panel = { path = "../greeners-panel", version = "2.0.1" }
-greeners-timeseries = { path = "../greeners-timeseries", version = "2.0.1" }
-greeners-ml = { path = "../greeners-ml", version = "2.0.1" }
-greeners-bayesian = { path = "../greeners-bayesian", version = "2.0.1" }
-greeners-causal = { path = "../greeners-causal", version = "2.0.1" }
-greeners-diagnostics = { path = "../greeners-diagnostics", version = "2.0.1" }
-greeners-imputation = { path = "../greeners-imputation", version = "2.0.1" }
-greeners-spatial = { path = "../greeners-spatial", version = "2.0.1", optional = true }
-greeners-survival = { path = "../greeners-survival", version = "2.0.1" }
+greeners-core = { path = "../greeners-core", version = "2.0.2-dev" }
+greeners-ols = { path = "../greeners-ols", version = "2.0.2-dev" }
+greeners-glm = { path = "../greeners-glm", version = "2.0.2-dev" }
+greeners-panel = { path = "../greeners-panel", version = "2.0.2-dev" }
+greeners-timeseries = { path = "../greeners-timeseries", version = "2.0.2-dev" }
+greeners-ml = { path = "../greeners-ml", version = "2.0.2-dev" }
+greeners-bayesian = { path = "../greeners-bayesian", version = "2.0.2-dev" }
+greeners-causal = { path = "../greeners-causal", version = "2.0.2-dev" }
+greeners-diagnostics = { path = "../greeners-diagnostics", version = "2.0.2-dev" }
+greeners-imputation = { path = "../greeners-imputation", version = "2.0.2-dev" }
+greeners-spatial = { path = "../greeners-spatial", version = "2.0.2-dev", optional = true }
+greeners-survival = { path = "../greeners-survival", version = "2.0.2-dev" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 reqwest = { workspace = true, optional = true }
