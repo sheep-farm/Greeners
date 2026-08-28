@@ -11,7 +11,7 @@
 //! parameter, OLS for β.
 
 use greeners_core::error::GreenersError;
-use greeners_core::linalg::LinalgInverse as _;
+use greeners_core::linalg::{LinalgDeterminant as _, LinalgInverse as _};
 use ndarray::{Array1, Array2};
 use statrs::distribution::{ContinuousCDF, Normal};
 use std::fmt;
@@ -378,37 +378,39 @@ impl SpatialPanel {
         let n = y_dm.len();
         let k = x_dm.ncols();
 
+        // Keep the spatial parameter inside the invertible range.
+        let sp = sp.clamp(-0.99, 0.99);
+
+        // Jacobian of the spatial filter (I - sp W) for both SAR and SEM.
+        let i_spw = Array2::eye(n) - sp * w;
+        let log_det = i_spw.det()?.abs().max(1e-300).ln();
+
         let (_beta, residuals) = if model_type == "sar" {
-            let wy = w.dot(y_dm);
-            let y_star = y_dm.clone() - sp * &wy;
+            let y_star = i_spw.dot(y_dm);
             let xt = x_dm.t();
             let xtx = xt.dot(x_dm);
-            // Regularized inverse to avoid singularity
             let xtx_reg = &xtx + Array2::eye(k) * 1e-8;
             let xtx_inv = xtx_reg.inv()?;
             let xty = xt.dot(&y_star);
             let beta: Array1<f64> = xtx_inv.dot(&xty);
-            let fitted = x_dm.dot(&beta) + sp * &wy;
-            let res = y_dm.clone() - fitted;
+            let res = y_star - x_dm.dot(&beta);
             (beta, res)
         } else {
-            let i_minus_lw = Array2::eye(n) - sp * w;
-            let x_trans = i_minus_lw.dot(x_dm);
-            let y_trans = i_minus_lw.dot(y_dm);
+            let y_trans = i_spw.dot(y_dm);
+            let x_trans = i_spw.dot(x_dm);
             let xt = x_trans.t();
             let xtx = xt.dot(&x_trans);
             let xtx_reg = &xtx + Array2::eye(k) * 1e-8;
             let xtx_inv = xtx_reg.inv()?;
             let xty = xt.dot(&y_trans);
             let beta: Array1<f64> = xtx_inv.dot(&xty);
-            let res = y_dm.clone() - x_dm.dot(&beta);
+            let res = y_trans - x_trans.dot(&beta);
             (beta, res)
         };
 
         let rss = residuals.dot(&residuals);
         let sigma2 = rss / n as f64;
 
-        let log_det = -(n as f64) * (1.0 - sp * sp).max(1e-10).ln() / 2.0;
         let ll = log_det
             - n as f64 / 2.0 * (2.0 * std::f64::consts::PI * sigma2).ln()
             - rss / (2.0 * sigma2);
