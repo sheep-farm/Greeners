@@ -299,7 +299,7 @@ fn test_display() {
 // ============================================================
 #[test]
 fn test_with_inference() {
-    let y = Array1::from(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+    let y = Array1::from(vec![1.0, 2.1, 3.0, 3.9, 5.1, 6.0, 7.2, 7.9, 9.1, 10.0]);
     let x = with_intercept(
         &Array2::from_shape_vec(
             (10, 1),
@@ -312,6 +312,37 @@ fn test_with_inference() {
     let res_t = res.with_inference(InferenceType::StudentT).unwrap();
 
     assert_eq!(res_t.inference_type, InferenceType::StudentT);
+    assert_eq!(res_t.df_resid, 8);
+    assert!(res_t
+        .std_errors
+        .iter()
+        .all(|&se| se.is_finite() && se > 0.0));
+    // Independent R 4.6.1 lm/summary and confint on this fixed Gaussian sample.
+    assert!((res_t.p_values[0] - 0.7781225676373942).abs() < 1e-10);
+    assert!((res_t.p_values[1] - 2.462002792736231e-13).abs() < 1e-20);
+    for (i, (lower, upper)) in [
+        (-0.13824449802521738, 0.17824449802521414),
+        (0.9763147717303043, 1.0273215919060594),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert!((res_t.conf_lower[i] - lower).abs() < 1e-8);
+        assert!((res_t.conf_upper[i] - upper).abs() < 1e-8);
+    }
+}
+
+#[test]
+fn test_zero_response_inference_is_unavailable() {
+    let y = Array1::zeros(10);
+    let x = with_intercept(
+        &Array2::from_shape_vec((10, 1), (1..=10).map(f64::from).collect()).unwrap(),
+    );
+    let fit = GLM::fit(&y, &x, Family::Gaussian, CovarianceType::NonRobust).unwrap();
+    let error = fit.with_inference(InferenceType::StudentT).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("Coefficient inference contains invalid estimates, errors or statistics"));
 }
 
 // ============================================================

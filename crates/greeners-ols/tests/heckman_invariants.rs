@@ -94,7 +94,9 @@ fn test_heckman_input_validation() {
     let x_sel = Array2::from_shape_vec((5, 1), vec![1.0; 5]).unwrap();
 
     let z_good = Array1::from(vec![0.0, 0.0, 1.0, 1.0, 1.0]);
-    let _ = Heckman::fit(&y, &x_out, &z_good, &x_sel, None, None).unwrap();
+    // Intercept-only selection gives a constant Mills ratio, so its outcome
+    // coefficient cannot be identified separately from the outcome intercept.
+    assert!(Heckman::fit(&y, &x_out, &z_good, &x_sel, None, None).is_err());
 
     let z_bad = Array1::from(vec![0.0, 2.0, 1.0, 1.0, 1.0]);
     assert!(Heckman::fit(&y, &x_out, &z_bad, &x_sel, None, None).is_err());

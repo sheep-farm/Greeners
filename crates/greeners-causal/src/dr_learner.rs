@@ -1,26 +1,24 @@
-//! Doubly-Robust Learner (DR-learner, Kennedy 2023).
+//! Doubly robust conditional average treatment effect estimation (Kennedy, 2023).
 //!
-//! A meta-learning approach for CATE estimation that combines
-//! doubly-robust pseudo-outcomes with regression. Unlike GRF
-//! (which uses forests), DR-learner uses any base learner for
-//! the final CATE regression.
+//! Cross-fitted linear models estimate the treatment propensity and the two
+//! treatment-specific outcome means. The augmented inverse-probability score is
+//! regressed on covariates for CATE, and averaged for ATE. Identification requires
+//! independent observations, consistency, conditional exchangeability and overlap.
 //!
-//! Procedure:
-//! 1. Split sample into 3 folds: A (nuisance), B (CATE), C (evaluation)
-//! 2. On fold A: estimate m(X) = E[Y
-//! 3. On fold B: compute DR pseudo-outcome:
-//!    psi_i = (m_A(X_i) + T_i*(Y_i - m_A(X_i))/e_A(X_i))
-//!    minus (m_A(X_i) + (1-T_i)*(Y_i - m_A(X_i))/(1-e_A(X_i)))
-//!    Then regress psi_i on X_i to get CATE model
-//! 4. On fold C: evaluate CATE model, compute ATE
-//! 5. Rotate folds and average
+//! Propensities are clipped to [0.01, 0.99]. Clipping is a numerical safeguard,
+//! not an overlap diagnostic; it can invalidate propensity-model consistency.
+//! Point estimates remain doubly robust when either the outcome models or the
+//! bounded propensity model is correct. The reported influence-score SE and Wald
+//! interval require BOTH nuisance functions to be consistently estimated at
+//! adequate product rates; double robustness of the point estimate does not
+//! qualify those intervals under misspecification.
 //!
-//I'm sorry. Doubtly robust: consistant if other m(X) or(X) is correct.
+//! Reference: [Kennedy (2023), Algorithm 1](https://arxiv.org/abs/2004.14497).
 
-use greeners_core::linalg::LinalgInverse as _;
+use faer::{linalg::solvers::Svd, Mat};
 use greeners_core::GreenersError;
 use ndarray::{Array1, Array2};
-use statrs::distribution::Normal;
+use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use std::fmt;
 
 /// Result of DR-learner estimation.
@@ -30,13 +28,13 @@ pub struct DrLearnerResult {
     pub cate: Array1<f64>,
     /// ATE (averaged DR pseudo-outcomes)
     pub ate: f64,
-    /// Standard error of ATE
+    /// Conventional influence-score SE; requires consistent outcome and propensity models.
     pub ate_se: f64,
     /// 95% CI for ATE
     pub ate_ci: [f64; 2],
     /// Propensity score e(X) (n)
     pub propensity: Array1<f64>,
-    /// Outcome regression m(X) (n)
+    /// Cross-fitted factual conditional mean: D*mu1(X) + (1-D)*mu0(X).
     pub outcome_reg: Array1<f64>,
     /// CATE regression coefficients
     pub cate_coefficients: Array1<f64>,
@@ -55,6 +53,10 @@ impl fmt::Display for DrLearnerResult {
         writeln!(f, "\n{:=^78}", " DR-Learner ")?;
         writeln!(f, "Kennedy (2023)")?;
         writeln!(f, "Doubly-robust CATE via pseudo-outcome regression")?;
+        writeln!(
+            f,
+            "Wald inference requires consistent outcome and propensity models."
+        )?;
         writeln!(f, "{:<20} {:>12}", "Observations:", self.n_obs)?;
         writeln!(f, "{:<20} {:>12}", "Features:", self.n_features)?;
         writeln!(f, "{:<20} {:>12}", "Folds:", self.n_folds)?;
@@ -110,7 +112,8 @@ impl DRLearner {
     /// * `y` - Outcome (n)
     /// * `t` - Treatment indicator (n), true if treated
     /// * `x` - Features (n x k)
-    /// * `n_folds` - Number of cross-fitting folds (default 3)
+    /// * `n_folds` - Number of cross-fitting folds (default 3, at least 2).
+    ///   Fits use a local seed 2236067977, independent of previous estimator calls.
     /// * `variable_names` - Optional feature names
     pub fn fit(
         y: &Array1<f64>,
@@ -132,6 +135,25 @@ impl DRLearner {
             ));
         }
 
+        if y.iter().chain(x.iter()).any(|v| !v.is_finite()) {
+            return Err(GreenersError::InvalidOperation(
+                "DRLearner: outcomes and features must be finite".into(),
+            ));
+        }
+        if n_folds.is_some_and(|folds| folds < 2) {
+            return Err(GreenersError::InvalidOperation(
+                "DRLearner: cross-fitting requires at least two folds".into(),
+            ));
+        }
+        if variable_names
+            .as_ref()
+            .is_some_and(|names| names.len() != k)
+        {
+            return Err(GreenersError::ShapeMismatch(
+                "DRLearner: need one name per feature".into(),
+            ));
+        }
+
         let n_treated = t.iter().filter(|&&t| t).count();
         let n_control = n - n_treated;
         if n_treated < 5 || n_control < 5 {
@@ -145,10 +167,7 @@ impl DRLearner {
 
         // Create fold assignments (shuffle then split)
         let mut indices: Vec<usize> = (0..n).collect();
-        for i in 0..n {
-            let j = i + Self::rand_int(n - i);
-            indices.swap(i, j);
-        }
+        indices.shuffle(&mut StdRng::seed_from_u64(2236067977));
         let fold_size = n / folds;
         let fold_of: Vec<usize> = (0..n)
             .map(|i| (i / fold_size.max(1)).min(folds - 1))
@@ -164,37 +183,54 @@ impl DRLearner {
         let mut m_hat_all = Array1::zeros(n);
         let mut e_hat_all = Array1::zeros(n);
 
+        let t_vec: Array1<f64> = t.iter().map(|&treated| f64::from(treated)).collect();
         for fold in 0..folds {
             // Nuisance fold = all other folds
             let nuisance_idx: Vec<usize> = (0..n).filter(|&i| fold_assignment[i] != fold).collect();
             let cate_idx: Vec<usize> = (0..n).filter(|&i| fold_assignment[i] == fold).collect();
 
             if nuisance_idx.is_empty() || cate_idx.is_empty() {
-                continue;
+                return Err(GreenersError::InvalidOperation(
+                    "DRLearner: empty training or evaluation fold".into(),
+                ));
             }
 
-            //Estimate m(X) and e(X) on nuisance fold
-            let m_beta = Self::ols_subset(y, x, &nuisance_idx, k)?;
-            let t_vec: Array1<f64> = t.iter().map(|&t| if t { 1.0 } else { 0.0 }).collect();
+            let treated: Vec<usize> = nuisance_idx.iter().copied().filter(|&i| t[i]).collect();
+            let control: Vec<usize> = nuisance_idx.iter().copied().filter(|&i| !t[i]).collect();
+            let mu1_beta = Self::ols_subset(y, x, &treated, k)?;
+            let mu0_beta = Self::ols_subset(y, x, &control, k)?;
             let e_beta = Self::ols_subset(&t_vec, x, &nuisance_idx, k)?;
 
             // Predict on CATE fold
             for &i in &cate_idx {
-                let m_pred = Self::predict_ols(&m_beta, &x.row(i).to_owned(), k);
-                let e_pred = Self::predict_ols(&e_beta, &x.row(i).to_owned(), k).clamp(0.01, 0.99);
-                m_hat_all[i] = m_pred;
+                let mu1 = Self::predict_ols(&mu1_beta, &x.row(i).to_owned(), k);
+                let mu0 = Self::predict_ols(&mu0_beta, &x.row(i).to_owned(), k);
+                let propensity = Self::predict_ols(&e_beta, &x.row(i).to_owned(), k);
+                if !propensity.is_finite() {
+                    return Err(GreenersError::InvalidOperation(
+                        "DRLearner: non-finite propensity prediction".into(),
+                    ));
+                }
+                let e_pred = propensity.clamp(0.01, 0.99);
+                m_hat_all[i] = if t[i] { mu1 } else { mu0 };
                 e_hat_all[i] = e_pred;
 
                 // DR pseudo-outcome
                 let ti = if t[i] { 1.0 } else { 0.0 };
-                let psi = (m_pred + ti * (y[i] - m_pred) / e_pred)
-                    - (m_pred + (1.0 - ti) * (y[i] - m_pred) / (1.0 - e_pred));
+                let psi = mu1 - mu0 + ti * (y[i] - mu1) / e_pred
+                    - (1.0 - ti) * (y[i] - mu0) / (1.0 - e_pred);
+                if !psi.is_finite() || !mu1.is_finite() || !mu0.is_finite() || !e_pred.is_finite() {
+                    return Err(GreenersError::InvalidOperation(
+                        "DRLearner: nuisance predictions or score exceed numerical precision"
+                            .into(),
+                    ));
+                }
                 pseudo_outcomes[i] = psi;
             }
         }
 
         // Regress pseudo-outcomes on X for CATE model
-        let cate_beta = Self::ols_full(&pseudo_outcomes, x, n, k)?;
+        let cate_beta = Self::ols_subset(&pseudo_outcomes, x, &(0..n).collect::<Vec<_>>(), k)?;
 
         // Predict CATE for all observations
         let mut cate = Array1::zeros(n);
@@ -205,15 +241,24 @@ impl DRLearner {
         // ATE = mean of pseudo-outcomes
         let ate = pseudo_outcomes.mean().unwrap_or(0.0);
 
-        // SE: variance of pseudo-outcomes / n
-        let po_var = pseudo_outcomes.mapv(|v| (v - ate).powi(2)).sum() / n as f64;
-        let ate_se = (po_var / n as f64).sqrt();
+        // The stable norm preserves SE = sqrt(sum((score - ATE)^2)) / n
+        // without squaring deviations that can underflow or overflow.
+        let deviation_norm = pseudo_outcomes
+            .iter()
+            .fold(0.0_f64, |norm, &v| norm.hypot(v - ate));
+        let ate_se = deviation_norm / n as f64;
 
         let z = 1.959964;
         let ate_ci = [ate - z * ate_se, ate + z * ate_se];
 
-        let _ =
-            Normal::new(0.0, 1.0).map_err(|e| GreenersError::InvalidOperation(e.to_string()))?;
+        if !ate.is_finite()
+            || !ate_se.is_finite()
+            || cate.iter().chain(ate_ci.iter()).any(|v| !v.is_finite())
+        {
+            return Err(GreenersError::InvalidOperation(
+                "DRLearner: effect summaries exceed numerical precision".into(),
+            ));
+        }
 
         Ok(DrLearnerResult {
             cate,
@@ -246,31 +291,52 @@ impl DRLearner {
             }
             y_sub[i] = y[idx];
         }
-        let xt = x_full.t();
-        let xtx = xt.dot(&x_full);
-        let xtx_inv = (&xtx + Array2::<f64>::eye(k + 1) * 1e-8).inv()?;
-        let xty = xt.dot(&y_sub);
-        Ok(xtx_inv.dot(&xty))
-    }
-
-    fn ols_full(
-        y: &Array1<f64>,
-        x: &Array2<f64>,
-        n: usize,
-        k: usize,
-    ) -> Result<Array1<f64>, GreenersError> {
-        let mut x_full = Array2::zeros((n, k + 1));
-        for i in 0..n {
-            x_full[(i, 0)] = 1.0;
-            for j in 0..k {
-                x_full[(i, j + 1)] = x[(i, j)];
-            }
+        if n < k + 1 {
+            return Err(GreenersError::InvalidOperation(
+                "DRLearner: insufficient training-arm observations for the nuisance design".into(),
+            ));
         }
-        let xt = x_full.t();
-        let xtx = xt.dot(&x_full);
-        let xtx_inv = (&xtx + Array2::<f64>::eye(k + 1) * 1e-8).inv()?;
-        let xty = xt.dot(y);
-        Ok(xtx_inv.dot(&xty))
+        // Column scaling makes the rank decision insensitive to predictor units.
+        // Reject unidentified models instead of adding an undeclared ridge prior.
+        let scales: Vec<f64> = x_full
+            .columns()
+            .into_iter()
+            .map(|col| col.iter().fold(0.0_f64, |norm, &v| norm.hypot(v)))
+            .collect();
+        for (j, &scale) in scales.iter().enumerate() {
+            if !scale.is_finite() || scale <= 0.0 {
+                return Err(GreenersError::InvalidOperation(
+                    "DRLearner: nuisance design is rank deficient or non-finite".into(),
+                ));
+            }
+            x_full.column_mut(j).mapv_inplace(|v| v / scale);
+        }
+        let matrix = Mat::from_fn(n, k + 1, |i, j| x_full[(i, j)]);
+        let svd = Svd::new_thin(matrix.as_ref()).map_err(|_| GreenersError::OptimizationFailed)?;
+        let singular = svd.S().column_vector();
+        let tolerance = f64::EPSILON
+            * n.max(k + 1) as f64
+            * (0..k + 1).map(|j| singular[j]).fold(0.0, f64::max);
+        if (0..k + 1).any(|j| !singular[j].is_finite() || singular[j] <= tolerance) {
+            return Err(GreenersError::InvalidOperation(
+                "DRLearner: nuisance design is rank deficient".into(),
+            ));
+        }
+        let projected: Vec<f64> = (0..k + 1)
+            .map(|j| (0..n).map(|i| svd.U()[(i, j)] * y_sub[i]).sum::<f64>() / singular[j])
+            .collect();
+        let beta = Array1::from_shape_fn(k + 1, |i| {
+            (0..k + 1)
+                .map(|j| svd.V()[(i, j)] * projected[j])
+                .sum::<f64>()
+                / scales[i]
+        });
+        if beta.iter().any(|v| !v.is_finite()) {
+            return Err(GreenersError::InvalidOperation(
+                "DRLearner: non-finite nuisance coefficients".into(),
+            ));
+        }
+        Ok(beta)
     }
 
     fn predict_ols(beta: &Array1<f64>, x: &Array1<f64>, k: usize) -> f64 {
@@ -279,27 +345,5 @@ impl DRLearner {
             pred += beta[j + 1] * x[j];
         }
         pred
-    }
-
-    fn rand_int(n: usize) -> usize {
-        if n == 0 {
-            return 0;
-        }
-        (Self::rand_uniform() * n as f64) as usize
-    }
-
-    fn rand_uniform() -> f64 {
-        use std::cell::Cell;
-        thread_local! {
-            static STATE: Cell<u64> = const { Cell::new(2236067977) };
-        }
-        STATE.with(|s| {
-            let mut state = s.get();
-            state = state
-                .wrapping_mul(6364136223846793005)
-                .wrapping_add(1442695040888963407);
-            s.set(state);
-            ((state >> 11) as f64) / (1u64 << 53) as f64
-        })
     }
 }

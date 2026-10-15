@@ -140,14 +140,13 @@ impl FGLS {
         }
 
         // Run OLS on transformed data
-        let has_intercept =
-            (0..x.ncols()).any(|j| x.column(j).iter().all(|&val| (val - 1.0).abs() < 1e-12));
+        let intercept_index = crate::ols::constant_column(x);
         let ols = OLS::fit_internal(
             &y_transformed,
             &x_transformed,
             CovarianceType::NonRobust,
             None,
-            Some(has_intercept),
+            Some(intercept_index),
         )?;
 
         Ok(FglsResult {

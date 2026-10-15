@@ -20,6 +20,50 @@ y = X β + ε
 
 where `y` is `n×1`, `X` is `n×k` with full column rank `k`, `β` is `k×1`.
 
+### Fitted covariance and inference
+
+The implementation factorises the column-scaled design X_s=QR, so coefficients
+and covariance bread do not square the design condition number. The inverse
+design is S^-1 R^-1 Q', where S holds original column norms. HC1-HC4 covariance
+is a Gram matrix of inverse-design influence scores with the existing residual
+and leverage adjustments; its symmetry follows from that construction.
+Clustered covariance similarly uses sums of these influence scores within each
+group. Bartlett HAC is the Gram matrix of zero-padded width L+1 score sums divided
+by sqrt(L+1); a pair separated by lag h occurs in L+1-h windows, giving exactly
+the original weight 1-h/(L+1). Boundary windows are included, and repeated full
+windows are combined when L exceeds the sample length. Finite-sample corrections
+are unchanged. Two-way clustering subtracts the intersection-group covariance;
+intersection labels are pairs rather than overflow-prone integer encodings.
+
+Store the actual fitted covariance V in retained coefficient order. For an
+estimable contrast r, variance(r'beta)=r'Vr. The fitted-mean variance at x is x'Vx;
+this excludes future observation noise. For a nonlinear g, the delta variance is
+grad(g)'V grad(g). These identities use the robust or clustered V when fitted.
+
+For q independent restrictions R beta=c, Q=(R beta-c)'(R V R')^-1(R beta-c).
+Return Q/q, with an F(q,n-k) reference in Student-t mode and chi-square(q) at Q
+in Normal mode. Restriction singularity is an error rather than a hidden
+pseudoinverse. A singular full V can still support estimable scalar contrasts.
+Omnibus tests exclude the actual constant column; tests with no slope restrictions
+or singular restricted covariance are explicitly unavailable. A scalar zero-variance
+boundary uses the point-mass convention documented in README.
+Near-null quadratic cancellation is resolved through a pivoted PSD factor only
+when error-free product and sum checks certify that it reproduces the stored
+covariance. Otherwise propagation returns a precision error. Compensated factor
+projections preserve positive cancellation remainders or reject unresolved ones;
+no covariance eigenvalue is projected onto zero. Predictions reuse the prepared
+factor across rows.
+
+Numerical nonlinear gradients use coefficient-unit steps, Richardson convergence
+and local domain/smoothness checks. Rounded-flat evaluations along uncertain
+coordinates are unresolved for a black-box function, including a genuinely
+unused coordinate. Exact zero-covariance coordinates do not contribute delta
+variance and are not differentiated.
+
+`crates/greeners-ols/tests/fitted_covariance.rs` checks HC1/cluster/HAC agreement,
+correlated restrictions, weighted covariance, prediction variance, Normal inference,
+column units and invalid/degenerate boundaries.
+
 ### Objective
 
 Minimize the residual sum of squares:
@@ -1792,7 +1836,31 @@ See the implementation and test file `tests/bart_invariants.rs`.
 
 ### Specification
 
-See the implementation and test file `tests/bayesian_linear_invariants.rs`.
+For beta|sigma2 ~ N(beta0,sigma2*V0), sigma2 ~ IG(a0,b0), define
+P=V0^-1+X'X, Vn=P^-1 and beta_n=solve(P,V0^-1 beta0+X'y). Then
+a_n=a0+n/2 and b_n=b0+0.5*(||y-X beta_n||^2+
+(beta_n-beta0)'V0^-1(beta_n-beta0)). The residual/prior expression avoids
+cancellation between large response sums of squares.
+
+Marginal covariance is Vn*b_n/(a_n-1), whereas the coefficient Student-t scale
+is sqrt(Vn_jj*b_n/a_n), with df=2*a_n. P(beta_j>0)=F_t(beta_nj/scale_j).
+Log evidence is lgamma(a_n)-lgamma(a0)-n/2*log(2*pi)
++0.5*(log|Vn|-log|V0|)+a0*log(b0)-a_n*log(b_n).
+For numerical evaluation, whiten the prior using V0=L L' and stack its rows
+L^-1 with the likelihood design. The augmented intercept projection determines
+predictor centres, so prior strength participates in the coordinate choice.
+Apply the same unit-determinant transformation to the prior rows, preserving
+the declared prior. A column-scaled QR solves both the direct weighted mean
+equation and a prior-correction equation using the same factorisation. Choose
+prior-plus-correction means when the addition does not cancel; the direct mean
+retains a small response under a distant diffuse prior. Evaluate the prior
+quadratic from the solved correction, and likelihood residuals with compensated
+products/sums before fitted values are rounded. The triangular factor supplies
+covariance and posterior log determinants without forming X'X. Undefined
+moments, invalid priors and numerically unresolved directions produce errors.
+
+Independent conjugate references and numerical boundaries are checked in
+`crates/greeners-bayesian/tests/bayesian_linear_posterior_invariants.rs`.
 
 ### Invariants verified in `tests/bayesian_linear_invariants.rs`
 
@@ -1986,7 +2054,25 @@ See the implementation and test file `tests/double_ml_invariants.rs`.
 
 ### Specification
 
-See the implementation and test file `tests/dr_learner_invariants.rs`.
+Fit treatment-specific means mu0(X),mu1(X) and propensity e(X) on nuisance
+training folds, then evaluate held-out scores
+psi=mu1-mu0+D*(Y-mu1)/e-(1-D)*(Y-mu0)/(1-e). The ATE is mean(psi);
+regression of psi on X estimates the modelled CATE. Separate outcome-arm fits
+are necessary: substituting one pooled mean cancels its contribution.
+
+Point-estimate double robustness is distinct from standard-error robustness.
+The conventional sqrt(var(psi)/n) standard error requires both nuisances to be
+consistently estimated with suitable rates. Clipping does not prove population
+positivity and can invalidate the propensity-correct branch. Conditional
+exchangeability and consistency remain causal assumptions. See
+[Kennedy](https://arxiv.org/pdf/2004.14497) and
+[variance with working models](https://arxiv.org/abs/2404.16166).
+
+`crates/greeners-causal/tests/causal_remediation_invariants.rs` checks the
+finite-support target, repeatability, nuisance identification and invalid inputs.
+The statistical_qualification example reports bounded bias/coverage diagnostics
+for both-correct and one-correct nuisance specifications. No test establishes
+causal identification from observed data.
 
 ### Invariants verified in `tests/dr_learner_invariants.rs`
 
@@ -2025,6 +2111,14 @@ See the implementation and test file `tests/ets_invariants.rs`.
 ---
 
 ## Event Study
+
+
+Event coefficient inference is computed once through the OLS inference helper.
+Extract event coefficients, SEs, statistics and probabilities from that final
+result in event-column order, using survival probabilities for representable
+small tails. The event design, covariance corrections and degrees of freedom
+remain unchanged. The high-signal and ordinary-tail regressions include both
+response signs and HC1/nonrobust covariance.
 
 ### Specification
 
@@ -2839,7 +2933,21 @@ See the implementation and test file `tests/nonparametric_invariants.rs`.
 
 ### Specification
 
-See the implementation and test file `tests/rd_invariants.rs`.
+Fuzzy RD estimates tau=a/b, where a and b are outcome and treatment jumps.
+The gradient is (1/b,-a/b^2), so variance is
+(Var(a)+tau^2*Var(b)-2*tau*Cov(a,b))/b^2. Each disjoint side contributes its
+HC1 cross sandwich using sum(w_i^2*u_yi*u_di*x_i*x_i') and n_side/(n_side-p).
+
+Computing the sandwich with residual u_y-tau*u_d gives the same delta variance
+without cancellation of near-equal terms in proportional outcomes. Positive
+residual degrees of freedom, full local rank and a numerically resolved b are
+required. Conventional delta intervals remain vulnerable to weak identification
+and smoothing bias; identification-robust confidence sets are a distinct method.
+
+`crates/greeners-causal/tests/causal_remediation_invariants.rs` checks proportional
+outcomes, an independent joint sandwich reference, treatment-unit changes,
+invalid data and local identification boundaries. Sharp RD retains its ordinary
+WLS/HC1 specification; the shared numerical fitting and error boundaries change.
 
 ### Invariants verified in `tests/rd_invariants.rs`
 

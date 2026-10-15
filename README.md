@@ -356,6 +356,66 @@ families. For development commands and the verification checklist, see
 
 ---
 
+## Statistical inference contracts
+
+OLS retains the fitted full covariance in `OlsResult.covariance` and the retained
+constant-column position in `intercept_index`. Post-estimation uses that covariance
+for scalar, joint and nonlinear contrasts and uncertainty in fitted means. Joint
+tests report scaled Wald Q/q; Student-t inference uses F(q,n-k), and Normal
+inference uses chi-square(q) at Q. Clustered Student-t inference retains n-k
+degrees of freedom, which does not qualify inference with few clusters. An
+intercept-only or non-estimable omnibus test is unavailable. Explicit singular
+joint restrictions fail; a valid scalar contrast may use a singular full covariance.
+External struct literals must initialise both new fields from the fitted model.
+Event-study coefficient/error/statistic/probability arrays select from the final
+embedded OLS result, including representable small survival probabilities.
+Nearly null contrasts require resolved positive uncertainty or a certified exact
+PSD factor. Unresolved covariance cancellation returns a precision error instead
+of a fabricated zero standard error. Nonlinear numerical derivatives use
+coefficient-unit steps with convergence and domain checks. The native black-box
+`nlcom` API cannot distinguish a constant sampled coordinate from rounded-away
+variation, so it may reject functions that ignore an uncertain coefficient,
+including constant functions. Exactly deterministic coordinates need no derivative.
+
+Bayesian linear regression uses a proper Normal-Inverse-Gamma prior, inserts its
+own intercept, solves an augmented likelihood/prior system by column-scaled QR,
+and returns marginal coefficient covariance, central Student-t
+intervals, P(coefficient > 0) and conjugate log evidence. Prior dimensions, names,
+finite values and positive definiteness are checked. The existing restriction
+requiring more observations than predictors remains; undefined requested moments
+are errors. Numerically unresolved posterior directions are explicit precision
+errors. Predictor centring transforms the prior rows and preserves the declared
+prior; predictor-unit changes require an appropriately transformed prior.
+
+DR estimation cross-fits separate linear outcome models for each treatment arm
+and a linear propensity model, with propensity predictions clipped to [0.01,0.99].
+Its point estimate is doubly robust; its conventional score-based standard error
+requires both nuisance models to be consistently estimated with adequate rates.
+Clipping changes the estimating equation and can remove the propensity-correct
+robustness branch. It establishes neither population overlap nor exchangeability.
+Causal interpretation requires independent observations, binary treatment,
+consistency, conditional exchangeability and positive treatment probabilities.
+`outcome_reg` is the cross-fitted factual conditional mean. Folds use a fixed local
+seed, so previous estimator calls do not alter a fit.
+
+Fuzzy RD uses the joint sandwich covariance of outcome and treatment jumps through
+the complete ratio gradient. Numerically unresolved first stages are errors, and
+HC1 requires positive residual degrees of freedom on each side. Its conventional
+Wald interval does not resolve weak identification or smoothing bias. For a scalar
+point-mass boundary with zero standard error, the interval collapses: a zero null
+contrast has statistic 0 and p=1; a nonzero contrast has a limiting signed-infinite
+statistic and p=0. This boundary convention is separate from regular inference.
+
+The bounded diagnostic example runs four fixed-seed designs and reports failures
+as well as bias, RMSE and coverage with Monte Carlo uncertainty:
+
+```bash
+cargo run --locked --offline -p greeners-causal --example statistical_qualification
+```
+
+Its one-correct-nuisance designs diagnose DR interval coverage outside the stated
+inference contract; they do not certify it.
+
 ## Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.

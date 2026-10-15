@@ -1,5 +1,5 @@
+use faer::{linalg::solvers::Svd, Mat};
 use greeners_core::error::GreenersError;
-use greeners_core::linalg::LinalgInverse as _;
 use ndarray::{Array1, Array2};
 use statrs::distribution::{ContinuousCDF, Normal};
 use std::fmt;
@@ -186,20 +186,24 @@ impl RD {
             ));
         }
 
+        validate_configuration(n, cutoff, bandwidth, poly_order)?;
         let h = bandwidth.unwrap_or_else(|| Self::ik_bandwidth(y, x, cutoff, poly_order));
+        validate_configuration(n, cutoff, Some(h), poly_order)?;
 
-        let (beta_l, vcov_l, n_left) =
-            Self::side_fit(y, x, cutoff, h, poly_order, kernel, Side::Left)?;
-        let (beta_r, vcov_r, n_right) =
-            Self::side_fit(y, x, cutoff, h, poly_order, kernel, Side::Right)?;
-
-        let tau = beta_r[0] - beta_l[0];
-        let var_tau = (vcov_l[[0, 0]] + vcov_r[[0, 0]]).max(0.0);
-        let se = var_tau.sqrt();
-        let z = tau / se;
-        let norm = Normal::standard();
-        let p_value = 2.0 * (1.0 - norm.cdf(z.abs()));
+        let left = Self::side_fit(y, x, cutoff, h, poly_order, kernel, Side::Left)?;
+        let right = Self::side_fit(y, x, cutoff, h, poly_order, kernel, Side::Right)?;
+        let (n_left, n_right) = (left.n, right.n);
+        let tau = right.beta[0] - left.beta[0];
+        let se = (left.covariance[(0, 0)] + right.covariance[(0, 0)]).sqrt();
+        let (z, p_value) = scalar_inference(tau, se)?;
         let z95 = 1.959_963_985;
+        let ci_lower = tau - z95 * se;
+        let ci_upper = tau + z95 * se;
+        if !ci_lower.is_finite() || !ci_upper.is_finite() {
+            return Err(GreenersError::InvalidOperation(
+                "rd: confidence interval exceeds numerical precision".into(),
+            ));
+        }
         let (outcome_name, running_name) = variable_names
             .map(|(a, b)| (Some(a), Some(b)))
             .unwrap_or((None, None));
@@ -209,8 +213,8 @@ impl RD {
             se,
             z,
             p_value,
-            ci_lower: tau - z95 * se,
-            ci_upper: tau + z95 * se,
+            ci_lower,
+            ci_upper,
             bandwidth: h,
             n_left,
             n_right,
@@ -227,11 +231,14 @@ impl RD {
         })
     }
 
-    /// Fuzzy RD — local Wald estimator (LATE no cutoff).
+    /// Fuzzy RD local Wald ratio, with the joint HC1 delta-method covariance.
     ///
-    /// * `d` — real treatment received (binary or continuous at \[0,1\])
-    ///
-    /// τ̂_FRD = salto(Y) / salto(D)  (razão de dois RD sharps)
+    /// Treatment may be binary or continuous. A scale-aware numerical guard
+    /// rejects an unresolved first-stage jump; it does not diagnose instrument
+    /// strength. Conventional Wald intervals are not weak-identification-robust
+    /// and do not correct smoothing bias. With zero SE, a zero effect uses the
+    /// degenerate convention z=0, p=1; a nonzero effect has signed-infinite z,
+    /// p=0 and a collapsed interval.
     #[allow(clippy::too_many_arguments)]
     pub fn fit_fuzzy(
         y: &Array1<f64>,
@@ -259,43 +266,47 @@ impl RD {
             ));
         }
 
+        validate_configuration(n, cutoff, bandwidth, poly_order)?;
         let h = bandwidth.unwrap_or_else(|| Self::ik_bandwidth(y, x, cutoff, poly_order));
+        validate_configuration(n, cutoff, Some(h), poly_order)?;
 
-        //Reduced: Y ~ X (Y jump)
-        let (beta_yl, vcov_yl, n_left) =
-            Self::side_fit(y, x, cutoff, h, poly_order, kernel, Side::Left)?;
-        let (beta_yr, vcov_yr, _) =
-            Self::side_fit(y, x, cutoff, h, poly_order, kernel, Side::Right)?;
-
-        //First step: D ~ X (D jump)
-        let (beta_dl, vcov_dl, _) =
-            Self::side_fit(d, x, cutoff, h, poly_order, kernel, Side::Left)?;
-        let (beta_dr, vcov_dr, n_right) =
-            Self::side_fit(d, x, cutoff, h, poly_order, kernel, Side::Right)?;
-
-        let tau_y = beta_yr[0] - beta_yl[0];
-        let tau_d = beta_dr[0] - beta_dl[0];
-
-        if tau_d.abs() < 1e-10 {
+        let yl = Self::side_fit(y, x, cutoff, h, poly_order, kernel, Side::Left)?;
+        let yr = Self::side_fit(y, x, cutoff, h, poly_order, kernel, Side::Right)?;
+        let dl = Self::side_fit(d, x, cutoff, h, poly_order, kernel, Side::Left)?;
+        let dr = Self::side_fit(d, x, cutoff, h, poly_order, kernel, Side::Right)?;
+        let (n_left, n_right) = (yl.n, yr.n);
+        let tau_y = yr.beta[0] - yl.beta[0];
+        let tau_d = dr.beta[0] - dl.beta[0];
+        let stage_resolution = dl.intercept_error + dr.intercept_error;
+        if !tau_d.is_finite() || tau_d.abs() <= stage_resolution {
             return Err(GreenersError::InvalidOperation(
-                "fuzzy_rd: first-stage jump is practically zero (τ_D ≈ 0)".into(),
+                "fuzzy_rd: first-stage jump is unresolved at the precision of the local design"
+                    .into(),
             ));
         }
-
-        // τ̂_FRD = τ_Y / τ_D, delta method SE
         let tau = tau_y / tau_d;
-        let var_tau_y = (vcov_yl[[0, 0]] + vcov_yr[[0, 0]]).max(0.0);
-        let var_tau_d = (vcov_dl[[0, 0]] + vcov_dr[[0, 0]]).max(0.0);
-        let var_tau = (var_tau_y + tau * tau * var_tau_d) / (tau_d * tau_d);
-        let se = var_tau.max(0.0).sqrt();
-
-        let var_fs = var_tau_d;
-        let se_fs = var_fs.max(0.0).sqrt();
-
-        let z = tau / se;
-        let norm = Normal::standard();
-        let p_value = 2.0 * (1.0 - norm.cdf(z.abs()));
+        if !tau.is_finite() {
+            return Err(GreenersError::InvalidOperation(
+                "fuzzy_rd: effect ratio exceeds numerical precision".into(),
+            ));
+        }
+        // Linearity of WLS gives residual u_y - tau*u_d. Its sandwich is
+        // V_y + tau² V_d - 2*tau*Cov(y,d), including the shared-sample term,
+        // without subtracting nearly equal variances when Y is proportional to D.
+        let adjusted_y = y - &d.mapv(|v| tau * v);
+        let al = Self::side_fit(&adjusted_y, x, cutoff, h, poly_order, kernel, Side::Left)?;
+        let ar = Self::side_fit(&adjusted_y, x, cutoff, h, poly_order, kernel, Side::Right)?;
+        let se = (al.covariance[(0, 0)] + ar.covariance[(0, 0)]).sqrt() / tau_d.abs();
+        let se_fs = (dl.covariance[(0, 0)] + dr.covariance[(0, 0)]).sqrt();
+        let (z, p_value) = scalar_inference(tau, se)?;
         let z95 = 1.959_963_985;
+        let ci_lower = tau - z95 * se;
+        let ci_upper = tau + z95 * se;
+        if !ci_lower.is_finite() || !ci_upper.is_finite() {
+            return Err(GreenersError::InvalidOperation(
+                "rd: confidence interval exceeds numerical precision".into(),
+            ));
+        }
 
         let (outcome_name, running_name, treatment_name) = variable_names
             .map(|(a, b, c)| (Some(a), Some(b), Some(c)))
@@ -306,8 +317,8 @@ impl RD {
             se,
             z,
             p_value,
-            ci_lower: tau - z95 * se,
-            ci_upper: tau + z95 * se,
+            ci_lower,
+            ci_upper,
             bandwidth: h,
             n_left,
             n_right,
@@ -335,7 +346,7 @@ impl RD {
         poly_order: usize,
         kernel: RdKernel,
         side: Side,
-    ) -> Result<(Array1<f64>, Array2<f64>, usize), GreenersError> {
+    ) -> Result<LocalPolynomialFit, GreenersError> {
         let mut ys = Vec::new();
         let mut xs = Vec::new();
         let mut ws = Vec::new();
@@ -361,15 +372,14 @@ impl RD {
         let n = ys.len();
         let p = poly_order + 1;
 
-        if n < p {
+        if n <= p {
             return Err(GreenersError::ShapeMismatch(format!(
                 "rd: insufficient observations ({n}) for polynomial of order {poly_order} (side {})",
-                match side { Side::Left => "esquerdo", Side::Right => "direito" }
+                match side { Side::Left => "left", Side::Right => "right" }
             )));
         }
 
-        let (beta, vcov) = local_poly_wls(&ys, &xs, &ws, poly_order)?;
-        Ok((beta, vcov, n))
+        local_poly_wls(&ys, &xs, &ws, poly_order)
     }
 
     /// Automatic bandwidth selector — Imbens-Kalyanaraman (2012), revision ReStud.
@@ -420,7 +430,8 @@ impl RD {
             }
             // Uniform weights for pilot
             let ws = vec![1.0_f64; ys.len()];
-            let (beta, _) = local_poly_wls(&ys, &xs, &ws, q).ok()?;
+            let fit = local_poly_wls(&ys, &xs, &ws, q).ok()?;
+            let beta = fit.beta;
             let deriv_coeff = beta.get(q).copied()?; // coef em x^q
             let n_s = ys.len() as f64;
             let p_s = (q + 1) as f64;
@@ -469,58 +480,143 @@ enum Side {
     Right,
 }
 
-/// Polynomial local regression by WLS with SE HC1.
-///
-/// Retorna (β, V̂) onde β[0] = intercepto no cutoff e V̂[0,0] = variância de β[0].
+/// The same side-specific fit is used for outcomes, treatment and their contrast.
+struct LocalPolynomialFit {
+    beta: Array1<f64>,
+    covariance: Array2<f64>,
+    n: usize,
+    intercept_error: f64,
+}
+
+fn validate_configuration(
+    n: usize,
+    cutoff: f64,
+    bandwidth: Option<f64>,
+    order: usize,
+) -> Result<(), GreenersError> {
+    if !cutoff.is_finite() || bandwidth.is_some_and(|h| !h.is_finite() || h <= 0.0) {
+        return Err(GreenersError::InvalidOperation(
+            "rd: cutoff must be finite and bandwidth positive and finite".into(),
+        ));
+    }
+    if order >= n || i32::try_from(order).is_err() {
+        return Err(GreenersError::InvalidOperation(
+            "rd: polynomial order must be supported by the sample size".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn scalar_inference(effect: f64, se: f64) -> Result<(f64, f64), GreenersError> {
+    if !effect.is_finite() || !se.is_finite() || se < 0.0 {
+        return Err(GreenersError::InvalidOperation(
+            "rd: effect or uncertainty exceeds numerical precision".into(),
+        ));
+    }
+    let z = if se > 0.0 {
+        effect / se
+    } else if effect == 0.0 {
+        0.0
+    } else {
+        f64::INFINITY.copysign(effect)
+    };
+    Ok((z, 2.0 * Normal::standard().sf(z.abs())))
+}
+
+/// Local polynomial WLS with HC1. An SVD of the scaled weighted design avoids
+/// squaring its condition number and rejects unidentified local polynomials.
 fn local_poly_wls(
     y: &[f64],
     x_centered: &[f64],
     weights: &[f64],
     poly_order: usize,
-) -> Result<(Array1<f64>, Array2<f64>), GreenersError> {
+) -> Result<LocalPolynomialFit, GreenersError> {
     let n = y.len();
-    let p = poly_order + 1;
-
-    //X'WX and X'Wy
-    let mut xtwx = Array2::<f64>::zeros((p, p));
-    let mut xtwy = Array1::<f64>::zeros(p);
-
+    let p = poly_order
+        .checked_add(1)
+        .ok_or_else(|| GreenersError::InvalidOperation("rd: invalid polynomial order".into()))?;
+    if n <= p {
+        return Err(GreenersError::InvalidOperation(
+            "rd: HC1 requires more positive-weight observations than local coefficients".into(),
+        ));
+    }
+    let mut design = Array2::zeros((n, p));
     for i in 0..n {
-        let w = weights[i];
-        let xi: Vec<f64> = (0..p).map(|j| x_centered[i].powi(j as i32)).collect();
+        let mut power = 1.0;
         for j in 0..p {
-            for k in 0..p {
-                xtwx[[j, k]] += w * xi[j] * xi[k];
-            }
-            xtwy[j] += w * xi[j] * y[i];
+            design[(i, j)] = power * weights[i].sqrt();
+            power *= x_centered[i];
         }
     }
-
-    let xtwx_inv = xtwx.inv()?;
-    let beta = xtwx_inv.dot(&xtwy);
-
-    //Waste
-    let resid: Vec<f64> = (0..n)
-        .map(|i| {
-            let y_hat: f64 = (0..p).map(|j| beta[j] * x_centered[i].powi(j as i32)).sum();
-            y[i] - y_hat
-        })
+    if design.iter().chain(y.iter()).any(|v| !v.is_finite()) {
+        return Err(GreenersError::InvalidOperation(
+            "rd: local design or response is non-finite".into(),
+        ));
+    }
+    let scales: Vec<f64> = design
+        .columns()
+        .into_iter()
+        .map(|col| col.iter().fold(0.0_f64, |norm, &v| norm.hypot(v)))
         .collect();
-
-    // HC1 meat: Σ w²ᵢ ûᵢ² xᵢxᵢ' * n/(n-p)
-    let scale = n as f64 / (n.saturating_sub(p)) as f64;
-    let mut meat = Array2::<f64>::zeros((p, p));
-    for i in 0..n {
-        let w = weights[i];
-        let e = resid[i];
-        let xi: Vec<f64> = (0..p).map(|j| x_centered[i].powi(j as i32)).collect();
-        for j in 0..p {
-            for k in 0..p {
-                meat[[j, k]] += scale * w * w * e * e * xi[j] * xi[k];
-            }
-        }
+    if scales.iter().any(|&v| !v.is_finite() || v <= 0.0) {
+        return Err(GreenersError::InvalidOperation(
+            "rd: local design is rank deficient".into(),
+        ));
     }
-
-    let vcov = xtwx_inv.dot(&meat).dot(&xtwx_inv);
-    Ok((beta, vcov))
+    let matrix = Mat::from_fn(n, p, |i, j| design[(i, j)] / scales[j]);
+    let svd = Svd::new_thin(matrix.as_ref()).map_err(|_| GreenersError::OptimizationFailed)?;
+    let singular = svd.S().column_vector();
+    let largest = (0..p).map(|j| singular[j]).fold(0.0, f64::max);
+    let smallest = (0..p).map(|j| singular[j]).fold(f64::INFINITY, f64::min);
+    if !largest.is_finite()
+        || !smallest.is_finite()
+        || smallest <= f64::EPSILON * n as f64 * largest
+    {
+        return Err(GreenersError::InvalidOperation(
+            "rd: local design is rank deficient".into(),
+        ));
+    }
+    // Pseudoinverse entries below are used only after verifying full column rank.
+    let inverse_design = Array2::from_shape_fn((p, n), |(j, i)| {
+        (0..p)
+            .map(|k| svd.V()[(j, k)] * svd.U()[(i, k)] / singular[k])
+            .sum::<f64>()
+            / scales[j]
+    });
+    let weighted_y = Array1::from_shape_fn(n, |i| y[i] * weights[i].sqrt());
+    let beta = inverse_design.dot(&weighted_y);
+    let residuals: Vec<f64> = (0..n)
+        .map(|i| y[i] - design.row(i).dot(&beta) / weights[i].sqrt())
+        .collect();
+    // Each score contribution is sqrt(w_i)*e_i times a column of the weighted
+    // design pseudoinverse, yielding the ordinary w_i² HC1 meat.
+    let correction = n as f64 / (n - p) as f64;
+    let scores = Array2::from_shape_fn((p, n), |(j, i)| {
+        inverse_design[(j, i)] * weights[i].sqrt() * residuals[i]
+    });
+    let covariance = scores.dot(&scores.t()) * correction;
+    if (0..p).any(|j| covariance[(j, j)] == 0.0 && scores.row(j).iter().any(|&v| v != 0.0)) {
+        return Err(GreenersError::InvalidOperation(
+            "rd: local covariance underflows numerical precision".into(),
+        ));
+    }
+    let absolute_intercept_sum: f64 = (0..n)
+        .map(|i| (inverse_design[(0, i)] * weighted_y[i]).abs())
+        .sum();
+    // Backward-error budget for the SVD solve and intercept dot product. It
+    // scales with treatment units and the actual scaled-design condition number.
+    let intercept_error =
+        8.0 * f64::EPSILON * n as f64 * p as f64 * (largest / smallest) * absolute_intercept_sum;
+    if beta.iter().chain(covariance.iter()).any(|v| !v.is_finite()) || !intercept_error.is_finite()
+    {
+        return Err(GreenersError::InvalidOperation(
+            "rd: local fit exceeds numerical precision".into(),
+        ));
+    }
+    Ok(LocalPolynomialFit {
+        beta,
+        covariance,
+        n,
+        intercept_error,
+    })
 }

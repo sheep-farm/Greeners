@@ -7,9 +7,8 @@
 use crate::ols::OlsResult;
 use greeners_core::error::GreenersError;
 use greeners_core::linalg::LinalgInverse as _;
-use greeners_core::CovarianceType;
+use greeners_core::{CovarianceType, InferenceType};
 use ndarray::{Array1, Array2};
-use statrs::distribution::{ContinuousCDF, StudentsT};
 use std::fmt;
 
 /// Result of an event study estimation.
@@ -188,22 +187,22 @@ impl EventStudy {
         };
 
         let std_errors = cov.diag().mapv(|v| v.sqrt());
-        let t_values = &beta / &std_errors;
-        let t_dist = StudentsT::new(0.0, 1.0, df_resid as f64)
-            .map_err(|e| GreenersError::InvalidOperation(e.to_string()))?;
-        let p_values = t_values.mapv(|t| 2.0 * (1.0 - t_dist.cdf(t.abs())));
-
-        // Extract event dummy coefficients
-        let mut event_coefs = Vec::new();
-        let mut event_se = Vec::new();
-        let mut event_t = Vec::new();
-        let mut event_p = Vec::new();
-        for &col in &event_col_indices {
-            event_coefs.push(beta[col]);
-            event_se.push(std_errors[col]);
-            event_t.push(t_values[col]);
-            event_p.push(p_values[col]);
-        }
+        let t_values = Array1::from_shape_fn(k, |i| {
+            if std_errors[i] > 0.0 {
+                beta[i] / std_errors[i]
+            } else if beta[i].abs() > 0.0 {
+                beta[i].signum() * f64::INFINITY
+            } else {
+                0.0
+            }
+        });
+        let (p_values, conf_lower, conf_upper) = OlsResult::compute_inference(
+            &t_values,
+            &std_errors,
+            &beta,
+            df_resid,
+            &InferenceType::StudentT,
+        )?;
 
         let r_squared = {
             let y_mean = y.mean().unwrap_or(0.0);
@@ -216,13 +215,14 @@ impl EventStudy {
             }
         };
 
-        let ols = OlsResult {
+        let mut ols = OlsResult {
             params: beta,
+            covariance: cov,
             std_errors,
             t_values,
             p_values,
-            conf_lower: Array1::zeros(k),
-            conf_upper: Array1::zeros(k),
+            conf_lower,
+            conf_upper,
             r_squared,
             adj_r_squared: 1.0 - (1.0 - r_squared) * (n - 1) as f64 / df_resid.max(1) as f64,
             f_statistic: 0.0,
@@ -235,17 +235,23 @@ impl EventStudy {
             df_model: k - 1,
             sigma: sigma2.sqrt(),
             cov_type,
-            inference_type: greeners_core::types::InferenceType::StudentT,
+            inference_type: InferenceType::StudentT,
             variable_names: None,
             omitted_vars: Vec::new(),
+            intercept_index: crate::ols::constant_column(&x),
             x_clean: None,
         };
 
+        ols.refresh_omnibus()?;
+        let event_stats = |values: &Array1<f64>| {
+            Array1::from_iter(event_col_indices.iter().map(|&column| values[column]))
+        };
+
         Ok(EventStudyResult {
-            event_coefs: Array1::from(event_coefs),
-            event_se: Array1::from(event_se),
-            event_t: Array1::from(event_t),
-            event_p: Array1::from(event_p),
+            event_coefs: event_stats(&ols.params),
+            event_se: event_stats(&ols.std_errors),
+            event_t: event_stats(&ols.t_values),
+            event_p: event_stats(&ols.p_values),
             event_times,
             reference,
             ols,

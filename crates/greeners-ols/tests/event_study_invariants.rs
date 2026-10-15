@@ -108,3 +108,59 @@ fn event_study_input_validation() {
     )
     .is_err());
 }
+
+fn assert_event_inference_matches_ols(result: &greeners_ols::event_study::EventStudyResult) {
+    assert_eq!(result.event_times.len(), result.event_col_indices.len());
+    for (event, &column) in result.event_col_indices.iter().enumerate() {
+        assert_eq!(result.event_coefs[event], result.ols.params[column]);
+        assert_eq!(result.event_se[event], result.ols.std_errors[column]);
+        assert_eq!(result.event_t[event], result.ols.t_values[column]);
+        assert_eq!(result.event_p[event], result.ols.p_values[column]);
+    }
+}
+
+#[test]
+fn event_study_preserves_representable_tails_in_both_inference_tables() {
+    // Independent pre-commit counterexample: each event group has 20 observations
+    // and alternating +/-0.01 residuals. Student-t tails are subnormal but nonzero.
+    let n = 60;
+    let events: Vec<_> = (0..n).map(|i| (i % 3) as i64 - 1).collect();
+    let controls = Array2::zeros((n, 0));
+    for covariance in [CovarianceType::HC1, CovarianceType::NonRobust] {
+        for sign in [-1.0, 1.0] {
+            let y = Array1::from_shape_fn(n, |i| {
+                sign * (if events[i] < 0 { 0.0 } else { 1e4 }
+                    + if i % 2 == 0 { 0.01 } else { -0.01 })
+            });
+            let result =
+                EventStudy::fit(&y, &events, &controls, -1, -1, 1, covariance.clone()).unwrap();
+            for (&probability, &statistic) in result.event_p.iter().zip(result.event_t.iter()) {
+                assert!(probability.is_finite() && probability > 0.0);
+                assert!(probability < f64::MIN_POSITIVE, "{probability:e}");
+                assert!(statistic * sign > 0.0);
+            }
+            assert_event_inference_matches_ols(&result);
+        }
+    }
+}
+
+#[test]
+fn event_study_ordinary_tails_and_column_order_match_final_ols() {
+    let n = 60;
+    let events: Vec<_> = (0..n).map(|i| (i % 3) as i64 - 1).collect();
+    let controls = Array2::zeros((n, 0));
+    for covariance in [CovarianceType::HC1, CovarianceType::NonRobust] {
+        for sign in [-1.0, 1.0] {
+            let y = Array1::from_shape_fn(n, |i| {
+                sign * (if events[i] < 0 { 0.0 } else { 0.005 }
+                    + if i % 2 == 0 { 0.01 } else { -0.01 })
+            });
+            let result =
+                EventStudy::fit(&y, &events, &controls, -1, -1, 1, covariance.clone()).unwrap();
+            assert_eq!(result.event_times, vec![0, 1]);
+            assert_eq!(result.event_col_indices, vec![1, 2]);
+            assert!(result.event_p.iter().all(|&p| p > 0.05 && p < 0.5));
+            assert_event_inference_matches_ols(&result);
+        }
+    }
+}
