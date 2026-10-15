@@ -2327,6 +2327,32 @@ See the implementation and test file `tests/ms_var_invariants.rs`.
 
 ---
 
+## STL
+
+`Decomposition::stl` uses extended seasonal subseries, valid period-period-3
+moving averages and degree-1/jump-1 regular-grid local smoothing. Low-pass
+window equals effective trend; two inner iterations precede one robust refit.
+Robust scale is six times the median absolute residual, including the mean of
+the central two values for even n. Zero scale resets weights; positive tiny
+scales are not rounded to zero. These are numerical regression checks, not a
+proof of equivalence to all STL implementations.
+
+- `crates/greeners-timeseries/tests/stl_invariants.rs`: full AirPassengers and
+  four predeclared synthetic vectors against statsmodels 0.14.6, atol=1e-8,
+  rtol=0, reconstruction=1e-12; input identity/order, endpoint/length preservation,
+  model label, window normalisation, analytic zero/constant/linear controls,
+  invalid inputs and finite-or-error extreme arithmetic. The historical
+  AirPassengers tolerance was selected after exploration, not changed here.
+- `decomposition::stl_tests`: exact moving-average support/coefficients,
+  n+2p -> n+p+1 -> n+2 -> n support and offset p, constant/linear seasonal
+  extrapolation including unequal phases, zero-support fallbacks, odd/even
+  medians, cutoff inclusivity, zero-scale reset, tiny positive scale and definite
+  overflow errors. Analytic bounds are 1e-12; structural counts are exact.
+- Pinned generator, input/configuration provenance and frozen offline CSVs:
+  `crates/greeners-timeseries/tests/fixtures/stl/`. Source/licence attribution:
+  `crates/greeners-timeseries/THIRD_PARTY_NOTICES.md`. R robust agreement remains
+  unresolved and is not a second passing reference.
+
 ## MSTL
 
 ### Specification

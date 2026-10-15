@@ -181,7 +181,22 @@ impl Decomposition {
         })
     }
 
-    /// STL decomposition (Seasonal and Trend decomposition using LOESS).
+    /// Robust STL decomposition, with local-linear smoothers and no skipping.
+    ///
+    /// Runs two inner iterations, then one robustness-weighted refit (two more
+    /// inner iterations). The low-pass window equals the effective trend window,
+    /// not the statsmodels default. Seasonal windows are raised to at least 7;
+    /// seasonal and trend windows are rounded up to odd. A zero trend window
+    /// selects the next odd >= ceil(1.5 * period / (1 - 1.5 / seasonal_window)).
+    ///
+    /// Rejects non-finite inputs, fewer than two periods, effective trend windows
+    /// <= period, dimensions/spans above i32::MAX, and non-finite arithmetic.
+    /// Finite inputs over the full f64 range are not guaranteed to succeed.
+    /// Robust residuals use abs(y - (trend + seasonal)); returned residuals
+    /// retain the expression y - trend - seasonal.
+    ///
+    /// Adapted from statsmodels 0.14.6 `_stl.pyx`, (c) 2019 Kevin Sheppard,
+    /// NCSA/BSD-3 Clause, based on NETLIB STL. See THIRD_PARTY_NOTICES.md.
     ///
     /// * `series` — the time series
     /// * `period` — seasonal period
@@ -194,13 +209,25 @@ impl Decomposition {
         trend_window: usize,
     ) -> Result<DecompositionResult, GreenersError> {
         let n = series.len();
-        if n < 2 * period {
+        if period < 2 || period > n / 2 {
             return Err(GreenersError::ShapeMismatch(
-                "Series too short for STL".into(),
+                "STL requires period >= 2 and at least two complete periods".into(),
             ));
         }
-        if period < 2 {
-            return Err(GreenersError::ShapeMismatch("Period must be >= 2".into()));
+        // Bound dimensions before arithmetic, indexing or allocation. Spans
+        // need not fit the series, but must fit the reference's integer domain.
+        let extended_len = period.checked_mul(2).and_then(|p| n.checked_add(p));
+        if extended_len.is_none_or(|len| {
+            len > i32::MAX as usize || len > isize::MAX as usize / std::mem::size_of::<f64>()
+        }) || seasonal_window > i32::MAX as usize
+            || trend_window > i32::MAX as usize
+        {
+            return Err(GreenersError::ShapeMismatch(
+                "STL dimensions or windows too large".into(),
+            ));
+        }
+        for &value in series {
+            stl_finite(value)?;
         }
 
         let s_win = if seasonal_window < 7 {
@@ -215,81 +242,57 @@ impl Decomposition {
         } else {
             trend_window | 1
         };
+        if t_win <= period || t_win > i32::MAX as usize {
+            return Err(GreenersError::ShapeMismatch(
+                "STL effective trend window must exceed period and fit i32".into(),
+            ));
+        }
 
-        let mut seasonal = Array1::<f64>::zeros(n);
-        let mut trend = Array1::<f64>::zeros(n);
-        let mut weights = Array1::from_elem(n, 1.0f64);
+        let mut seasonal = vec![0.0; n];
+        let mut trend = vec![0.0; n];
+        let mut weights = vec![1.0; n];
 
-        // Outer robustness loop (2 iterations)
-        for _outer in 0..2 {
-            // Inner loop (2 iterations)
-            for _inner in 0..2 {
-                // Step 1: Detrend
-                let detrended = series - &trend;
-
-                // Step 2: Cycle-subseries smoothing
-                // For each position in the period, extract subseries and smooth with LOESS
-                let mut seasonal_raw = Array1::<f64>::zeros(n);
-                for p in 0..period {
-                    let indices: Vec<usize> = (p..n).step_by(period).collect();
-                    let sub_x: Vec<f64> = indices.iter().map(|&i| i as f64).collect();
-                    let sub_y: Vec<f64> = indices.iter().map(|&i| detrended[i]).collect();
-                    let sub_w: Vec<f64> = indices.iter().map(|&i| weights[i]).collect();
-
-                    let smoothed = loess(&sub_x, &sub_y, &sub_w, &sub_x, s_win);
-
-                    for (j, &idx) in indices.iter().enumerate() {
-                        seasonal_raw[idx] = smoothed[j];
-                    }
-                }
-
-                // Step 3: Low-pass filter on seasonal to remove trend leakage
-                // Apply MA(period), MA(period), MA(3), then LOESS
-                let lp = moving_average(
-                    &moving_average(&moving_average(&seasonal_raw, period), period),
-                    3,
-                );
-                // Smooth the low-pass with LOESS
-                let lp_x: Vec<f64> = (0..n).map(|i| i as f64).collect();
-                let lp_y: Vec<f64> = lp.iter().copied().collect();
-                let lp_w: Vec<f64> = lp
-                    .iter()
-                    .map(|v| if v.is_finite() { 1.0 } else { 0.0 })
-                    .collect();
-                let lp_smooth = loess(&lp_x, &lp_y, &lp_w, &lp_x, t_win);
-
-                seasonal = &seasonal_raw - &Array1::from_vec(lp_smooth);
-
-                // Step 4: Deseason and smooth trend
-                let deseasoned = series - &seasonal;
-                let ds_x: Vec<f64> = (0..n).map(|i| i as f64).collect();
-                let ds_y: Vec<f64> = deseasoned.iter().copied().collect();
-                let ds_w: Vec<f64> = weights.iter().copied().collect();
-                trend = Array1::from_vec(loess(&ds_x, &ds_y, &ds_w, &ds_x, t_win));
-            }
-
-            // Outer loop: update robustness weights
-            let residual = series - &trend - &seasonal;
-            let abs_resid: Vec<f64> = residual.iter().map(|v| v.abs()).collect();
-            let mut sorted = abs_resid.clone();
-            sorted.sort_by(|a, b| a.total_cmp(b));
-            let h = sorted[sorted.len() * 6 / 10]; // ~median * 6
-
-            if h > 1e-15 {
+        for outer in 0..2 {
+            let robustness = if outer == 0 {
+                None
+            } else {
+                Some(weights.as_slice())
+            };
+            for _ in 0..2 {
+                let detrended: Vec<f64> = (0..n)
+                    .map(|i| stl_finite(series[i] - trend[i]))
+                    .collect::<Result<_, _>>()?;
+                let extended = stl_extend(&detrended, period, s_win, robustness)?;
+                let first = stl_moving_average(&extended, period)?;
+                let second = stl_moving_average(&first, period)?;
+                let low_pass = stl_moving_average(&second, 3)?;
+                let low_pass = stl_smooth(&low_pass, t_win, None)?;
+                let mut deseasoned = vec![0.0; n];
                 for i in 0..n {
-                    let u = abs_resid[i] / (6.0 * h);
-                    weights[i] = if u >= 1.0 { 0.0 } else { (1.0 - u * u).powi(2) };
+                    seasonal[i] = stl_finite(extended[period + i] - low_pass[i])?;
+                    deseasoned[i] = stl_finite(series[i] - seasonal[i])?;
                 }
+                trend = stl_smooth(&deseasoned, t_win, robustness)?;
+            }
+            if outer == 0 {
+                let absolute_residuals: Vec<f64> = (0..n)
+                    .map(|i| {
+                        stl_finite(series[i] - stl_finite(trend[i] + seasonal[i])?).map(f64::abs)
+                    })
+                    .collect::<Result<_, _>>()?;
+                stl_bisquare(&absolute_residuals, &mut weights)?;
             }
         }
 
-        let residual = series - &trend - &seasonal;
+        let residual: Vec<f64> = (0..n)
+            .map(|i| stl_finite(stl_finite(series[i] - trend[i])? - seasonal[i]))
+            .collect::<Result<_, _>>()?;
 
         Ok(DecompositionResult {
             observed: series.clone(),
-            trend,
-            seasonal,
-            residual,
+            trend: Array1::from_vec(trend),
+            seasonal: Array1::from_vec(seasonal),
+            residual: Array1::from_vec(residual),
             model: "STL".to_string(),
         })
     }
@@ -319,87 +322,290 @@ fn centered_ma(series: &Array1<f64>, window: usize) -> Array1<f64> {
     result
 }
 
-/// Simple moving average (non-centered, for internal use).
-fn moving_average(series: &Array1<f64>, window: usize) -> Array1<f64> {
-    let n = series.len();
-    let mut result = Array1::from_elem(n, f64::NAN);
-    let half = window / 2;
+// STL helpers adapted from statsmodels 0.14.6 _stl.pyx, (c) 2019 Kevin
+// Sheppard, NCSA/BSD-3 Clause; based on NETLIB STL. Full notice in this crate's
+// THIRD_PARTY_NOTICES.md. Restricted to degree 1 / jump 1; arithmetic errors
+// are explicit instead of sharing the reference's NaN no-support sentinel.
+fn stl_finite(value: f64) -> Result<f64, GreenersError> {
+    if value.is_finite() {
+        Ok(value)
+    } else {
+        Err(GreenersError::InvalidOperation(
+            "STL encountered non-finite input or arithmetic".into(),
+        ))
+    }
+}
 
-    for i in half..n.saturating_sub(half + if window % 2 == 0 { 1 } else { 0 }) {
-        let start = i.saturating_sub(half);
-        let end = (i + half + 1).min(n);
-        let vals: Vec<f64> = (start..end)
-            .map(|j| series[j])
-            .filter(|v| v.is_finite())
-            .collect();
-        if !vals.is_empty() {
-            result[i] = vals.iter().sum::<f64>() / vals.len() as f64;
+fn stl_moving_average(y: &[f64], window: usize) -> Result<Vec<f64>, GreenersError> {
+    let mut sum = 0.0;
+    for &v in &y[..window] {
+        sum = stl_finite(sum + v)?;
+    }
+    let mut result = Vec::with_capacity(y.len() - window + 1);
+    result.push(sum / window as f64);
+    for i in window..y.len() {
+        sum = stl_finite(sum + stl_finite(y[i] - y[i - window])?)?;
+        result.push(sum / window as f64);
+    }
+    Ok(result)
+}
+
+// xs uses the reference's 1-based regular grid; bounds are a Rust half-open
+// range. None means genuine zero support, not a failed arithmetic operation.
+fn stl_estimate(
+    y: &[f64],
+    span: usize,
+    xs: f64,
+    bounds: std::ops::Range<usize>,
+    robustness: Option<&[f64]>,
+) -> Result<Option<f64>, GreenersError> {
+    let mut h = (xs - (bounds.start + 1) as f64).max(bounds.end as f64 - xs);
+    if span > y.len() {
+        h += ((span - y.len()) / 2) as f64;
+    }
+    let mut w = Vec::with_capacity(bounds.len());
+    let mut total = 0.0;
+    for j in bounds.clone() {
+        stl_finite(y[j])?;
+        let r = ((j + 1) as f64 - xs).abs();
+        let mut weight = if r > 0.999 * h {
+            0.0
+        } else if r <= 0.001 * h {
+            1.0
+        } else {
+            (1.0 - (r / h).powi(3)).powi(3)
+        };
+        if let Some(rw) = robustness {
+            weight = stl_finite(weight * rw[j])?;
+        }
+        total = stl_finite(total + weight)?;
+        w.push(weight);
+    }
+    if total <= 0.0 {
+        return Ok(None);
+    }
+    for weight in &mut w {
+        *weight /= total;
+    }
+    if h > 0.0 {
+        let mut mean = 0.0;
+        for (j, &weight) in bounds.clone().zip(&w) {
+            mean += weight * (j + 1) as f64;
+        }
+        let mut variance = 0.0;
+        for (j, &weight) in bounds.clone().zip(&w) {
+            variance += weight * ((j + 1) as f64 - mean).powi(2);
+        }
+        stl_finite(variance)?;
+        if variance.sqrt() > 0.001 * (y.len() - 1) as f64 {
+            let slope = (xs - mean) / variance;
+            for (j, weight) in bounds.clone().zip(&mut w) {
+                *weight = stl_finite(*weight * (slope * ((j + 1) as f64 - mean) + 1.0))?;
+            }
+        }
+    }
+    let mut estimate = 0.0;
+    for (j, weight) in bounds.zip(w) {
+        estimate = stl_finite(estimate + weight * y[j])?;
+    }
+    Ok(Some(estimate))
+}
+
+fn stl_smooth(
+    y: &[f64],
+    span: usize,
+    robustness: Option<&[f64]>,
+) -> Result<Vec<f64>, GreenersError> {
+    let n = y.len();
+    let width = span.min(n);
+    (0..n)
+        .map(|i| {
+            let left = if span >= n {
+                0
+            } else {
+                i.saturating_sub(span / 2).min(n - width)
+            };
+            Ok(
+                stl_estimate(y, span, (i + 1) as f64, left..left + width, robustness)?
+                    .unwrap_or(y[i]),
+            )
+        })
+        .collect()
+}
+
+fn stl_extend(
+    y: &[f64],
+    period: usize,
+    span: usize,
+    robustness: Option<&[f64]>,
+) -> Result<Vec<f64>, GreenersError> {
+    let mut extended = vec![0.0; y.len() + 2 * period];
+    for phase in 0..period {
+        let sub: Vec<f64> = (phase..y.len()).step_by(period).map(|i| y[i]).collect();
+        let rw: Option<Vec<f64>> = robustness.map(|weights| {
+            (phase..y.len())
+                .step_by(period)
+                .map(|i| weights[i])
+                .collect()
+        });
+        let smoothed = stl_smooth(&sub, span, rw.as_deref())?;
+        let k = sub.len();
+        let left =
+            stl_estimate(&sub, span, 0.0, 0..span.min(k), rw.as_deref())?.unwrap_or(smoothed[0]);
+        let right = stl_estimate(
+            &sub,
+            span,
+            (k + 1) as f64,
+            k.saturating_sub(span)..k,
+            rw.as_deref(),
+        )?
+        .unwrap_or(smoothed[k - 1]);
+        extended[phase] = left;
+        for (j, &value) in smoothed.iter().enumerate() {
+            extended[(j + 1) * period + phase] = value;
+        }
+        extended[(k + 1) * period + phase] = right;
+    }
+    Ok(extended)
+}
+
+fn stl_bisquare(residuals: &[f64], weights: &mut [f64]) -> Result<(), GreenersError> {
+    for &r in residuals {
+        stl_finite(r)?;
+    }
+    let mut sorted = residuals.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let mid = sorted.len() / 2;
+    let scale = stl_finite(3.0 * stl_finite(sorted[mid] + sorted[sorted.len() - mid - 1])?)?;
+    if scale == 0.0 {
+        weights.fill(1.0);
+        return Ok(());
+    }
+    for (&r, w) in residuals.iter().zip(weights) {
+        *w = if r <= 0.001 * scale {
+            1.0
+        } else if r <= 0.999 * scale {
+            (1.0 - (r / scale).powi(2)).powi(2)
+        } else {
+            0.0
+        };
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod stl_tests {
+    use super::*;
+
+    fn close(a: f64, b: f64) {
+        assert!(a.is_finite() && (a - b).abs() <= 1e-12, "{a} != {b}");
+    }
+
+    #[test]
+    fn stl_valid_ma_support_and_coefficients() {
+        for window in [3, 12] {
+            let n = 20;
+            for impulse in 0..n {
+                let mut y = vec![0.0; n];
+                y[impulse] = 1.0;
+                let result = stl_moving_average(&y, window).unwrap();
+                assert_eq!(result.len(), n - window + 1);
+                for (i, &value) in result.iter().enumerate() {
+                    close(
+                        value,
+                        if (i..i + window).contains(&impulse) {
+                            1.0 / window as f64
+                        } else {
+                            0.0
+                        },
+                    );
+                }
+            }
         }
     }
 
-    result
-}
-
-/// Weighted local regression (LOESS) helper.
-///
-/// Fits a local linear regression at each point in `x_pred` using
-/// the nearest `span` points from `(x, y)` with weights `w`.
-fn loess(x: &[f64], y: &[f64], w: &[f64], x_pred: &[f64], span: usize) -> Vec<f64> {
-    let n = x.len();
-    let h = span.min(n);
-
-    x_pred
-        .iter()
-        .map(|&xp| {
-            // Find distances and sort
-            let mut dists: Vec<(usize, f64)> = (0..n).map(|i| (i, (x[i] - xp).abs())).collect();
-            dists.sort_by(|a, b| a.1.total_cmp(&b.1));
-
-            let max_dist = dists[h - 1].1.max(1e-15);
-
-            // Tricube kernel weights
-            let mut sum_w = 0.0;
-            let mut sum_wx = 0.0;
-            let mut sum_wy = 0.0;
-            let mut sum_wxx = 0.0;
-            let mut sum_wxy = 0.0;
-
-            for &(i, d) in dists.iter().take(h) {
-                if !y[i].is_finite() || w[i] <= 0.0 {
-                    continue;
+    #[test]
+    fn stl_extended_cascade_alignment_and_extrapolation() {
+        for (n, p) in [(48, 12), (53, 7)] {
+            for slope in [0.0, 0.03125] {
+                let y: Vec<f64> = (0..n).map(|i| 2.0 + slope * i as f64).collect();
+                let extended = stl_extend(&y, p, 7, None).unwrap();
+                assert_eq!(extended.len(), n + 2 * p);
+                for (i, &v) in extended.iter().enumerate() {
+                    close(v, 2.0 + slope * (i as f64 - p as f64));
                 }
-                let u = d / max_dist;
-                let kernel = if u < 1.0 {
-                    (1.0 - u.powi(3)).powi(3)
-                } else {
-                    0.0
-                };
-                let wi = kernel * w[i];
-                let xi = x[i] - xp;
-
-                sum_w += wi;
-                sum_wx += wi * xi;
-                sum_wy += wi * y[i];
-                sum_wxx += wi * xi * xi;
-                sum_wxy += wi * xi * y[i];
+                for i in 0..n {
+                    close(extended[p + i], y[i]);
+                }
+                let first = stl_moving_average(&extended, p).unwrap();
+                assert_eq!(first.len(), n + p + 1);
+                let second = stl_moving_average(&first, p).unwrap();
+                assert_eq!(second.len(), n + 2);
+                let third = stl_moving_average(&second, 3).unwrap();
+                assert_eq!(third.len(), n);
+                for i in 0..n {
+                    close(third[i], y[i]);
+                }
             }
+        }
+    }
 
-            if sum_w < 1e-15 {
-                let valid: Vec<f64> = y.iter().copied().filter(|v| v.is_finite()).collect();
-                return if valid.is_empty() {
-                    0.0
-                } else {
-                    valid.iter().sum::<f64>() / valid.len() as f64
-                };
-            }
+    #[test]
+    fn stl_zero_support_uses_observation_and_adjacent_endpoint() {
+        let y = [2.0, 5.0, 11.0, 17.0, 23.0, 31.0];
+        let w = [0.0; 6];
+        assert_eq!(stl_smooth(&y, 7, Some(&w)).unwrap(), y);
+        let extended = stl_extend(&y, 2, 7, Some(&w)).unwrap();
+        assert_eq!(
+            extended,
+            [2.0, 5.0, 2.0, 5.0, 11.0, 17.0, 23.0, 31.0, 23.0, 31.0]
+        );
+    }
 
-            // Local linear fit: y = a + b*(x - xp)
-            let det = sum_w * sum_wxx - sum_wx * sum_wx;
-            if det.abs() < 1e-15 {
-                sum_wy / sum_w
-            } else {
-                (sum_wxx * sum_wy - sum_wx * sum_wxy) / det
+    #[test]
+    fn stl_bisquare_exact_medians_reset_and_tiny_scale() {
+        for r in [vec![1.0, 2.0, 3.0, 4.0, 100.0], vec![1.0, 2.0, 4.0, 100.0]] {
+            let mut w = vec![0.25; r.len()];
+            stl_bisquare(&r, &mut w).unwrap();
+            for i in 0..r.len() {
+                close(
+                    w[i],
+                    if r[i] > 0.999 * 18.0 {
+                        0.0
+                    } else {
+                        (1.0 - (r[i] / 18.0).powi(2)).powi(2)
+                    },
+                );
             }
-        })
-        .collect()
+            let small: Vec<f64> = r.iter().map(|x| x * 1e-100).collect();
+            let mut small_w = vec![0.1; r.len()];
+            stl_bisquare(&small, &mut small_w).unwrap();
+            for i in 0..r.len() {
+                close(small_w[i], w[i]);
+            }
+        }
+        for r in [vec![0.0; 5], vec![0.0, 0.0, 0.0, 1.0, 100.0]] {
+            let mut w = vec![0.0, 0.2, 0.5, 0.7, 0.9];
+            stl_bisquare(&r, &mut w).unwrap();
+            assert_eq!(w, vec![1.0; 5]);
+        }
+        let r = [0.006, 1.0, 1.0, 0.999 * 6.0, 6.0];
+        let mut w = [0.0; 5];
+        stl_bisquare(&r, &mut w).unwrap();
+        assert_eq!(w[0], 1.0);
+        assert!(w[3] > 0.0);
+        close(w[3], (1.0_f64 - 0.999_f64.powi(2)).powi(2));
+        assert_eq!(w[4], 0.0);
+    }
+
+    #[test]
+    fn stl_helpers_reject_nonfinite_arithmetic() {
+        assert!(matches!(
+            stl_bisquare(&[1e308; 5], &mut [0.5; 5]),
+            Err(GreenersError::InvalidOperation(_))
+        ));
+        assert!(stl_bisquare(&[f64::NAN; 5], &mut [0.5; 5]).is_err());
+        assert!(stl_moving_average(&[1e308; 5], 3).is_err());
+        assert!(stl_smooth(&[f64::INFINITY, 1.0], 7, Some(&[0.0, 0.0])).is_err());
+    }
 }

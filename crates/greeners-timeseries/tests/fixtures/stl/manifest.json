@@ -1,0 +1,145 @@
+{
+  "airpassengers_count_sha256": "8c999fa9d67e1dff475b9d0d82996f06cc5b7a2598ab359814fbb1c2f4644afd",
+  "airpassengers_origin": "R datasets::AirPassengers, monthly airline passengers 1949-1960; counts retained from Hayashi validation/cases/stl_airpassengers/data/data.csv",
+  "cases": [
+    {
+      "csv_sha256": "aae0cd7ef03163015db6f02cd97b3da0d1c7725c5b0390360f36ed2f9a46053b",
+      "downweighted_count": 111,
+      "inner_iter": 2,
+      "minimum_refit_weight": 0.0036054629974110507,
+      "n": 144,
+      "name": "airpassengers",
+      "outer_iter": 1,
+      "outliers": {},
+      "settings": {
+        "low_pass": 23,
+        "low_pass_deg": 1,
+        "low_pass_jump": 1,
+        "period": 12,
+        "robust": true,
+        "seasonal": 7,
+        "seasonal_deg": 1,
+        "seasonal_jump": 1,
+        "trend": 23,
+        "trend_deg": 1,
+        "trend_jump": 1
+      }
+    },
+    {
+      "csv_sha256": "e741caaf45d7129430eaf5dec39021763b8c58162c8a3c6972af2a396c29a0e0",
+      "downweighted_count": 69,
+      "inner_iter": 2,
+      "minimum_refit_weight": 0.0,
+      "n": 96,
+      "name": "outliers_even",
+      "outer_iter": 1,
+      "outliers": {
+        "47": 2.5,
+        "79": -1.75
+      },
+      "settings": {
+        "low_pass": 23,
+        "low_pass_deg": 1,
+        "low_pass_jump": 1,
+        "period": 12,
+        "robust": true,
+        "seasonal": 7,
+        "seasonal_deg": 1,
+        "seasonal_jump": 1,
+        "trend": 23,
+        "trend_deg": 1,
+        "trend_jump": 1
+      }
+    },
+    {
+      "csv_sha256": "8e363edf4bd12707a8bfa9d40b9814f251ca920914344f3d36262731687b00dc",
+      "downweighted_count": 41,
+      "inner_iter": 2,
+      "minimum_refit_weight": 0.0,
+      "n": 53,
+      "name": "unequal_odd",
+      "outer_iter": 1,
+      "outliers": {
+        "17": 1.2
+      },
+      "settings": {
+        "low_pass": 15,
+        "low_pass_deg": 1,
+        "low_pass_jump": 1,
+        "period": 7,
+        "robust": true,
+        "seasonal": 9,
+        "seasonal_deg": 1,
+        "seasonal_jump": 1,
+        "trend": 15,
+        "trend_deg": 1,
+        "trend_jump": 1
+      }
+    },
+    {
+      "csv_sha256": "0ca072a5bcc56ea719d9259b39a80d7677897675b70fa8dea45ec5a837f0762d",
+      "downweighted_count": 0,
+      "inner_iter": 2,
+      "minimum_refit_weight": 1.0,
+      "n": 8,
+      "name": "shortest",
+      "outer_iter": 1,
+      "outliers": {
+        "3": 0.4
+      },
+      "settings": {
+        "low_pass": 9,
+        "low_pass_deg": 1,
+        "low_pass_jump": 1,
+        "period": 4,
+        "robust": true,
+        "seasonal": 7,
+        "seasonal_deg": 1,
+        "seasonal_jump": 1,
+        "trend": 9,
+        "trend_deg": 1,
+        "trend_jump": 1
+      }
+    },
+    {
+      "csv_sha256": "955b25288f346e0b85f7b0c8a0da59a1dc2bbc334a047078752470f9c8b4b4fa",
+      "downweighted_count": 23,
+      "inner_iter": 2,
+      "minimum_refit_weight": 0.0,
+      "n": 29,
+      "name": "wide_spans",
+      "outer_iter": 1,
+      "outliers": {
+        "12": -0.8
+      },
+      "settings": {
+        "low_pass": 41,
+        "low_pass_deg": 1,
+        "low_pass_jump": 1,
+        "period": 5,
+        "robust": true,
+        "seasonal": 31,
+        "seasonal_deg": 1,
+        "seasonal_jump": 1,
+        "trend": 41,
+        "trend_deg": 1,
+        "trend_jump": 1
+      }
+    }
+  ],
+  "component_atol": 1e-08,
+  "component_rtol": 0,
+  "environment": {
+    "numpy": "2.4.6",
+    "platform": "Linux-6.12.10-76061203-generic-x86_64-with-glibc2.35",
+    "python": "3.12.11",
+    "reference_binary_sha256": "f535faed3c235ab3847fa342ecbd6ce7ce8a4a46ce34920eeb4c905baba72626",
+    "scipy": "1.17.1"
+  },
+  "licence_sha256": "1ca78e1dec9dcebc55f3b96a862317f23e76422c5fc943568d955aad1f6b5fad",
+  "reconstruction_atol": 1e-12,
+  "reference": "statsmodels 0.14.6",
+  "source_sha256": "9b24f6fc0aff80bae0b93712853cc1499b99c5c0722be84c387ad0c3b4088c15",
+  "source_url": "https://github.com/statsmodels/statsmodels/blob/v0.14.6/statsmodels/tsa/stl/_stl.pyx",
+  "synthetic_formula": "2+0.02*i+0.0003*i*i+0.3*sin(2*pi*i/p)+0.08*cos(4*pi*i/p)+0.03*sin(0.73*i)"
+}
