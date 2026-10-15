@@ -32,3 +32,7 @@ criterion = { workspace = true }
 
 [features]
 experimental = []
+
+[[example]]
+name = "fmols_qualification"
+required-features = ["experimental"]

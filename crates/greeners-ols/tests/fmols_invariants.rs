@@ -8,16 +8,15 @@ fn make_rng(seed: u64) -> StdRng {
     StdRng::seed_from_u64(seed)
 }
 
-fn random_walk_x(t: usize, k: usize, seed: u64) -> Array2<f64> {
-    let mut rng = make_rng(seed);
+fn random_walk_x(t: usize, k: usize, rng: &mut StdRng) -> Array2<f64> {
     let mut x = Array2::zeros((t, k));
     for j in 0..k {
-        let v: f64 = StandardNormal.sample(&mut rng);
+        let v: f64 = StandardNormal.sample(rng);
         x[(0, j)] = v;
     }
     for i in 1..t {
         for j in 0..k {
-            let inc: f64 = StandardNormal.sample(&mut rng);
+            let inc: f64 = StandardNormal.sample(rng);
             x[(i, j)] = x[(i - 1, j)] + inc;
         }
     }
@@ -26,7 +25,7 @@ fn random_walk_x(t: usize, k: usize, seed: u64) -> Array2<f64> {
 
 fn make_fmols_data(t: usize, k: usize, seed: u64) -> (Array1<f64>, Array2<f64>) {
     let mut rng = make_rng(seed);
-    let x = random_walk_x(t, k, seed);
+    let x = random_walk_x(t, k, &mut rng);
     let mut y = Array1::zeros(t);
     let beta: Vec<f64> = (0..k)
         .map(|_| {
@@ -36,7 +35,7 @@ fn make_fmols_data(t: usize, k: usize, seed: u64) -> (Array1<f64>, Array2<f64>) 
         .collect();
     for i in 0..t {
         let e: f64 = StandardNormal.sample(&mut rng);
-        y[i] = 0.2 * (i as f64) + x.row(i).dot(&Array1::from_vec(beta.clone())) + e;
+        y[i] = 0.25 + x.row(i).dot(&Array1::from_vec(beta.clone())) + e;
     }
     (y, x)
 }
@@ -46,7 +45,7 @@ fn make_fmols_data(t: usize, k: usize, seed: u64) -> (Array1<f64>, Array2<f64>) 
 fn test_fmols_shape_and_finite() {
     let (y, x) = make_fmols_data(50, 2, 11001);
     let r = FMOLS::fit(&y, &x, None).unwrap();
-    assert_eq!(r.n_obs, y.len());
+    assert_eq!(r.n_obs, y.len() - 1);
     assert_eq!(r.n_regressors, x.ncols());
     assert_eq!(r.beta.len(), x.ncols());
     assert!(r.beta.iter().all(|v| v.is_finite()));
@@ -68,7 +67,7 @@ fn test_fmols_input_validation() {
     assert!(FMOLS::fit(&y_small, &x_small, None).is_err());
 }
 
-/// Coefficient signs and magnitudes are stable across two random seeds.
+/// Independent cointegrating streams both yield resolved inference.
 #[test]
 fn test_fmols_stability() {
     let (y1, x1) = make_fmols_data(80, 2, 11003);

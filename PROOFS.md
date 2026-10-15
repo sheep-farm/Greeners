@@ -2067,15 +2067,60 @@ See the implementation and test file `tests/favar_invariants.rs`.
 
 ## FMOLS
 
+Calculation agreement and interval calibration are separate. The prespecified
+actual-Rust study (500 replications per design, seeds 2026101401 through
+2026101404) had no failures and matched arch on all 2,000 coefficients/SEs.
+For endogenous AR errors, nominal 95% slope coverage was 90.0% at N=300
+(Wilson 95% interval 87.06% to 92.33%) and 91.8% at N=1,000 (89.06% to 93.90%).
+Both intervals exclude nominal 95%; general coverage is not qualified.
+`fmols_simulation.py` records the DGP, burn-in, seeds, failures and Monte Carlo
+uncertainty separately from lightweight invariants.
+
 ### Specification
 
-See the implementation and test file `tests/fmols_invariants.rs`.
+For cointegrating `y=alpha+x beta+u`, initial OLS uses all N rows. Align
+`eta=(u[1:],diff(x))`, n=N-1, with Bartlett weights
+`w_l=1-l/(B+1)` and B=`max(1,floor(4*(N/100)^(2/9)))`.
+`Gamma_l=sum eta_t eta_(t-l)'/n` uses current rows and past columns.
+`Lambda=Gamma_0+sum w_l Gamma_l` and
+`Omega=Gamma_0+sum w_l*(Gamma_l+Gamma_l')`; no HAC demeaning/df adjustment.
+Set `c=Omega_ux Omega_xx^-1`, `y_plus=y[1:]-diff(x)c'`,
+`q=(0,(Lambda_ux-c Lambda_xx)')` and `Z=(1,x[1:])`.
+The estimator is `(Z'Z)^-1*(Z'y_plus-n*q)` and its covariance is
+`(Omega_uu-Omega_ux Omega_xx^-1 Omega_xu)*(Z'Z)^-1`.
+The implementation uses equivalent rank-checked QR solves without forming
+normal equations or adding a ridge. Centring/scaling is restored through the
+full coefficient transformation, including intercept uncertainty.
 
-### Invariants verified in `tests/fmols_invariants.rs`
+Zero-padded sums `H_h=sum eta_t/sqrt(n*(B+1))` for
+`max(0,h-B)<=t<=min(h,n-1)`, h=0..n+B-1, satisfy `H'H=Omega`.
+QR regresses H_u on H_x; the squared residual norm computes conditional
+variance directly. Scaled-R singular values must exceed
+`64*EPS*max(rows,cols)*largest_sv`. Initial and conditional residual norms
+must exceed `64*EPS*rows*(original_norm+fitted_norm)`. These precision rules
+reject unresolved inference; they do not change the statistical model.
+Normal survival probabilities preserve representable tails; the legacy
+`beta_t` name contains z statistics. R-squared is initial all-N OLS R-squared.
 
-1. FMOLS returns finite coefficients and expected shapes.
-1. FMOLS rejects shape mismatches and too few observations.
-1. Coefficient signs and magnitudes are stable across two random seeds.
+### Checked contracts and evidence
+
+- `tests/fmols_invariants.rs`: finite shapes, n=N-1, input dimensions/sample
+  bounds and independent stationary-error cointegrating streams (StdRng seeds
+  11001..11004; one sequential stream per fixture, no omitted trend).
+- `tests/fmols_reference.rs`: four native arch 8.0.0 scalar/multivariate
+  coefficient/SE/Omega fixtures, cointReg 0.2.0 convention evidence and
+  independent Normal probabilities; shifts/units/permutations, intercept/name
+  positions, non-finite/constant/rank/extreme-domain rejection and tiny tails.
+- Source unit tests: boundary Bartlett Gram identity, asymmetric one-sided lag
+  orientation and score-rank/conditional-residual precision failure.
+
+arch uses n as the bias multiplier; R uses N. Matched R coefficients are
+`theta_arch-(Z'Z)^-1*q`, whereas matched standard errors agree directly.
+The generator records each native output and convention reconciliation;
+R's Student-t probabilities do not qualify Normal inference. Tolerances on
+ordinary-scale coefficients/SE/Omega are absolute 1e-10 plus relative 1e-9.
+These deterministic checks do not test cointegration or certify general
+coverage, causal identification or numerical availability on every design.
 
 ---
 

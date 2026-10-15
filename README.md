@@ -55,6 +55,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ---
 
+## FMOLS inference
+
+Experimental `FMOLS` fits a cointegrating time-series regression with an
+intercept. It uses the Phillips-Hansen one-sided bias correction, an N-1 final
+sample and conditional Bartlett long-run uncertainty with Normal inference.
+Rank-deficient or numerically unresolved fits return errors rather than hidden
+ridge estimates. Numerical outputs intentionally change from the old estimator;
+see the [OLS crate contract](crates/greeners-ols/README.md#fmols-contract-experimental).
+Reference agreement does not establish general coverage or cointegration.
+
 ## Installation
 
 ```toml

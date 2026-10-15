@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- FMOLS applies the one-sided Phillips-Hansen bias correction to rows 2..N,
+  uses the conditional long-run variance and reports actual Normal probabilities
+  for the intercept and slopes, retaining representable small tails. Centred,
+  scaled QR and boundary-inclusive Bartlett scores replace normal equations,
+  hidden ridge terms and subtractive conditional-variance arithmetic. Rank or
+  unresolved precision failures return explicit errors.
+  The estimator remains experimental: matched reference calculations do not
+  establish nominal interval calibration; endogenous AR diagnostics show
+  undercoverage at N=300 and N=1,000.
+
+### Changed
+
+- FMOLS keeps its public fields/signature but intentionally changes numerical
+  results and reports `n_obs=N-1`; R-squared retains its initial all-N OLS meaning.
+  Only an exact unit column supplies an explicit intercept. Malformed names,
+  extra constants and deficient designs are rejected. Native arch and R fixtures
+  qualify matched finite-sample conventions, not general coverage.
+
 ## [2.0.0] - 2026-08-19
 
 ### Changed
